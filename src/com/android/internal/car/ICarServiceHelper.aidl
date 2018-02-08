@@ -21,4 +21,5 @@ package com.android.internal.car;
  * @hide
  */
 interface ICarServiceHelper {
+    int forceSuspend(int timeoutMs);
 }

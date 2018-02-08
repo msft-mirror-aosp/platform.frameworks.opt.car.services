@@ -38,6 +38,7 @@ public class CarServiceHelperService extends SystemService {
     private static final String TAG = "CarServiceHelper";
     private static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
+    private final Context mContext;
     private IBinder mCarService;
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
 
@@ -68,6 +69,7 @@ public class CarServiceHelperService extends SystemService {
 
     public CarServiceHelperService(Context context) {
         super(context);
+        mContext = context;
     }
 
     @Override
@@ -79,13 +81,32 @@ public class CarServiceHelperService extends SystemService {
                 UserHandle.SYSTEM)) {
             Slog.wtf(TAG, "cannot start car service");
         }
+        System.loadLibrary("car-framework-service-jni");
     }
 
     private void handleCarServiceCrash() {
         //TODO define recovery bahavior
     }
 
+    private static native int nativeForceSuspend(int timeoutMs);
+
     private class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
-        //TODO
+       /**
+         * Force device to suspend
+         *
+         * @param timeoutMs
+         */
+        @Override // Binder call
+        public int forceSuspend(int timeoutMs) {
+            int retVal;
+            mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER, null);
+            final long ident = Binder.clearCallingIdentity();
+            try {
+                retVal = nativeForceSuspend(timeoutMs);
+            } finally {
+                Binder.restoreCallingIdentity(ident);
+            }
+            return retVal;
+        }
     }
 }
