@@ -37,6 +37,7 @@ import com.android.internal.car.ICarServiceHelper;
 public class CarServiceHelperService extends SystemService {
     private static final String TAG = "CarServiceHelper";
     private static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
+    private static final String ICAR_BINDER_NAME = "car_service";
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
     private final Context mContext;
     private IBinder mCarService;
@@ -59,6 +60,8 @@ public class CarServiceHelperService extends SystemService {
                 Slog.w(TAG, "RemoteException from car service", e);
                 handleCarServiceCrash();
             }
+            // Publish the binder interface so CarPowrManagerNative can access CarService
+            publishBinderService(ICAR_BINDER_NAME, iBinder);
         }
 
         @Override
