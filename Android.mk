@@ -1,16 +1,18 @@
 LOCAL_PATH := $(call my-dir)
-
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := $(call all-java-files-under, src) \
-    src/com/android/internal/car/ICarServiceHelper.aidl \
+    src/com/android/internal/car/ICarServiceHelper.aidl
 
 LOCAL_JNI_SHARED_LIBRARIES := libcar-framework-service-jni
 LOCAL_REQUIRED_MODULES := libcar-framework-service-jni
 
-LOCAL_JAVA_LIBRARIES := services
+LOCAL_JAVA_LIBRARIES += services \
+    android.car
 
 LOCAL_MODULE := car-frameworks-service
+
+LOCAL_PACKAGE_NAME := CarFrameworkService
 
 include $(BUILD_JAVA_LIBRARY)
 
