@@ -76,7 +76,7 @@ public class CarHelperServiceTest {
         doReturn(new ArrayList<>()).when(mCarUserManagerHelper).getAllUsers();
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper).createNewAdminUser(CarServiceHelperService.OWNER_NAME);
+        verify(mCarUserManagerHelper).createNewAdminUser(CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
         verify(mCarUserManagerHelper).switchToUser(admin);
     }
 
@@ -103,11 +103,11 @@ public class CarHelperServiceTest {
 
         int adminUserId = 10;
         UserInfo admin =
-            new UserInfo(adminUserId, CarServiceHelperService.OWNER_NAME, UserInfo.FLAG_ADMIN);
+            new UserInfo(adminUserId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
 
         int secUserId = 11;
         UserInfo secUser =
-            new UserInfo(secUserId, CarServiceHelperService.OWNER_NAME, UserInfo.FLAG_ADMIN);
+            new UserInfo(secUserId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
 
         users.add(admin);
         users.add(secUser);
@@ -122,9 +122,9 @@ public class CarHelperServiceTest {
 
     private UserInfo mockAdmin(int adminId) {
         UserInfo admin =
-                new UserInfo(adminId, CarServiceHelperService.OWNER_NAME, UserInfo.FLAG_ADMIN);
+                new UserInfo(adminId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
         doReturn(admin).when(mCarUserManagerHelper)
-                .createNewAdminUser(CarServiceHelperService.OWNER_NAME);
+                .createNewAdminUser(CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
         return admin;
     }
 }
