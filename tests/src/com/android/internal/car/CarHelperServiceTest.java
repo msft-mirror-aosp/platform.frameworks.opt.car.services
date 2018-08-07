@@ -74,7 +74,7 @@ public class CarHelperServiceTest {
         UserInfo admin = mockAdmin(/* adminId= */ 10);
 
         doReturn(new ArrayList<>()).when(mCarUserManagerHelper).getAllUsers();
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verify(mCarUserManagerHelper).createNewAdminUser(CarServiceHelperService.OWNER_NAME);
         verify(mCarUserManagerHelper).switchToUser(admin);
@@ -88,7 +88,7 @@ public class CarHelperServiceTest {
     public void testUpdateLastActiveUserOnFirstRun() {
         UserInfo admin = mockAdmin(/* adminId= */ 10);
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verify(mCarUserManagerHelper)
             .setLastActiveUser(admin.id, /* skipGlobalSetting= */ false);
@@ -115,7 +115,7 @@ public class CarHelperServiceTest {
         doReturn(users).when(mCarUserManagerHelper).getAllUsers();
         doReturn(secUserId).when(mCarUserManagerHelper).getInitialUser();
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verify(mCarUserManagerHelper).switchToUserId(secUserId);
     }
