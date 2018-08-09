@@ -83,8 +83,9 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onBootPhase(int phase) {
+        // We are starting up another user before PHASE_BOOT_COMPLETE. Services should
+        // still check for User 0's boot complete intent.
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
-            Log.d(TAG, "onBootPhase: third_party_apps_can_start.");
             if (mCarUserManagerHelper.getAllUsers().size() == 0) {
                 // On very first boot, create an admin user and switch to that user.
                 UserInfo admin = mCarUserManagerHelper.createNewAdminUser(OWNER_NAME);
