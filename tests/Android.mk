@@ -21,7 +21,7 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 LOCAL_PROGUARD_ENABLED := disabled
 
 LOCAL_JAVA_LIBRARIES += \
-    android.car \
+    android.car.user \
     android.test.runner \
     android.test.base \
     services
