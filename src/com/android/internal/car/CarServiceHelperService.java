@@ -40,8 +40,6 @@ import com.android.internal.car.ICarServiceHelper;
  */
 public class CarServiceHelperService extends SystemService {
     // Place holder for user name of the first user created.
-    @VisibleForTesting
-    static final String OWNER_NAME = "Driver";
     private static final String TAG = "CarServiceHelper";
     private static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
@@ -88,7 +86,8 @@ public class CarServiceHelperService extends SystemService {
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             if (mCarUserManagerHelper.getAllUsers().size() == 0) {
                 // On very first boot, create an admin user and switch to that user.
-                UserInfo admin = mCarUserManagerHelper.createNewAdminUser(OWNER_NAME);
+                UserInfo admin = mCarUserManagerHelper.createNewAdminUser(
+                        CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
                 mCarUserManagerHelper.switchToUser(admin);
                 mCarUserManagerHelper.setLastActiveUser(
                     admin.id, /* skipGlobalSettings= */ false);
