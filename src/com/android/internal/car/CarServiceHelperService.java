@@ -16,6 +16,7 @@
 
 package com.android.internal.car;
 
+import android.app.admin.DevicePolicyManager;
 import android.car.user.CarUserManagerHelper;
 import android.content.ComponentName;
 import android.content.Context;
@@ -27,12 +28,11 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.UserHandle;
-import android.util.Log;
 import android.util.Slog;
 
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.server.SystemService;
 import com.android.internal.car.ICarServiceHelper;
+import com.android.server.SystemService;
 
 /**
  * System service side companion service for CarService.
@@ -84,13 +84,19 @@ public class CarServiceHelperService extends SystemService {
         // We are starting up another user before PHASE_BOOT_COMPLETE. Services should
         // still check for User 0's boot complete intent.
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
+            DevicePolicyManager devicePolicyManager =
+                    mContext.getSystemService(DevicePolicyManager.class);
+            if (devicePolicyManager != null && devicePolicyManager.getUserProvisioningState()
+                    != DevicePolicyManager.STATE_USER_UNMANAGED) {
+                return;
+            }
             if (mCarUserManagerHelper.getAllUsers().size() == 0) {
                 // On very first boot, create an admin user and switch to that user.
                 UserInfo admin = mCarUserManagerHelper.createNewAdminUser(
                         CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
                 mCarUserManagerHelper.switchToUser(admin);
                 mCarUserManagerHelper.setLastActiveUser(
-                    admin.id, /* skipGlobalSettings= */ false);
+                        admin.id, /* skipGlobalSettings= */ false);
             } else {
                 mCarUserManagerHelper.switchToUserId(mCarUserManagerHelper.getInitialUser());
             }
@@ -121,10 +127,8 @@ public class CarServiceHelperService extends SystemService {
     private static native int nativeForceSuspend(int timeoutMs);
 
     private class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
-       /**
+        /**
          * Force device to suspend
-         *
-         * @param timeoutMs
          */
         @Override // Binder call
         public int forceSuspend(int timeoutMs) {
