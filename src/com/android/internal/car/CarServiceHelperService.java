@@ -29,7 +29,6 @@ import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.UserHandle;
 import android.util.Slog;
-
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ICarServiceHelper;
 import com.android.server.SystemService;
@@ -94,7 +93,7 @@ public class CarServiceHelperService extends SystemService {
                 // On very first boot, create an admin user and switch to that user.
                 UserInfo admin = mCarUserManagerHelper.createNewAdminUser(
                         CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
-                mCarUserManagerHelper.switchToUser(admin);
+                mCarUserManagerHelper.switchToUserId(admin.id);
                 mCarUserManagerHelper.setLastActiveUser(
                         admin.id, /* skipGlobalSettings= */ false);
             } else {

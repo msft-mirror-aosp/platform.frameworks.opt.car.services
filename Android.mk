@@ -8,7 +8,7 @@ LOCAL_JNI_SHARED_LIBRARIES := libcar-framework-service-jni
 LOCAL_REQUIRED_MODULES := libcar-framework-service-jni
 
 LOCAL_JAVA_LIBRARIES += services \
-    android.car
+    android.car.user
 
 LOCAL_MODULE := car-frameworks-service
 
