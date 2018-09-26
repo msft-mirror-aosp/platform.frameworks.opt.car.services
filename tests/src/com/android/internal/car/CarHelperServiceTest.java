@@ -19,7 +19,7 @@ package com.android.internal.car;
 import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.verify;
 
-import android.car.user.CarUserManagerHelper;
+import android.car.userlib.CarUserManagerHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.support.test.runner.AndroidJUnit4;

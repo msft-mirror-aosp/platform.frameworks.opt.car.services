@@ -17,7 +17,7 @@
 package com.android.internal.car;
 
 import android.app.admin.DevicePolicyManager;
-import android.car.user.CarUserManagerHelper;
+import android.car.userlib.CarUserManagerHelper;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;

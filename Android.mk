@@ -9,7 +9,9 @@ LOCAL_REQUIRED_MODULES := libcar-framework-service-jni
 
 LOCAL_JAVA_LIBRARIES += \
     services \
-    android.car \
+    android.car
+
+LOCAL_STATIC_JAVA_LIBRARIES += \
     android.car.user
 
 LOCAL_MODULE := car-frameworks-service
