@@ -21,17 +21,16 @@ LOCAL_MODULE_PATH := $(TARGET_OUT_DATA_APPS)
 LOCAL_PROGUARD_ENABLED := disabled
 
 LOCAL_JAVA_LIBRARIES += \
-    android.car \
-    android.car.user \
     android.test.runner \
     android.test.base \
     services
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    junit \
     android-support-test \
+    android.car.userlib \
+    junit \
     mockito-target-minus-junit4 \
-    truth-prebuilt \
-    services
+    services \
+    truth-prebuilt
 
 include $(BUILD_PACKAGE)
