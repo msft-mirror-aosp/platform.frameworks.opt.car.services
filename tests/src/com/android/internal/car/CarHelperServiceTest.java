@@ -90,8 +90,7 @@ public class CarHelperServiceTest {
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper)
-            .setLastActiveUser(admin.id, /* skipGlobalSetting= */ false);
+        verify(mCarUserManagerHelper).setLastActiveUser(admin.id);
     }
 
     /**

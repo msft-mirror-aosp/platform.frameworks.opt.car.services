@@ -94,8 +94,7 @@ public class CarServiceHelperService extends SystemService {
                 UserInfo admin = mCarUserManagerHelper.createNewAdminUser(
                         CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
                 mCarUserManagerHelper.switchToUserId(admin.id);
-                mCarUserManagerHelper.setLastActiveUser(
-                        admin.id, /* skipGlobalSettings= */ false);
+                mCarUserManagerHelper.setLastActiveUser(admin.id);
             } else {
                 mCarUserManagerHelper.switchToUserId(mCarUserManagerHelper.getInitialUser());
             }
