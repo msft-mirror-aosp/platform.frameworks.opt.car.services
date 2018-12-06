@@ -43,6 +43,7 @@ import org.mockito.MockitoAnnotations;
  */
 @RunWith(AndroidJUnit4.class)
 public class CarHelperServiceTest {
+    private static final String DEFAULT_NAME = "Driver";
     private CarServiceHelperService mCarServiceHelperService;
     @Mock
     private Context mMockContext;
@@ -61,8 +62,7 @@ public class CarHelperServiceTest {
         MockitoAnnotations.initMocks(this);
         doReturn(mApplicationContext).when(mMockContext).getApplicationContext();
 
-        mCarServiceHelperService = new CarServiceHelperService(mMockContext);
-        mCarServiceHelperService.setCarUserManagerHelper(mCarUserManagerHelper);
+        mCarServiceHelperService = new CarServiceHelperService(mMockContext, mCarUserManagerHelper);
     }
 
     /**
@@ -71,13 +71,13 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testStartsSecondaryAdminUserOnFirstRun() {
-        UserInfo admin = mockAdmin(/* adminId= */ 10);
+        UserInfo admin = mockAdminWithDefaultName(/* adminId= */ 10);
 
         doReturn(new ArrayList<>()).when(mCarUserManagerHelper).getAllUsers();
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper).createNewAdminUser(CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
-        verify(mCarUserManagerHelper).switchToUser(admin);
+        verify(mCarUserManagerHelper).createNewAdminUser();
+        verify(mCarUserManagerHelper).switchToUserId(admin.id);
     }
 
     /**
@@ -86,7 +86,7 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testUpdateLastActiveUserOnFirstRun() {
-        UserInfo admin = mockAdmin(/* adminId= */ 10);
+        UserInfo admin = mockAdminWithDefaultName(/* adminId= */ 10);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -102,11 +102,11 @@ public class CarHelperServiceTest {
 
         int adminUserId = 10;
         UserInfo admin =
-            new UserInfo(adminUserId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
+            new UserInfo(adminUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
 
         int secUserId = 11;
         UserInfo secUser =
-            new UserInfo(secUserId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
+            new UserInfo(secUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
 
         users.add(admin);
         users.add(secUser);
@@ -119,11 +119,9 @@ public class CarHelperServiceTest {
         verify(mCarUserManagerHelper).switchToUserId(secUserId);
     }
 
-    private UserInfo mockAdmin(int adminId) {
-        UserInfo admin =
-                new UserInfo(adminId, CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME, UserInfo.FLAG_ADMIN);
-        doReturn(admin).when(mCarUserManagerHelper)
-                .createNewAdminUser(CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
+    private UserInfo mockAdminWithDefaultName(int adminId) {
+        UserInfo admin = new UserInfo(adminId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        doReturn(admin).when(mCarUserManagerHelper).createNewAdminUser();
         return admin;
     }
 }
