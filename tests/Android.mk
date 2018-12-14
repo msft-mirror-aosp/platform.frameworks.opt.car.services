@@ -26,7 +26,7 @@ LOCAL_JAVA_LIBRARIES += \
     services
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    android-support-test \
+    androidx.test.rules \
     android.car.userlib \
     junit \
     mockito-target-minus-junit4 \
