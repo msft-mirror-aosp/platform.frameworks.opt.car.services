@@ -22,15 +22,19 @@ import static org.mockito.Mockito.verify;
 import android.car.userlib.CarUserManagerHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
-import android.support.test.runner.AndroidJUnit4;
+
+import androidx.test.runner.AndroidJUnit4;
+
 import com.android.server.SystemService;
-import java.util.ArrayList;
-import java.util.List;
+
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * This class contains unit tests for the {@link CarServiceHelperService}.
