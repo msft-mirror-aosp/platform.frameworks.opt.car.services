@@ -19,6 +19,8 @@ LOCAL_PACKAGE_NAME := CarFrameworkService
 
 include $(BUILD_JAVA_LIBRARY)
 
+# ============================================================
+
 include $(CLEAR_VARS)
 
 LOCAL_SRC_FILES := src/jni/com_android_internal_car_CarServiceHelperService.cpp

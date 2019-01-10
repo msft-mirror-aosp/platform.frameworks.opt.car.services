@@ -44,7 +44,7 @@ public class CarServiceHelperService extends SystemService {
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
     private final Context mContext;
     private IBinder mCarService;
-    private CarUserManagerHelper mCarUserManagerHelper;
+    private final CarUserManagerHelper mCarUserManagerHelper;
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
 
         @Override
@@ -73,9 +73,14 @@ public class CarServiceHelperService extends SystemService {
     };
 
     public CarServiceHelperService(Context context) {
+        this(context, new CarUserManagerHelper(context));
+    }
+
+    @VisibleForTesting
+    CarServiceHelperService(Context context, CarUserManagerHelper carUserManagerHelper) {
         super(context);
         mContext = context;
-        mCarUserManagerHelper = new CarUserManagerHelper(context);
+        mCarUserManagerHelper = carUserManagerHelper;
     }
 
     @Override
@@ -91,8 +96,7 @@ public class CarServiceHelperService extends SystemService {
             }
             if (mCarUserManagerHelper.getAllUsers().size() == 0) {
                 // On very first boot, create an admin user and switch to that user.
-                UserInfo admin = mCarUserManagerHelper.createNewAdminUser(
-                        CarUserManagerHelper.DEFAULT_FIRST_ADMIN_NAME);
+                UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
                 mCarUserManagerHelper.switchToUserId(admin.id);
                 mCarUserManagerHelper.setLastActiveUser(admin.id);
             } else {
@@ -111,11 +115,6 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "cannot start car service");
         }
         System.loadLibrary("car-framework-service-jni");
-    }
-
-    @VisibleForTesting
-    void setCarUserManagerHelper(CarUserManagerHelper userManagerHelper) {
-        mCarUserManagerHelper = userManagerHelper;
     }
 
     private void handleCarServiceCrash() {
