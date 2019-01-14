@@ -27,6 +27,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.util.Slog;
 import com.android.internal.annotations.VisibleForTesting;
@@ -94,13 +95,25 @@ public class CarServiceHelperService extends SystemService {
                     != DevicePolicyManager.STATE_USER_UNMANAGED) {
                 return;
             }
-            if (mCarUserManagerHelper.getAllUsers().size() == 0) {
-                // On very first boot, create an admin user and switch to that user.
-                UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
-                mCarUserManagerHelper.switchToUserId(admin.id);
-                mCarUserManagerHelper.setLastActiveUser(admin.id);
+
+            if (SystemProperties.getBoolean("android.car.systemuser.defaultguest", false)) {
+                // Ensure we switch to the guest user by default
+                // TODO(b/122852856): Localize this string
+                mCarUserManagerHelper.startGuestSession("Guest");
+
+                // Ensure there is an admin user on the device
+                if (mCarUserManagerHelper.getAllAdminUsers().isEmpty()) {
+                    UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
+                }
             } else {
-                mCarUserManagerHelper.switchToUserId(mCarUserManagerHelper.getInitialUser());
+                if (mCarUserManagerHelper.getAllUsers().size() == 0) {
+                    // On very first boot, create an admin user and switch to that user.
+                    UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
+                    mCarUserManagerHelper.switchToUserId(admin.id);
+                    mCarUserManagerHelper.setLastActiveUser(admin.id);
+                } else {
+                    mCarUserManagerHelper.switchToUserId(mCarUserManagerHelper.getInitialUser());
+                }
             }
         }
     }
