@@ -30,9 +30,15 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.util.Slog;
+
+import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ICarServiceHelper;
 import com.android.server.SystemService;
+
+import java.util.HashMap;
+import java.util.LinkedList;
+import java.util.Map;
 
 /**
  * System service side companion service for CarService.
@@ -42,29 +48,29 @@ public class CarServiceHelperService extends SystemService {
     // Place holder for user name of the first user created.
     private static final String TAG = "CarServiceHelper";
     private static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
+    // These numbers should match with binder call order of
+    // packages/services/Car/car-lib/src/android/car/ICar.aidl
+    private static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
+    private static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 1;
+
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
     private final Context mContext;
+    private final Object mLock = new Object();
+    @GuardedBy("mLock")
     private IBinder mCarService;
+    @GuardedBy("mLock")
+    private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
     private final CarUserManagerHelper mCarUserManagerHelper;
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             Slog.i(TAG, "**CarService connected**");
-            mCarService = iBinder;
-            // Cannot depend on ICar which is defined in CarService, so handle binder call directly
-            // instead.
-            // void setCarServiceHelper(in IBinder helper)
-            Parcel data = Parcel.obtain();
-            data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
-            data.writeStrongBinder(mHelper.asBinder());
-            try {
-                mCarService.transact(IBinder.FIRST_CALL_TRANSACTION, // setCarServiceHelper
-                        data, null, Binder.FLAG_ONEWAY);
-            } catch (RemoteException e) {
-                Slog.w(TAG, "RemoteException from car service", e);
-                handleCarServiceCrash();
+            synchronized (mLock) {
+                mCarService = iBinder;
             }
+            sendSetCarServiceHelperBinderCall();
+            notifyAllUnlockedUsers();
         }
 
         @Override
@@ -128,6 +134,88 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "cannot start car service");
         }
         System.loadLibrary("car-framework-service-jni");
+    }
+
+
+    @Override
+    public void onUnlockUser(int userHandle) {
+        handleUserLockStatusChange(userHandle, true);
+    }
+
+    @Override
+    public void onStopUser(int userHandle) {
+        handleUserLockStatusChange(userHandle, false);
+    }
+
+    @Override
+    public void onCleanupUser(int userHandle) {
+        handleUserLockStatusChange(userHandle, false);
+    }
+
+    private void handleUserLockStatusChange(int userHandle, boolean unlocked) {
+        boolean shouldNotify = false;
+        synchronized (mLock) {
+            Boolean oldStatus = mUserUnlockedStatus.get(userHandle);
+            if (oldStatus == null || oldStatus != unlocked) {
+                mUserUnlockedStatus.put(userHandle, unlocked);
+                if (mCarService != null) {
+                    shouldNotify = true;
+                }
+            }
+        }
+        if (shouldNotify) {
+            sendSetUserLockStatusBinderCall(userHandle, unlocked);
+        }
+    }
+
+    private void notifyAllUnlockedUsers() {
+        // only care about unlocked users
+        LinkedList<Integer> users = new LinkedList<>();
+        synchronized (mLock) {
+            for (Map.Entry<Integer, Boolean> entry : mUserUnlockedStatus.entrySet()) {
+                if (entry.getValue()) {
+                    users.add(entry.getKey());
+                }
+            }
+        }
+        for (Integer i : users) {
+            sendSetUserLockStatusBinderCall(i, true);
+        }
+    }
+
+    private void sendSetCarServiceHelperBinderCall() {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
+        data.writeStrongBinder(mHelper.asBinder());
+        // void setCarServiceHelper(in IBinder helper)
+        sendBinderCallToCarService(data, ICAR_CALL_SET_CAR_SERVICE_HELPER);
+    }
+
+    private void sendSetUserLockStatusBinderCall(int userHandle, boolean unlocked) {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
+        data.writeInt(userHandle);
+        data.writeInt(unlocked ? 1 : 0);
+        // void setUserLockStatus(in int userHandle, in int unlocked)
+        sendBinderCallToCarService(data, ICAR_CALL_SET_USER_UNLOCK_STATUS);
+    }
+
+    private void sendBinderCallToCarService(Parcel data, int callNumber) {
+        // Cannot depend on ICar which is defined in CarService, so handle binder call directly
+        // instead.
+        IBinder carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.transact(IBinder.FIRST_CALL_TRANSACTION + callNumber,
+                    data, null, Binder.FLAG_ONEWAY);
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        } finally {
+            data.recycle();
+        }
     }
 
     private void handleCarServiceCrash() {
