@@ -37,7 +37,6 @@ import android.util.TimingsTraceLog;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.ICarServiceHelper;
 import com.android.server.SystemService;
 
 import java.util.HashMap;
@@ -57,6 +56,10 @@ public class CarServiceHelperService extends SystemService {
     // packages/services/Car/car-lib/src/android/car/ICar.aidl
     private static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
     private static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 1;
+    private static final int ICAR_CALL_SET_SWITCH_USER = 2;
+
+    @GuardedBy("mLock")
+    private int mLastSwitchedUser = UserHandle.USER_NULL;
 
     private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
     private final Context mContext;
@@ -71,11 +74,17 @@ public class CarServiceHelperService extends SystemService {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             Slog.i(TAG, "**CarService connected**");
+
+            int lastSwitchedUser;
             synchronized (mLock) {
                 mCarService = iBinder;
+                lastSwitchedUser = mLastSwitchedUser;
             }
             sendSetCarServiceHelperBinderCall();
             notifyAllUnlockedUsers();
+            if (lastSwitchedUser != UserHandle.USER_NULL) {
+                sendSwitchUserBindercall(lastSwitchedUser);
+            }
         }
 
         @Override
@@ -133,6 +142,17 @@ public class CarServiceHelperService extends SystemService {
     @Override
     public void onCleanupUser(int userHandle) {
         handleUserLockStatusChange(userHandle, false);
+    }
+
+    @Override
+    public void onSwitchUser(int userHandle) {
+        synchronized (mLock) {
+            mLastSwitchedUser = userHandle;
+            if (mCarService == null) {
+                return;  // The event will be delivered upon CarService connection.
+            }
+        }
+        sendSwitchUserBindercall(userHandle);
     }
 
     private void handleUserLockStatusChange(int userHandle, boolean unlocked) {
@@ -269,6 +289,14 @@ public class CarServiceHelperService extends SystemService {
         data.writeInt(unlocked ? 1 : 0);
         // void setUserLockStatus(in int userHandle, in int unlocked)
         sendBinderCallToCarService(data, ICAR_CALL_SET_USER_UNLOCK_STATUS);
+    }
+
+    private void sendSwitchUserBindercall(int userHandle) {
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
+        data.writeInt(userHandle);
+        // void onSwitchUser(in int userHandle)
+        sendBinderCallToCarService(data, ICAR_CALL_SET_SWITCH_USER);
     }
 
     private void sendBinderCallToCarService(Parcel data, int callNumber) {
