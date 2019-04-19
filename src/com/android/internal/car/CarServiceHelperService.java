@@ -29,6 +29,7 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.util.Slog;
@@ -66,24 +67,18 @@ public class CarServiceHelperService extends SystemService {
     @GuardedBy("mLock")
     private IBinder mCarService;
     @GuardedBy("mLock")
+    private boolean mSystemBootCompleted;
+    @GuardedBy("mLock")
     private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
     private final CarUserManagerHelper mCarUserManagerHelper;
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
 
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
-            Slog.i(TAG, "**CarService connected**");
-
-            int lastSwitchedUser;
-            synchronized (mLock) {
-                mCarService = iBinder;
-                lastSwitchedUser = mLastSwitchedUser;
+            if (DBG) {
+                Slog.d(TAG, "onServiceConnected:" + iBinder);
             }
-            sendSetCarServiceHelperBinderCall();
-            notifyAllUnlockedUsers();
-            if (lastSwitchedUser != UserHandle.USER_NULL) {
-                sendSwitchUserBindercall(lastSwitchedUser);
-            }
+            handleCarServiceConnection(iBinder);
         }
 
         @Override
@@ -105,10 +100,26 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onBootPhase(int phase) {
+        if (DBG) {
+            Slog.d(TAG, "onBootPhase:" + phase);
+        }
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
+            checkForCarServiceConnection();
             // TODO(b/126199560) Consider doing this earlier in onStart().
             // Other than onStart, PHASE_THIRD_PARTY_APPS_CAN_START is the earliest timing.
             setupAndStartUsers();
+            checkForCarServiceConnection();
+        } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
+            boolean shouldNotify = false;
+            synchronized (mLock) {
+                mSystemBootCompleted = true;
+                if (mCarService != null) {
+                    shouldNotify = true;
+                }
+            }
+            if (shouldNotify) {
+                notifyAllUnlockedUsers();
+            }
         }
     }
 
@@ -154,13 +165,56 @@ public class CarServiceHelperService extends SystemService {
         sendSwitchUserBindercall(userHandle);
     }
 
+    // Sometimes car service onConnected call is delayed a lot. car service binder can be
+    // found from ServiceManager directly. So do some polling during boot-up to connect to
+    // car service ASAP.
+    private void checkForCarServiceConnection() {
+        synchronized (mLock) {
+            if (mCarService != null) {
+                return;
+            }
+        }
+        IBinder iBinder = ServiceManager.checkService("car_service");
+        if (iBinder != null) {
+            if (DBG) {
+                Slog.d(TAG, "Car service found through ServiceManager:" + iBinder);
+            }
+            handleCarServiceConnection(iBinder);
+        }
+    }
+
+    private void handleCarServiceConnection(IBinder iBinder) {
+        int lastSwitchedUser;
+        boolean systemBootCompleted;
+        synchronized (mLock) {
+            if (mCarService == iBinder) {
+                return; // already connected.
+            }
+            if (mCarService != null) {
+                Slog.i(TAG, "car service binder changed, was:" + mCarService
+                        + " new:" + iBinder);
+            }
+            mCarService = iBinder;
+            lastSwitchedUser = mLastSwitchedUser;
+            systemBootCompleted = mSystemBootCompleted;
+        }
+        Slog.i(TAG, "**CarService connected**");
+        sendSetCarServiceHelperBinderCall();
+        if (systemBootCompleted) {
+            notifyAllUnlockedUsers();
+        }
+        if (lastSwitchedUser != UserHandle.USER_NULL) {
+            sendSwitchUserBindercall(lastSwitchedUser);
+        }
+    }
+
     private void handleUserLockStatusChange(int userHandle, boolean unlocked) {
         boolean shouldNotify = false;
         synchronized (mLock) {
             Boolean oldStatus = mUserUnlockedStatus.get(userHandle);
             if (oldStatus == null || oldStatus != unlocked) {
                 mUserUnlockedStatus.put(userHandle, unlocked);
-                if (mCarService != null) {
+                if (mCarService != null && mSystemBootCompleted) {
                     shouldNotify = true;
                 }
             }
@@ -229,6 +283,7 @@ public class CarServiceHelperService extends SystemService {
         // Do not unlock here to allow other stuffs done. Unlock will happen
         // when system completes the boot.
         // TODO(b/124460424) Unlock earlier?
+        traceLog.traceBegin("ForegroundUserStart");
         try {
             if (!am.startUserInForegroundWithListener(targetUserId, null)) {
                 Slog.e(TAG, "cannot start foreground user:" + targetUserId);
@@ -239,6 +294,7 @@ public class CarServiceHelperService extends SystemService {
             // should not happen for local call.
             Slog.wtf("RemoteException from AMS", e);
         }
+        traceLog.traceEnd();
     }
 
 
@@ -251,6 +307,9 @@ public class CarServiceHelperService extends SystemService {
                     users.add(entry.getKey());
                 }
             }
+        }
+        if (DBG) {
+            Slog.d(TAG, "notifyAllUnlockedUsers:" + users);
         }
         for (Integer i : users) {
             sendSetUserLockStatusBinderCall(i, true);
