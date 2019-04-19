@@ -25,13 +25,11 @@ import android.content.pm.UserInfo;
 
 import androidx.test.runner.AndroidJUnit4;
 
-import android.os.SystemProperties;
 import com.android.server.SystemService;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.Matchers;
 import org.mockito.Mock;
 import org.mockito.MockitoAnnotations;
 
@@ -67,8 +65,6 @@ public class CarHelperServiceTest {
     public void setUpMocks() throws Exception {
         MockitoAnnotations.initMocks(this);
         doReturn(mApplicationContext).when(mMockContext).getApplicationContext();
-
-        setDefaultGuestFlag(false);
 
         mCarServiceHelperService = new CarServiceHelperService(mMockContext, mCarUserManagerHelper);
     }
@@ -127,41 +123,9 @@ public class CarHelperServiceTest {
         verify(mCarUserManagerHelper).switchToUserId(secUserId);
     }
 
-    /**
-     * Test that the {@link CarServiceHelperService} starts into a Guest user when the
-     * SystemProperty "android.car.systemuser.defaultguest" is set.
-     */
-    @Test
-    public void testDefaultGuestFlag() {
-        setDefaultGuestFlag(true);
-
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verify(mCarUserManagerHelper).startGuestSession(Matchers.anyString());
-    }
-
-    /**
-     * Test that the {@link CarServiceHelperService} creates an admin when the SystemProperty
-     * "android.car.systemuser.defaultguest" is set.
-     */
-    @Test
-    public void testDefaultGuestFlagHasAdmin() {
-        List<UserInfo> emptyUserList = new ArrayList<>();
-        doReturn(emptyUserList).when(mCarUserManagerHelper).getAllAdminUsers();
-        setDefaultGuestFlag(true);
-
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verify(mCarUserManagerHelper).createNewAdminUser();
-    }
-
     private UserInfo mockAdminWithDefaultName(int adminId) {
         UserInfo admin = new UserInfo(adminId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
         doReturn(admin).when(mCarUserManagerHelper).createNewAdminUser();
         return admin;
-    }
-
-    private void setDefaultGuestFlag(boolean enabled) {
-        SystemProperties.set("android.car.systemuser.defaultguest", Boolean.toString(enabled));
     }
 }
