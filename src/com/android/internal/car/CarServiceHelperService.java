@@ -29,7 +29,6 @@ import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
-import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.util.Slog;
@@ -183,36 +182,20 @@ public class CarServiceHelperService extends SystemService {
         // used in AMS / PMS ended up stopping the world with lots of lock contention.
         // To run these in background, there should be some improvements there.
         int targetUserId = UserHandle.USER_SYSTEM;
-        if (SystemProperties.getBoolean("android.car.systemuser.defaultguest", false)) {
-            Slog.i(TAG, "Start guest user mode");
-            // Ensure there is an admin user on the device
-            if (mCarUserManagerHelper.getAllAdminUsers().isEmpty()) {
-                Slog.i(TAG, "Create new admin user");
-                UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
-            }
-            // Ensure we switch to the guest user by default
-            // TODO(b/122852856): Localize this string
-            UserInfo guest = mCarUserManagerHelper.createNewOrFindExistingGuest("Guest");
-            if (guest == null) {
-                Slog.e(TAG, "cannot create or find guest user");
+        if (mCarUserManagerHelper.getAllUsers().size() == 0) {
+            Slog.i(TAG, "Create new admin user and switch");
+            // On very first boot, create an admin user and switch to that user.
+            UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
+            if (admin == null) {
+                Slog.e(TAG, "cannot create admin user");
                 return;
             }
-            targetUserId = guest.id;
+            targetUserId = admin.id;
         } else {
-            if (mCarUserManagerHelper.getAllUsers().size() == 0) {
-                Slog.i(TAG, "Create new admin user and switch");
-                // On very first boot, create an admin user and switch to that user.
-                UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
-                if (admin == null) {
-                    Slog.e(TAG, "cannot create admin user");
-                    return;
-                }
-                targetUserId = admin.id;
-            } else {
-                Slog.i(TAG, "Switch to default user");
-                targetUserId = mCarUserManagerHelper.getInitialUser();
-            }
+            Slog.i(TAG, "Switch to default user");
+            targetUserId = mCarUserManagerHelper.getInitialUser();
         }
+
         // If system user is the only user to unlock, handle it when system completes the boot.
         if (targetUserId == UserHandle.USER_SYSTEM) {
             return;
