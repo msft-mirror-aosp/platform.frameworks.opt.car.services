@@ -25,11 +25,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
+import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
+import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.util.Slog;
@@ -38,9 +41,15 @@ import android.util.TimingsTraceLog;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.SystemService;
+import com.android.server.Watchdog;
+import com.android.server.am.ActivityManagerService;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedList;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -57,6 +66,13 @@ public class CarServiceHelperService extends SystemService {
     private static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
     private static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 1;
     private static final int ICAR_CALL_SET_SWITCH_USER = 2;
+
+    private static final String PROP_RESTART_RUNTIME = "ro.car.recovery.restart_runtime.enabled";
+
+    private static final List<String> CAR_HAL_INTERFACES_OF_INTEREST = Arrays.asList(
+            "android.hardware.automotive.vehicle@2.0::IVehicle",
+            "android.hardware.automotive.audiocontrol@1.0::IAudioControl"
+    );
 
     @GuardedBy("mLock")
     private int mLastSwitchedUser = UserHandle.USER_NULL;
@@ -359,8 +375,73 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
+    // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
+    // TODO(b/131861630) use implementation common with Watchdog.java
+    //
+    private static ArrayList<Integer> getInterestingHalPids() {
+        try {
+            IServiceManager serviceManager = IServiceManager.getService();
+            ArrayList<IServiceManager.InstanceDebugInfo> dump =
+                    serviceManager.debugDump();
+            HashSet<Integer> pids = new HashSet<>();
+            for (IServiceManager.InstanceDebugInfo info : dump) {
+                if (info.pid == IServiceManager.PidConstant.NO_PID) {
+                    continue;
+                }
+
+                if (Watchdog.HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName) ||
+                        CAR_HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
+                    pids.add(info.pid);
+                }
+            }
+
+            return new ArrayList<Integer>(pids);
+        } catch (RemoteException e) {
+            return new ArrayList<Integer>();
+        }
+    }
+
+    // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
+    // TODO(b/131861630) use implementation common with Watchdog.java
+    //
+    private static ArrayList<Integer> getInterestingNativePids() {
+        ArrayList<Integer> pids = getInterestingHalPids();
+
+        int[] nativePids = Process.getPidsForCommands(Watchdog.NATIVE_STACKS_OF_INTEREST);
+        if (nativePids != null) {
+            pids.ensureCapacity(pids.size() + nativePids.length);
+            for (int i : nativePids) {
+                pids.add(i);
+            }
+        }
+
+        return pids;
+    }
+
+    // Borrowed from Watchdog.java.  Create an ANR file from the call stacks.
+    //
+    private static void dumpServiceStacks() {
+        ArrayList<Integer> pids = new ArrayList<>();
+        pids.add(Process.myPid());
+
+        ActivityManagerService.dumpStackTraces(
+                pids, null, null, getInterestingNativePids());
+    }
+
     private void handleCarServiceCrash() {
-        //TODO define recovery behavior
+        // Recovery behavior.  Kill the system server and reset
+        // everything if enabled by the property.
+        boolean restartOnServiceCrash = SystemProperties.getBoolean(PROP_RESTART_RUNTIME, false);
+
+        dumpServiceStacks();
+        if (restartOnServiceCrash) {
+            Slog.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: " + "CarService crash");
+            Slog.w(TAG, "*** GOODBYE!");
+            Process.killProcess(Process.myPid());
+            System.exit(10);
+        } else {
+            Slog.w(TAG, "*** CARHELPER ignoring: " + "CarService crash");
+        }
     }
 
     private static native int nativeForceSuspend(int timeoutMs);
