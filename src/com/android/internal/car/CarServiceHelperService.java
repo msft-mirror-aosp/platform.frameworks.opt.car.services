@@ -276,7 +276,7 @@ public class CarServiceHelperService extends SystemService {
             return;
         }
         TimingsTraceLog traceLog = new TimingsTraceLog("SystemServerTiming",
-                Trace.TRACE_TAG_ACTIVITY_MANAGER);
+                Trace.TRACE_TAG_SYSTEM_SERVER);
         traceLog.traceBegin("User0Unlock");
         try {
             // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
