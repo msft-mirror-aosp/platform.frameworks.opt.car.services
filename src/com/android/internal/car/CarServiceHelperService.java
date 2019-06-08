@@ -16,6 +16,7 @@
 
 package com.android.internal.car;
 
+import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
@@ -43,6 +44,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
+import com.android.server.utils.TimingsTraceAndSlog;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -119,13 +121,17 @@ public class CarServiceHelperService extends SystemService {
         if (DBG) {
             Slog.d(TAG, "onBootPhase:" + phase);
         }
+        TimingsTraceAndSlog t = new TimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
-            checkForCarServiceConnection();
+            t.traceBegin("onBootPhase.3pApps");
+            checkForCarServiceConnection(t);
             // TODO(b/126199560) Consider doing this earlier in onStart().
             // Other than onStart, PHASE_THIRD_PARTY_APPS_CAN_START is the earliest timing.
-            setupAndStartUsers();
-            checkForCarServiceConnection();
+            setupAndStartUsers(t);
+            checkForCarServiceConnection(t);
+            t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
+            t.traceBegin("onBootPhase.completed");
             boolean shouldNotify = false;
             synchronized (mLock) {
                 mSystemBootCompleted = true;
@@ -136,6 +142,7 @@ public class CarServiceHelperService extends SystemService {
             if (shouldNotify) {
                 notifyAllUnlockedUsers();
             }
+            t.traceEnd();
         }
     }
 
@@ -184,12 +191,13 @@ public class CarServiceHelperService extends SystemService {
     // Sometimes car service onConnected call is delayed a lot. car service binder can be
     // found from ServiceManager directly. So do some polling during boot-up to connect to
     // car service ASAP.
-    private void checkForCarServiceConnection() {
+    private void checkForCarServiceConnection(@NonNull TimingsTraceAndSlog t) {
         synchronized (mLock) {
             if (mCarService != null) {
                 return;
             }
         }
+        t.traceBegin("checkForCarServiceConnection");
         IBinder iBinder = ServiceManager.checkService("car_service");
         if (iBinder != null) {
             if (DBG) {
@@ -197,6 +205,7 @@ public class CarServiceHelperService extends SystemService {
             }
             handleCarServiceConnection(iBinder);
         }
+        t.traceEnd();
     }
 
     private void handleCarServiceConnection(IBinder iBinder) {
@@ -240,7 +249,7 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void setupAndStartUsers() {
+    private void setupAndStartUsers(@NonNull TimingsTraceAndSlog t) {
         DevicePolicyManager devicePolicyManager =
                 mContext.getSystemService(DevicePolicyManager.class);
         if (devicePolicyManager != null && devicePolicyManager.getUserProvisioningState()
@@ -248,6 +257,13 @@ public class CarServiceHelperService extends SystemService {
             Slog.i(TAG, "DevicePolicyManager active, skip user unlock/switch");
             return;
         }
+        t.traceBegin("setupAndStartUsers");
+        setupAndStartUsers(devicePolicyManager, t);
+        t.traceEnd();
+    }
+
+    private void setupAndStartUsers(@NonNull DevicePolicyManager devicePolicyManager,
+            @NonNull TimingsTraceAndSlog t) {
         // Offloading the whole unlock into separate thread did not help due to single locks
         // used in AMS / PMS ended up stopping the world with lots of lock contention.
         // To run these in background, there should be some improvements there.
@@ -255,7 +271,9 @@ public class CarServiceHelperService extends SystemService {
         if (mCarUserManagerHelper.getAllUsers().size() == 0) {
             Slog.i(TAG, "Create new admin user and switch");
             // On very first boot, create an admin user and switch to that user.
+            t.traceBegin("createNewAdminUser");
             UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
+            t.traceEnd();
             if (admin == null) {
                 Slog.e(TAG, "cannot create admin user");
                 return;
@@ -263,7 +281,9 @@ public class CarServiceHelperService extends SystemService {
             targetUserId = admin.id;
         } else {
             Slog.i(TAG, "Switch to default user");
+            t.traceBegin("getInitialUser");
             targetUserId = mCarUserManagerHelper.getInitialUser();
+            t.traceEnd();
         }
 
         // If system user is the only user to unlock, handle it when system completes the boot.
@@ -275,9 +295,7 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "cannot get ActivityManagerService");
             return;
         }
-        TimingsTraceLog traceLog = new TimingsTraceLog("SystemServerTiming",
-                Trace.TRACE_TAG_SYSTEM_SERVER);
-        traceLog.traceBegin("User0Unlock");
+        t.traceBegin("User0Unlock");
         try {
             // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
             // update the state and user 0 unlock happens twice.
@@ -295,11 +313,11 @@ public class CarServiceHelperService extends SystemService {
             // should not happen for local call.
             Slog.wtf("RemoteException from AMS", e);
         }
-        traceLog.traceEnd();
+        t.traceEnd(); // User0Unlock
         // Do not unlock here to allow other stuffs done. Unlock will happen
         // when system completes the boot.
-        // TODO(b/124460424) Unlock earlier?
-        traceLog.traceBegin("ForegroundUserStart");
+        // TODO(b/133242016) Unlock earlier?
+        t.traceBegin("ForegroundUserStart" + targetUserId);
         try {
             if (!am.startUserInForegroundWithListener(targetUserId, null)) {
                 Slog.e(TAG, "cannot start foreground user:" + targetUserId);
@@ -310,7 +328,7 @@ public class CarServiceHelperService extends SystemService {
             // should not happen for local call.
             Slog.wtf("RemoteException from AMS", e);
         }
-        traceLog.traceEnd();
+        t.traceEnd(); // ForegroundUserStart
     }
 
 
