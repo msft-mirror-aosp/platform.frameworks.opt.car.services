@@ -17,6 +17,7 @@
 package com.android.internal.car;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
@@ -26,6 +27,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
+import android.graphics.Bitmap;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.IBinder;
@@ -34,13 +36,13 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
-import android.os.Trace;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.util.Slog;
-import android.util.TimingsTraceLog;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
@@ -89,8 +91,11 @@ public class CarServiceHelperService extends SystemService {
     @GuardedBy("mLock")
     private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
     private final CarUserManagerHelper mCarUserManagerHelper;
-    private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
+    private final UserManager mUserManager;
+    private final String mDefaultUserName;
+    private final IActivityManager mActivityManager;
 
+    private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             if (DBG) {
@@ -106,14 +111,26 @@ public class CarServiceHelperService extends SystemService {
     };
 
     public CarServiceHelperService(Context context) {
-        this(context, new CarUserManagerHelper(context));
+        this(context,
+                new CarUserManagerHelper(context),
+                UserManager.get(context),
+                ActivityManager.getService(),
+                context.getString(com.android.internal.R.string.owner_name));
     }
 
     @VisibleForTesting
-    CarServiceHelperService(Context context, CarUserManagerHelper carUserManagerHelper) {
+    CarServiceHelperService(
+            Context context,
+            CarUserManagerHelper carUserManagerHelper,
+            UserManager userManager,
+            IActivityManager activityManager,
+            String defaultUserName) {
         super(context);
         mContext = context;
         mCarUserManagerHelper = carUserManagerHelper;
+        mUserManager = userManager;
+        mActivityManager = activityManager;
+        mDefaultUserName = defaultUserName;
     }
 
     @Override
@@ -260,23 +277,37 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
+    @Nullable
+    private UserInfo createInitialAdminUser() {
+        UserInfo adminUserInfo = mUserManager.createUser(mDefaultUserName, UserInfo.FLAG_ADMIN);
+        if (adminUserInfo == null) {
+            // Couldn't create user, most likely because there are too many.
+            return null;
+        }
+
+        Bitmap bitmap = UserIcons.convertToBitmap(
+                UserIcons.getDefaultUserIcon(mContext.getResources(), adminUserInfo.id, false));
+        mUserManager.setUserIcon(adminUserInfo.id, bitmap);
+        return adminUserInfo;
+    }
+
     private void setupAndStartUsers(@NonNull DevicePolicyManager devicePolicyManager,
             @NonNull TimingsTraceAndSlog t) {
         // Offloading the whole unlock into separate thread did not help due to single locks
         // used in AMS / PMS ended up stopping the world with lots of lock contention.
         // To run these in background, there should be some improvements there.
-        int targetUserId = UserHandle.USER_SYSTEM;
+        int targetUserId;
         if (mCarUserManagerHelper.getAllUsers().size() == 0) {
             Slog.i(TAG, "Create new admin user and switch");
             // On very first boot, create an admin user and switch to that user.
             t.traceBegin("createNewAdminUser");
-            UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
+            UserInfo user = createInitialAdminUser();
             t.traceEnd();
-            if (admin == null) {
+            if (user == null) {
                 Slog.e(TAG, "cannot create admin user");
                 return;
             }
-            targetUserId = admin.id;
+            targetUserId = user.id;
         } else {
             Slog.i(TAG, "Switch to default user");
             t.traceBegin("getInitialUser");
@@ -288,19 +319,18 @@ public class CarServiceHelperService extends SystemService {
         if (targetUserId == UserHandle.USER_SYSTEM) {
             return;
         }
-        IActivityManager am = ActivityManager.getService();
-        if (am == null) {
-            Slog.wtf(TAG, "cannot get ActivityManagerService");
+        if (mActivityManager == null) {
+            Slog.wtf(TAG, "could not get ActivityManagerService");
             return;
         }
         t.traceBegin("User0Unlock");
         try {
             // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
             // update the state and user 0 unlock happens twice.
-            if (!am.startUserInBackground(UserHandle.USER_SYSTEM)) {
+            if (!mActivityManager.startUserInBackground(UserHandle.USER_SYSTEM)) {
                 // cannot start user
                 Slog.w(TAG, "cannot start system user");
-            } else if (!am.unlockUser(UserHandle.USER_SYSTEM, null, null, null)) {
+            } else if (!mActivityManager.unlockUser(UserHandle.USER_SYSTEM, null, null, null)) {
                 // unlocking system user failed. But still continue for other setup.
                 Slog.w(TAG, "cannot unlock system user");
             } else {
@@ -317,7 +347,7 @@ public class CarServiceHelperService extends SystemService {
         // TODO(b/133242016) Unlock earlier?
         t.traceBegin("ForegroundUserStart" + targetUserId);
         try {
-            if (!am.startUserInForegroundWithListener(targetUserId, null)) {
+            if (!mActivityManager.startUserInForegroundWithListener(targetUserId, null)) {
                 Slog.e(TAG, "cannot start foreground user:" + targetUserId);
             } else {
                 mCarUserManagerHelper.setLastActiveUser(targetUserId);

@@ -29,8 +29,13 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     androidx.test.rules \
     android.car.userlib \
     junit \
-    mockito-target-minus-junit4 \
+    mockito-target-extended-minus-junit4 \
     services \
     truth-prebuilt
+
+# mockito-target-extended dependencies
+LOCAL_JNI_SHARED_LIBRARIES := \
+    libdexmakerjvmtiagent \
+    libstaticjvmtiagent \
 
 include $(BUILD_PACKAGE)
