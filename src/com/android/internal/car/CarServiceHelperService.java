@@ -125,8 +125,6 @@ public class CarServiceHelperService extends SystemService {
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             checkForCarServiceConnection(t);
-            // TODO(b/126199560) Consider doing this earlier in onStart().
-            // Other than onStart, PHASE_THIRD_PARTY_APPS_CAN_START is the earliest timing.
             setupAndStartUsers(t);
             checkForCarServiceConnection(t);
             t.traceEnd();
