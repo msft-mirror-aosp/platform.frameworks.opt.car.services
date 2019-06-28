@@ -16,22 +16,38 @@
 
 package com.android.internal.car;
 
-import static org.mockito.Mockito.doReturn;
-import static org.mockito.Mockito.verify;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
+
+import android.app.ActivityManager;
+import android.app.IActivityManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
+import android.content.res.Resources;
+import android.os.RemoteException;
+import android.os.UserManager;
 
 import androidx.test.runner.AndroidJUnit4;
 
+import com.android.dx.mockito.inline.extended.StaticMockitoSession;
+import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
-import org.mockito.MockitoAnnotations;
+import org.mockito.quality.Strictness;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -48,25 +64,49 @@ import java.util.List;
 @RunWith(AndroidJUnit4.class)
 public class CarHelperServiceTest {
     private static final String DEFAULT_NAME = "Driver";
+    private static final int ADMIN_USER_ID = 10;
     private CarServiceHelperService mCarServiceHelperService;
-    @Mock
-    private Context mMockContext;
+    StaticMockitoSession mStaticMockitoSession;
 
-    @Mock
-    private Context mApplicationContext;
-
-    @Mock
-    private CarUserManagerHelper mCarUserManagerHelper;
+    @Mock private Context mMockContext;
+    @Mock private Context mApplicationContext;
+    @Mock private CarUserManagerHelper mCarUserManagerHelper;
+    @Mock private UserManager mUserManager;
+    private IActivityManager mActivityManager;
 
     /**
      * Initialize objects and setup testing environment.
      */
     @Before
-    public void setUpMocks() throws Exception {
-        MockitoAnnotations.initMocks(this);
+    public void setUpMocks() {
+        mStaticMockitoSession = mockitoSession()
+                .initMocks(this)
+                .mockStatic(UserIcons.class)
+                .strictness(Strictness.LENIENT)
+                .startMocking();
+
         doReturn(mApplicationContext).when(mMockContext).getApplicationContext();
 
-        mCarServiceHelperService = new CarServiceHelperService(mMockContext, mCarUserManagerHelper);
+        UserInfo adminUser = new UserInfo(ADMIN_USER_ID, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        doReturn(adminUser).when(mUserManager).createUser(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+
+        doReturn(null).when(
+                () -> UserIcons.getDefaultUserIcon(any(Resources.class), anyInt(), anyBoolean()));
+
+        mActivityManager = ActivityManager.getService();
+        spyOn(mActivityManager);
+        mCarServiceHelperService =
+                new CarServiceHelperService(
+                        mMockContext,
+                        mCarUserManagerHelper,
+                        mUserManager,
+                        mActivityManager,
+                        DEFAULT_NAME);
+    }
+
+    @After
+    public void tearDown() {
+        mStaticMockitoSession.finishMocking();
     }
 
     /**
@@ -74,14 +114,12 @@ public class CarHelperServiceTest {
      * upon first run.
      */
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun() {
-        UserInfo admin = mockAdminWithDefaultName(/* adminId= */ 10);
-
+    public void testStartsSecondaryAdminUserOnFirstRun() throws Exception {
         doReturn(new ArrayList<>()).when(mCarUserManagerHelper).getAllUsers();
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper).createNewAdminUser();
-        verify(mCarUserManagerHelper).switchToUserId(admin.id);
+        verify(mUserManager).createUser(anyString(), eq(UserInfo.FLAG_ADMIN));
+        verify(mActivityManager).startUserInForegroundWithListener(ADMIN_USER_ID, null);
     }
 
     /**
@@ -90,25 +128,23 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testUpdateLastActiveUserOnFirstRun() {
-        UserInfo admin = mockAdminWithDefaultName(/* adminId= */ 10);
-
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper).setLastActiveUser(admin.id);
+        verify(mCarUserManagerHelper).setLastActiveUser(ADMIN_USER_ID);
     }
 
     /**
      * Test that the {@link CarServiceHelperService} starts up the last active user on reboot.
      */
     @Test
-    public void testStartsLastActiveUserOnReboot() {
+    public void testStartsLastActiveUserOnReboot() throws Exception {
         List<UserInfo> users = new ArrayList<>();
 
-        int adminUserId = 10;
+        int adminUserId = ADMIN_USER_ID;
         UserInfo admin =
             new UserInfo(adminUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
 
-        int secUserId = 11;
+        int secUserId = ADMIN_USER_ID + 1;
         UserInfo secUser =
             new UserInfo(secUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
 
@@ -120,12 +156,6 @@ public class CarHelperServiceTest {
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        verify(mCarUserManagerHelper).switchToUserId(secUserId);
-    }
-
-    private UserInfo mockAdminWithDefaultName(int adminId) {
-        UserInfo admin = new UserInfo(adminId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        doReturn(admin).when(mCarUserManagerHelper).createNewAdminUser();
-        return admin;
+        verify(mActivityManager).startUserInForegroundWithListener(secUserId, null);
     }
 }
