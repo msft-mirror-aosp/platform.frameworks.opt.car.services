@@ -22,4 +22,15 @@ package com.android.internal.car;
  */
 interface ICarServiceHelper {
     int forceSuspend(int timeoutMs);
+    /**
+    * Check
+    * {@link com.android.server.wm.CarLaunchParamsModifier#setDisplayWhitelistForUser(int, int[]).
+    */
+    void setDisplayWhitelistForUser(in int userId, in int[] displayIds);
+
+    /**
+     * Check
+     * {@link com.android.server.wm.CarLaunchParamsModifier#setPassengerDisplays(int[])}.
+     */
+    void setPassengerDisplays(in int[] displayIds);
 }

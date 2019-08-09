@@ -36,11 +36,12 @@ import android.content.res.Resources;
 import android.os.RemoteException;
 import android.os.UserManager;
 
-import androidx.test.runner.AndroidJUnit4;
+import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.dx.mockito.inline.extended.StaticMockitoSession;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
+import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.After;
 import org.junit.Before;
@@ -72,6 +73,7 @@ public class CarHelperServiceTest {
     @Mock private Context mApplicationContext;
     @Mock private CarUserManagerHelper mCarUserManagerHelper;
     @Mock private UserManager mUserManager;
+    @Mock private CarLaunchParamsModifier mCarLaunchParamsModifier;
     private IActivityManager mActivityManager;
 
     /**
@@ -101,6 +103,7 @@ public class CarHelperServiceTest {
                         mCarUserManagerHelper,
                         mUserManager,
                         mActivityManager,
+                        mCarLaunchParamsModifier,
                         DEFAULT_NAME);
     }
 
