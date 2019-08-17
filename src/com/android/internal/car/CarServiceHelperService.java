@@ -18,6 +18,7 @@ package com.android.internal.car;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
@@ -47,6 +48,7 @@ import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.utils.TimingsTraceAndSlog;
+import com.android.server.wm.CarLaunchParamsModifier;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -94,6 +96,7 @@ public class CarServiceHelperService extends SystemService {
     private final UserManager mUserManager;
     private final String mDefaultUserName;
     private final IActivityManager mActivityManager;
+    private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
         @Override
@@ -115,6 +118,7 @@ public class CarServiceHelperService extends SystemService {
                 new CarUserManagerHelper(context),
                 UserManager.get(context),
                 ActivityManager.getService(),
+                new CarLaunchParamsModifier(context),
                 context.getString(com.android.internal.R.string.owner_name));
     }
 
@@ -124,12 +128,14 @@ public class CarServiceHelperService extends SystemService {
             CarUserManagerHelper carUserManagerHelper,
             UserManager userManager,
             IActivityManager activityManager,
+            CarLaunchParamsModifier carLaunchParamsModifier,
             String defaultUserName) {
         super(context);
         mContext = context;
         mCarUserManagerHelper = carUserManagerHelper;
         mUserManager = userManager;
         mActivityManager = activityManager;
+        mCarLaunchParamsModifier = carLaunchParamsModifier;
         mDefaultUserName = defaultUserName;
     }
 
@@ -141,6 +147,7 @@ public class CarServiceHelperService extends SystemService {
         TimingsTraceAndSlog t = new TimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
+            mCarLaunchParamsModifier.init();
             checkForCarServiceConnection(t);
             setupAndStartUsers(t);
             checkForCarServiceConnection(t);
@@ -175,32 +182,34 @@ public class CarServiceHelperService extends SystemService {
 
 
     @Override
-    public void onUnlockUser(int userHandle) {
-        handleUserLockStatusChange(userHandle, true);
+    public void onUnlockUser(@UserIdInt int userId) {
+        handleUserLockStatusChange(userId, true);
         if (DBG) {
-            Slog.d(TAG, "User" + userHandle + " unlocked");
+            Slog.d(TAG, "User" + userId + " unlocked");
         }
     }
 
     @Override
-    public void onStopUser(int userHandle) {
-        handleUserLockStatusChange(userHandle, false);
+    public void onStopUser(@UserIdInt int userId) {
+        mCarLaunchParamsModifier.handleUserStopped(userId);
+        handleUserLockStatusChange(userId, false);
     }
 
     @Override
-    public void onCleanupUser(int userHandle) {
-        handleUserLockStatusChange(userHandle, false);
+    public void onCleanupUser(@UserIdInt int userId) {
+        handleUserLockStatusChange(userId, false);
     }
 
     @Override
-    public void onSwitchUser(int userHandle) {
+    public void onSwitchUser(@UserIdInt int userId) {
+        mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
         synchronized (mLock) {
-            mLastSwitchedUser = userHandle;
+            mLastSwitchedUser = userId;
             if (mCarService == null) {
                 return;  // The event will be delivered upon CarService connection.
             }
         }
-        sendSwitchUserBindercall(userHandle);
+        sendSwitchUserBindercall(userId);
     }
 
     // Sometimes car service onConnected call is delayed a lot. car service binder can be
@@ -248,19 +257,19 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void handleUserLockStatusChange(int userHandle, boolean unlocked) {
+    private void handleUserLockStatusChange(@UserIdInt int userId, boolean unlocked) {
         boolean shouldNotify = false;
         synchronized (mLock) {
-            Boolean oldStatus = mUserUnlockedStatus.get(userHandle);
+            Boolean oldStatus = mUserUnlockedStatus.get(userId);
             if (oldStatus == null || oldStatus != unlocked) {
-                mUserUnlockedStatus.put(userHandle, unlocked);
+                mUserUnlockedStatus.put(userId, unlocked);
                 if (mCarService != null && mSystemBootCompleted) {
                     shouldNotify = true;
                 }
             }
         }
         if (shouldNotify) {
-            sendSetUserLockStatusBinderCall(userHandle, unlocked);
+            sendSetUserLockStatusBinderCall(userId, unlocked);
         }
     }
 
@@ -386,20 +395,20 @@ public class CarServiceHelperService extends SystemService {
         sendBinderCallToCarService(data, ICAR_CALL_SET_CAR_SERVICE_HELPER);
     }
 
-    private void sendSetUserLockStatusBinderCall(int userHandle, boolean unlocked) {
+    private void sendSetUserLockStatusBinderCall(@UserIdInt int userId, boolean unlocked) {
         Parcel data = Parcel.obtain();
         data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
-        data.writeInt(userHandle);
+        data.writeInt(userId);
         data.writeInt(unlocked ? 1 : 0);
-        // void setUserLockStatus(in int userHandle, in int unlocked)
+        // void setUserLockStatus(in int userId, in int unlocked)
         sendBinderCallToCarService(data, ICAR_CALL_SET_USER_UNLOCK_STATUS);
     }
 
-    private void sendSwitchUserBindercall(int userHandle) {
+    private void sendSwitchUserBindercall(@UserIdInt int userId) {
         Parcel data = Parcel.obtain();
         data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
-        data.writeInt(userHandle);
-        // void onSwitchUser(in int userHandle)
+        data.writeInt(userId);
+        // void onSwitchUser(in int userId)
         sendBinderCallToCarService(data, ICAR_CALL_SET_SWITCH_USER);
     }
 
@@ -507,6 +516,16 @@ public class CarServiceHelperService extends SystemService {
                 Binder.restoreCallingIdentity(ident);
             }
             return retVal;
+        }
+
+        @Override
+        public void setDisplayWhitelistForUser(@UserIdInt int userId, int[] displayIds) {
+            mCarLaunchParamsModifier.setDisplayWhitelistForUser(userId, displayIds);
+        }
+
+        @Override
+        public void setPassengerDisplays(int[] displayIdsForPassenger) {
+            mCarLaunchParamsModifier.setPassengerDisplays(displayIdsForPassenger);
         }
     }
 }
