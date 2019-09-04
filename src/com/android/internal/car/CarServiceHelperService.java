@@ -37,6 +37,7 @@ import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.SystemProperties;
+import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Slog;
@@ -144,7 +145,7 @@ public class CarServiceHelperService extends SystemService {
         if (DBG) {
             Slog.d(TAG, "onBootPhase:" + phase);
         }
-        TimingsTraceAndSlog t = new TimingsTraceAndSlog();
+        TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
@@ -332,28 +333,7 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "could not get ActivityManagerService");
             return;
         }
-        t.traceBegin("User0Unlock");
-        try {
-            // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
-            // update the state and user 0 unlock happens twice.
-            if (!mActivityManager.startUserInBackground(UserHandle.USER_SYSTEM)) {
-                // cannot start user
-                Slog.w(TAG, "cannot start system user");
-            } else if (!mActivityManager.unlockUser(UserHandle.USER_SYSTEM, null, null, null)) {
-                // unlocking system user failed. But still continue for other setup.
-                Slog.w(TAG, "cannot unlock system user");
-            } else {
-                // user 0 started and unlocked
-                handleUserLockStatusChange(UserHandle.USER_SYSTEM, true);
-            }
-        } catch (RemoteException e) {
-            // should not happen for local call.
-            Slog.wtf("RemoteException from AMS", e);
-        }
-        t.traceEnd(); // User0Unlock
-        // Do not unlock here to allow other stuffs done. Unlock will happen
-        // when system completes the boot.
-        // TODO(b/133242016) Unlock earlier?
+        unlockSystemUser(t);
         t.traceBegin("ForegroundUserStart" + targetUserId);
         try {
             if (!mActivityManager.startUserInForegroundWithListener(targetUserId, null)) {
@@ -368,6 +348,32 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd(); // ForegroundUserStart
     }
 
+    private void unlockSystemUser(@NonNull TimingsTraceAndSlog t) {
+        t.traceBegin("UnlockSystemUser");
+        try {
+            // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
+            // update the state and user 0 unlock happens twice.
+            boolean started = mActivityManager.startUserInBackground(UserHandle.USER_SYSTEM);
+            if (!started) {
+                Slog.w(TAG, "could not restart system user in foreground; trying unlock instead");
+                t.traceBegin("forceUnlockSystemUser");
+                boolean unlocked = mActivityManager.unlockUser(UserHandle.USER_SYSTEM,
+                        /* token= */ null, /* secret= */ null, /* listner= */ null);
+                t.traceEnd();
+                if (!unlocked) {
+                    Slog.w(TAG, "could not unlock system user neither");
+                    return;
+                }
+            }
+            // System user started and unlocked
+            handleUserLockStatusChange(UserHandle.USER_SYSTEM, true);
+        } catch (RemoteException e) {
+            // should not happen for local call.
+            Slog.wtf("RemoteException from AMS", e);
+        } finally {
+            t.traceEnd();
+        }
+    }
 
     private void notifyAllUnlockedUsers() {
         // only care about unlocked users
