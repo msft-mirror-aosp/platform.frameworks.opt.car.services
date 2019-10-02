@@ -42,6 +42,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.sysprop.CarProperties;
 import android.util.Slog;
+import android.util.SparseBooleanArray;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -92,9 +93,6 @@ public class CarServiceHelperService extends SystemService {
     private IBinder mCarService;
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
-
-    // Doesn't need to be guarded by a lock beucase it's on only used inside onBootPhase() calls
-    private boolean mFirstBoot;
 
     @GuardedBy("mLock")
     private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
@@ -159,12 +157,8 @@ public class CarServiceHelperService extends SystemService {
             checkForCarServiceConnection(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
-            // TODO(b/140750212): it might be better to always pre-create them, not just after the
-            // first boot.
-            if (mFirstBoot) {
-                preCreateUsers();
-              }
             t.traceBegin("onBootPhase.completed");
+            managePreCreatedUsers();
             boolean shouldNotify = false;
             synchronized (mLock) {
                 mSystemBootCompleted = true;
@@ -318,7 +312,6 @@ public class CarServiceHelperService extends SystemService {
         // To run these in background, there should be some improvements there.
         int targetUserId;
         if (mCarUserManagerHelper.getAllUsers().size() == 0) {
-            mFirstBoot = true;
             Slog.i(TAG, "Create new admin user and switch");
             // On very first boot, create an admin user and switch to that user.
             t.traceBegin("createNewAdminUser");
@@ -329,7 +322,6 @@ public class CarServiceHelperService extends SystemService {
                 return;
             }
             targetUserId = user.id;
-            mFirstBoot = true;
         } else {
             Slog.i(TAG, "Switch to default user");
             t.traceBegin("getInitialUser");
@@ -391,18 +383,70 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void preCreateUsers() {
-        int numberGuests = CarProperties.number_pre_created_guests().orElse(0);
-        int numberUsers = CarProperties.number_pre_created_users().orElse(0);
-        Slog.i(TAG, "preCreateUsers: " + numberGuests + " guests and " + numberUsers + " users");
+    private void managePreCreatedUsers() {
 
-        boolean hasGuests = numberGuests > 0;
-        boolean hasUsers = numberUsers > 0;
-
-        if (!hasGuests && !hasUsers) {
-            Slog.i(TAG, "preCreateUsers(): not needed");
+        // First gets how many pre-createad users are defined by the OEM
+        int numberRequestedGuests = CarProperties.number_pre_created_guests().orElse(0);
+        int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
+        Slog.i(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
+                + " guests and " + numberRequestedUsers + " users");
+        if (numberRequestedGuests < 0 || numberRequestedUsers < 0) {
+            Slog.w(TAG, "preCreateUsers(): invalid values provided by OEM; "
+                    + "number_pre_created_guests=" + numberRequestedGuests
+                    + ", number_pre_created_users=" + numberRequestedUsers);
             return;
         }
+
+        if (numberRequestedGuests == 0 && numberRequestedUsers == 0) {
+            Slog.i(TAG, "managePreCreatedUsers(): not defined by OEM");
+            return;
+        }
+
+        // Then checks how many exist already
+        List<UserInfo> allUsers = mUserManager.getUsers(/* excludePartial= */ true,
+                /* excludeDying= */ true, /* excludePreCreated= */ false);
+
+        int allUsersSize = allUsers.size();
+        if (DBG) Slog.d(TAG, "preCreateUsers: total users size is "  + allUsersSize);
+
+        int numberExistingGuests = 0;
+        int numberExistingUsers = 0;
+
+        // List of pre-created users that were not properly initialized. Typically happens when
+        // the system crashed / rebooted before they were fully started.
+        SparseBooleanArray invalidUsers = new SparseBooleanArray();
+
+        for (int i = 0; i < allUsersSize; i++) {
+            UserInfo user = allUsers.get(i);
+            if (!user.preCreated) continue;
+            if (!user.isInitialized()) {
+                Slog.w(TAG, "Found invalid pre-created user that needs to be removed: "
+                        + user.toFullString());
+                invalidUsers.append(user.id, /* notUsed=*/ true);
+                continue;
+            }
+            if (user.isGuest()) {
+                numberExistingGuests++;
+            } else {
+                numberExistingUsers++;
+            }
+        }
+        if (DBG) {
+            Slog.i(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
+                    + " pre-created guests," + numberExistingUsers + " pre-created users, and these"
+                    + " invalid users: " + invalidUsers );
+        }
+
+        int numberGuests = numberRequestedGuests - numberExistingGuests;
+        int numberUsers = numberRequestedUsers - numberExistingUsers;
+        int numberInvalidUsers = invalidUsers.size();
+
+        if (numberGuests <= 0 && numberUsers <= 0 && numberInvalidUsers == 0) {
+            Slog.i(TAG, "managePreCreatedUsers(): all pre-created and no invalid ones");
+            return;
+        }
+
+        // Finally, manage them....
 
         // In theory, we could submit multiple user pre-creations in parallel, but we're
         // submitting just 1 task, for 2 reasons:
@@ -411,15 +455,26 @@ public class CarServiceHelperService extends SystemService {
         new Thread( () -> {
             TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG + "Async",
                     Trace.TRACE_TAG_SYSTEM_SERVER);
+
             t.traceBegin("preCreateUsers");
-            if (hasUsers) {
+            if (numberUsers > 0) {
                 preCreateUsers(t, numberUsers, /* isGuest= */ false);
             }
-            if (hasGuests) {
+            if (numberGuests > 0) {
                 preCreateUsers(t, numberGuests, /* isGuest= */ true);
             }
             t.traceEnd();
-        }, "CarServiceHelperUserPreCreation").start();
+
+            if (numberInvalidUsers > 0) {
+                t.traceBegin("removeInvalidPreCreatedUsers");
+                for (int i = 0; i < numberInvalidUsers; i++) {
+                    int userId = invalidUsers.keyAt(i);
+                    Slog.i(TAG, "removing invalid pre-created user " + userId);
+                    mUserManager.removeUser(userId);
+                }
+                t.traceEnd();
+            }
+        }, "CarServiceHelperManagePreCreatedUsers").start();
     }
 
     private void preCreateUsers(@NonNull TimingsTraceAndSlog t, int size, boolean isGuest) {
