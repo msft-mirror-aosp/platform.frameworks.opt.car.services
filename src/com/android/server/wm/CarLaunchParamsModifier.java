@@ -183,7 +183,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             LaunchParamsController.LaunchParams outParams) {
         int userId;
         if (task != null) {
-            userId = task.userId;
+            userId = task.mUserId;
         } else if (activity != null) {
             userId = activity.mUserId;
         } else {
