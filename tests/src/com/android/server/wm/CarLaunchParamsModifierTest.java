@@ -119,7 +119,7 @@ public class CarLaunchParamsModifierTest {
     }
 
     private void assertDisplayIsAllowed(int userId, Display display) {
-        mTaskRecord.userId = userId;
+        mTaskRecord.mUserId = userId;
         mCurrentParams.mPreferredDisplayId = display.getDisplayId();
         assertThat(mModifier.onCalculate(mTaskRecord, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
@@ -129,7 +129,7 @@ public class CarLaunchParamsModifierTest {
     private void assertDisplayIsReassigned(int userId, Display displayRequested,
             Display displayAssigned) {
         assertThat(displayRequested.getDisplayId()).isNotEqualTo(displayAssigned.getDisplayId());
-        mTaskRecord.userId = userId;
+        mTaskRecord.mUserId = userId;
         mCurrentParams.mPreferredDisplayId = displayRequested.getDisplayId();
         assertThat(mModifier.onCalculate(mTaskRecord, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
