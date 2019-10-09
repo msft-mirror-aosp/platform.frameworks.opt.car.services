@@ -33,7 +33,6 @@ import android.car.userlib.CarUserManagerHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
-import android.os.RemoteException;
 import android.os.UserManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -118,7 +117,7 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testStartsSecondaryAdminUserOnFirstRun() throws Exception {
-        doReturn(new ArrayList<>()).when(mCarUserManagerHelper).getAllUsers();
+        doReturn(new ArrayList<>()).when(mUserManager).getUsers(anyBoolean());
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verify(mUserManager).createUser(anyString(), eq(UserInfo.FLAG_ADMIN));
@@ -154,7 +153,7 @@ public class CarHelperServiceTest {
         users.add(admin);
         users.add(secUser);
 
-        doReturn(users).when(mCarUserManagerHelper).getAllUsers();
+        doReturn(users).when(mUserManager).getUsers(anyBoolean());
         doReturn(secUserId).when(mCarUserManagerHelper).getInitialUser();
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
