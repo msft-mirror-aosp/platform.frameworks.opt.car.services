@@ -263,8 +263,8 @@ public class CarServiceHelperService extends SystemService {
             }
             targetUserId = admin.id;
         } else {
-            Slog.i(TAG, "Switch to default user");
             targetUserId = mCarUserManagerHelper.getInitialUser();
+            Slog.i(TAG, "Switching to user " + targetUserId + " on boot");
         }
 
         // If system user is the only user to unlock, handle it when system completes the boot.
