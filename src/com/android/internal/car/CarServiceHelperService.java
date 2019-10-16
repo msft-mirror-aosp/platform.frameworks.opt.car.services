@@ -60,6 +60,7 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * System service side companion service for CarService.
@@ -305,13 +306,31 @@ public class CarServiceHelperService extends SystemService {
         return adminUserInfo;
     }
 
+    private boolean hasInitialSecondaryUser() {
+        List<UserInfo> users = mUserManager.getUsers(/* excludeDying= */ true);
+        boolean isHeadlessMode = UserManager.isHeadlessSystemUserMode();
+        int size = users.size();
+
+        for (int i = 0; i < size; i++) {
+            int id = users.get(i).id;
+            if (!mUserManager.isManagedProfile(id)) {
+                if (isHeadlessMode && (id == UserHandle.USER_SYSTEM)) {
+                    continue;
+                }
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private void setupAndStartUsers(@NonNull DevicePolicyManager devicePolicyManager,
             @NonNull TimingsTraceAndSlog t) {
         // Offloading the whole unlock into separate thread did not help due to single locks
         // used in AMS / PMS ended up stopping the world with lots of lock contention.
         // To run these in background, there should be some improvements there.
         int targetUserId;
-        if (mCarUserManagerHelper.getAllUsers().size() == 0) {
+        if (!hasInitialSecondaryUser()) {
             Slog.i(TAG, "Create new admin user and switch");
             // On very first boot, create an admin user and switch to that user.
             t.traceBegin("createNewAdminUser");
