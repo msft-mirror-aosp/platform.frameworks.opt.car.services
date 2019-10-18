@@ -17,6 +17,7 @@
 package com.android.internal.car;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
@@ -36,6 +37,8 @@ import android.os.ServiceManager;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.os.UserManager;
+import android.sysprop.CarProperties;
 import android.util.Slog;
 import android.util.TimingsTraceLog;
 
@@ -85,6 +88,10 @@ public class CarServiceHelperService extends SystemService {
     private IBinder mCarService;
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
+
+    // Doesn't need to be guarded by a lock beucase it's on only used inside onBootPhase() calls
+    private boolean mFirstBoot;
+
     @GuardedBy("mLock")
     private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
     private final CarUserManagerHelper mCarUserManagerHelper;
@@ -127,6 +134,13 @@ public class CarServiceHelperService extends SystemService {
             setupAndStartUsers();
             checkForCarServiceConnection();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
+            TimingsTraceLog t = new TimingsTraceLog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
+            t.traceBegin("onBootPhase.completed");
+            // TODO(b/140750212): it might be better to always pre-create them, not just after the
+            // first boot.
+            if (mFirstBoot) {
+                preCreateUsers();
+              }
             boolean shouldNotify = false;
             synchronized (mLock) {
                 mSystemBootCompleted = true;
@@ -254,6 +268,7 @@ public class CarServiceHelperService extends SystemService {
         // To run these in background, there should be some improvements there.
         int targetUserId = UserHandle.USER_SYSTEM;
         if (mCarUserManagerHelper.getAllUsers().size() == 0) {
+            mFirstBoot = true;
             Slog.i(TAG, "Create new admin user and switch");
             // On very first boot, create an admin user and switch to that user.
             UserInfo admin = mCarUserManagerHelper.createNewAdminUser();
@@ -267,15 +282,17 @@ public class CarServiceHelperService extends SystemService {
             targetUserId = mCarUserManagerHelper.getInitialUser();
         }
 
-        // If system user is the only user to unlock, handle it when system completes the boot.
-        if (targetUserId == UserHandle.USER_SYSTEM) {
-            return;
-        }
         IActivityManager am = ActivityManager.getService();
         if (am == null) {
             Slog.wtf(TAG, "cannot get ActivityManagerService");
             return;
         }
+
+        // If system user is the only user to unlock, handle it when system completes the boot.
+        if (targetUserId == UserHandle.USER_SYSTEM) {
+            return;
+        }
+
         TimingsTraceLog t = new TimingsTraceLog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
         unlockSystemUser(t, am);
 
@@ -318,6 +335,77 @@ public class CarServiceHelperService extends SystemService {
         } finally {
             t.traceEnd();
         }
+    }
+
+    private void preCreateUsers() {
+        int numberGuests = CarProperties.number_pre_created_guests().orElse(0);
+        int numberUsers = CarProperties.number_pre_created_users().orElse(0);
+        Slog.i(TAG, "preCreateUsers: " + numberGuests + " guests and " + numberUsers + " users");
+
+        boolean hasGuests = numberGuests > 0;
+        boolean hasUsers = numberUsers > 0;
+
+        if (!hasGuests && !hasUsers) {
+            Slog.i(TAG, "preCreateUsers(): not needed");
+            return;
+        }
+
+        // In theory, we could submit multiple user pre-creations in parallel, but we're
+        // submitting just 1 task, for 2 reasons:
+        //   1.To minimize it's effect on other system server initialization tasks.
+        //   2.The pre-created users will be unlocked in parallel anyways.
+        new Thread( () -> {
+            TimingsTraceLog t = new TimingsTraceLog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
+            t.traceBegin("preCreateUsers");
+            if (hasUsers) {
+                preCreateUsers(t, numberUsers, /* isGuest= */ false);
+            }
+            if (hasGuests) {
+                preCreateUsers(t, numberGuests, /* isGuest= */ true);
+            }
+            t.traceEnd();
+        }, "CarServiceHelperUserPreCreation").start();
+    }
+
+    private void preCreateUsers(@NonNull TimingsTraceLog t, int size, boolean isGuest) {
+        String msg = isGuest ? "preCreateGuests-" + size : "preCreateUsers-" + size;
+        t.traceBegin(msg);
+        for (int i = 1; i <= size; i++) {
+            UserInfo preCreated = preCreateUsers(t, isGuest);
+            if (preCreated == null) {
+                Slog.w(TAG, "Could not pre-create " + (isGuest ? " guest " : "")
+                        + " user #" + i);
+                continue;
+            }
+        }
+        t.traceEnd();
+    }
+
+    // TODO(b/111451156): add unit test?
+    @Nullable
+    public UserInfo preCreateUsers(@NonNull TimingsTraceLog t, boolean isGuest) {
+        int flags = 0;
+        String traceMsg =  "pre-create";
+        if (isGuest) {
+            flags |= UserInfo.FLAG_GUEST;
+            traceMsg += "-guest";
+        } else {
+            traceMsg += "-user";
+        }
+        t.traceBegin(traceMsg);
+        // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
+        UserManager um = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
+        UserInfo user = um.preCreateUser(flags);
+        try {
+            if (user == null) {
+                // Couldn't create user, most likely because there are too many.
+                Slog.w(TAG, "couldn't " + traceMsg);
+                return null;
+            }
+        } finally {
+            t.traceEnd();
+        }
+        return user;
     }
 
     private void notifyAllUnlockedUsers() {
