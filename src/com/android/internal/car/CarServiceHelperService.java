@@ -274,8 +274,8 @@ public class CarServiceHelperService extends SystemService {
             }
             targetUserId = admin.id;
         } else {
-            Slog.i(TAG, "Switch to default user");
             targetUserId = mCarUserManagerHelper.getInitialUser();
+            Slog.i(TAG, "Switching to user " + targetUserId + " on boot");
         }
 
         IActivityManager am = ActivityManager.getService();
