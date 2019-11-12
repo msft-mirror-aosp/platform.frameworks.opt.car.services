@@ -177,8 +177,8 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      * allowed, change to the 1st allowed display.</p>
      */
     @Override
-    public int onCalculate(TaskRecord task, ActivityInfo.WindowLayout layout,
-            ActivityRecord activity, ActivityRecord source, ActivityOptions options, int phase,
+    public int onCalculate(Task task, ActivityInfo.WindowLayout layout, ActivityRecord activity,
+            ActivityRecord source, ActivityOptions options, int phase,
             LaunchParamsController.LaunchParams currentParams,
             LaunchParamsController.LaunchParams outParams) {
         int userId;

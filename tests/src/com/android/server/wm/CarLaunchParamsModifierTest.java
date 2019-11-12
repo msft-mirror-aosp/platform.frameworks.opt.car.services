@@ -71,7 +71,7 @@ public class CarLaunchParamsModifierTest {
     // All mocks from here before CarLaunchParamsModifier are arguments for
     // LaunchParamsModifier.onCalculate() call.
     @Mock
-    private TaskRecord mTaskRecord;
+    private Task mTask;
     @Mock
     private ActivityInfo.WindowLayout mWindowLayout;
     @Mock
@@ -119,9 +119,9 @@ public class CarLaunchParamsModifierTest {
     }
 
     private void assertDisplayIsAllowed(int userId, Display display) {
-        mTaskRecord.mUserId = userId;
+        mTask.mUserId = userId;
         mCurrentParams.mPreferredDisplayId = display.getDisplayId();
-        assertThat(mModifier.onCalculate(mTaskRecord, mWindowLayout, mActivityRecordActivity,
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
                 isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
     }
@@ -129,9 +129,9 @@ public class CarLaunchParamsModifierTest {
     private void assertDisplayIsReassigned(int userId, Display displayRequested,
             Display displayAssigned) {
         assertThat(displayRequested.getDisplayId()).isNotEqualTo(displayAssigned.getDisplayId());
-        mTaskRecord.mUserId = userId;
+        mTask.mUserId = userId;
         mCurrentParams.mPreferredDisplayId = displayRequested.getDisplayId();
-        assertThat(mModifier.onCalculate(mTaskRecord, mWindowLayout, mActivityRecordActivity,
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
                 isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_CONTINUE);
         assertThat(mOutParams.mPreferredDisplayId).isEqualTo(displayAssigned.getDisplayId());
