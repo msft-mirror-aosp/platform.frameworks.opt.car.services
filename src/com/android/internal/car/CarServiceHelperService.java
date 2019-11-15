@@ -60,7 +60,6 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 /**
  * System service side companion service for CarService.
@@ -513,18 +512,13 @@ public class CarServiceHelperService extends SystemService {
     // TODO(b/111451156): add unit test?
     @Nullable
     public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
-        int flags = 0;
-        String traceMsg =  "pre-create";
-        if (isGuest) {
-            flags |= UserInfo.FLAG_GUEST;
-            traceMsg += "-guest";
-        } else {
-            traceMsg += "-user";
-        }
+        String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
         t.traceBegin(traceMsg);
         // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
         UserManager um = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
-        UserInfo user = um.preCreateUser(flags);
+        String userType =
+                isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
+        UserInfo user = um.preCreateUser(userType);
         try {
             if (user == null) {
                 // Couldn't create user, most likely because there are too many.
