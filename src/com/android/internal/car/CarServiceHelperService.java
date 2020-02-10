@@ -49,6 +49,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
+import com.android.server.SystemService.TargetUser;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -69,12 +70,12 @@ public class CarServiceHelperService extends SystemService {
     // Place holder for user name of the first user created.
     private static final String TAG = "CarServiceHelper";
     private static final boolean DBG = true;
-    private static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
+    @VisibleForTesting static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
     // These numbers should match with binder call order of
     // packages/services/Car/car-lib/src/android/car/ICar.aidl
-    private static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
-    private static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 1;
-    private static final int ICAR_CALL_SET_SWITCH_USER = 2;
+    @VisibleForTesting static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
+    @VisibleForTesting static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 1;
+    @VisibleForTesting static final int ICAR_CALL_ON_SWITCH_USER = 2;
 
     private static final String PROP_RESTART_RUNTIME = "ro.car.recovery.restart_runtime.enabled";
 
@@ -185,9 +186,9 @@ public class CarServiceHelperService extends SystemService {
         System.loadLibrary("car-framework-service-jni");
     }
 
-
     @Override
-    public void onUnlockUser(@UserIdInt int userId) {
+    public void onUnlockUser(@NonNull TargetUser targetUser) {
+        int userId = targetUser.getUserIdentifier();
         handleUserLockStatusChange(userId, true);
         if (DBG) {
             Slog.d(TAG, "User" + userId + " unlocked");
@@ -195,18 +196,21 @@ public class CarServiceHelperService extends SystemService {
     }
 
     @Override
-    public void onStopUser(@UserIdInt int userId) {
+    public void onStopUser(@NonNull TargetUser targetUser) {
+        int userId = targetUser.getUserIdentifier();
         mCarLaunchParamsModifier.handleUserStopped(userId);
         handleUserLockStatusChange(userId, false);
     }
 
     @Override
-    public void onCleanupUser(@UserIdInt int userId) {
+    public void onCleanupUser(@NonNull TargetUser targetUser) {
+        int userId = targetUser.getUserIdentifier();
         handleUserLockStatusChange(userId, false);
     }
 
     @Override
-    public void onSwitchUser(@UserIdInt int userId) {
+    public void onSwitchUser(@Nullable TargetUser from, @NonNull TargetUser to) {
+        int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
         synchronized (mLock) {
             mLastSwitchedUser = userId;
@@ -237,7 +241,7 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
-    private void handleCarServiceConnection(IBinder iBinder) {
+    @VisibleForTesting void handleCarServiceConnection(IBinder iBinder) {
         int lastSwitchedUser;
         boolean systemBootCompleted;
         synchronized (mLock) {
@@ -513,10 +517,9 @@ public class CarServiceHelperService extends SystemService {
         String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
         t.traceBegin(traceMsg);
         // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
-        UserManager um = (UserManager) mContext.getSystemService(Context.USER_SERVICE);
         String userType =
                 isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
-        UserInfo user = um.preCreateUser(userType);
+        UserInfo user = mUserManager.preCreateUser(userType);
         try {
             if (user == null) {
                 // Couldn't create user, most likely because there are too many.
@@ -569,7 +572,7 @@ public class CarServiceHelperService extends SystemService {
         data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
         data.writeInt(userId);
         // void onSwitchUser(in int userId)
-        sendBinderCallToCarService(data, ICAR_CALL_SET_SWITCH_USER);
+        sendBinderCallToCarService(data, ICAR_CALL_ON_SWITCH_USER);
     }
 
     private void sendBinderCallToCarService(Parcel data, int callNumber) {
