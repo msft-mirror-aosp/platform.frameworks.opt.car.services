@@ -188,21 +188,21 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnStartUserNotifiesICar() throws Exception {
+    public void testOnUserStartingNotifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STARTING,
                 userId);
 
-        mCarServiceHelperService.onStartUser(newTargetUser(userId));
+        mCarServiceHelperService.onUserStarting(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarOnUserLifecycleEventCalled();
     }
 
     @Test
-    public void testOnSwitchUserNotifiesICar() throws Exception {
+    public void testOnUserSwitchingNotifiesICar() throws Exception {
         bindMockICar();
 
         int currentUserId = 10;
@@ -211,7 +211,7 @@ public class CarHelperServiceTest {
                 currentUserId, targetUserId);
         expectICarOnSwitchUser(targetUserId);
 
-        mCarServiceHelperService.onSwitchUser(newTargetUser(currentUserId),
+        mCarServiceHelperService.onUserSwitching(newTargetUser(currentUserId),
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
@@ -219,23 +219,37 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUnlockUserNotifiesICar() throws Exception {
+    public void testOnUserUnlockingNotifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                 userId);
         expectICarSetUserLockStatus(userId, true);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onUnlockUser(newTargetUser(userId));
+        mCarServiceHelperService.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
     }
 
     @Test
-    public void testOnStopUserNotifiesICar() throws Exception {
+    public void testOnUserUnlockedNotifiesICar() throws Exception {
+        bindMockICar();
+
+        int userId = 10;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+                userId);
+
+        mCarServiceHelperService.onUserUnlocked(newTargetUser(userId));
+
+        assertNoICarCallExceptions();
+        verifyICarOnUserLifecycleEventCalled();
+    }
+
+    @Test
+    public void testOnUserStoppingNotifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -244,14 +258,14 @@ public class CarHelperServiceTest {
         expectICarSetUserLockStatus(userId, false);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onStopUser(newTargetUser(userId));
+        mCarServiceHelperService.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
     }
 
     @Test
-    public void testOnCleanupUserNotifiesICar() throws Exception {
+    public void testOnUserStoppedNotifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -260,7 +274,7 @@ public class CarHelperServiceTest {
         expectICarSetUserLockStatus(userId, false);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onCleanupUser(newTargetUser(userId));
+        mCarServiceHelperService.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
