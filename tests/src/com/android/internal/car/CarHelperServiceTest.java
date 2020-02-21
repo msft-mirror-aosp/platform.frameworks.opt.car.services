@@ -47,6 +47,7 @@ import android.content.res.Resources;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
+import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
 
@@ -187,11 +188,27 @@ public class CarHelperServiceTest {
     }
 
     @Test
+    public void testOnStartUserNotifiesICar() throws Exception {
+        bindMockICar();
+
+        int userId = 10;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STARTING,
+                userId);
+
+        mCarServiceHelperService.onStartUser(newTargetUser(userId));
+
+        assertNoICarCallExceptions();
+        verifyICarOnUserLifecycleEventCalled();
+    }
+
+    @Test
     public void testOnSwitchUserNotifiesICar() throws Exception {
         bindMockICar();
 
         int currentUserId = 10;
         int targetUserId = 11;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
+                currentUserId, targetUserId);
         expectICarOnSwitchUser(targetUserId);
 
         mCarServiceHelperService.onSwitchUser(newTargetUser(currentUserId),
@@ -203,9 +220,12 @@ public class CarHelperServiceTest {
 
     @Test
     public void testOnUnlockUserNotifiesICar() throws Exception {
-        int userId = 10;
-        expectICarSetUserLockStatus(userId, true);
         bindMockICar();
+
+        int userId = 10;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+                userId);
+        expectICarSetUserLockStatus(userId, true);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mCarServiceHelperService.onUnlockUser(newTargetUser(userId));
@@ -216,9 +236,12 @@ public class CarHelperServiceTest {
 
     @Test
     public void testOnStopUserNotifiesICar() throws Exception {
-        int userId = 10;
-        expectICarSetUserLockStatus(userId, false);
         bindMockICar();
+
+        int userId = 10;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STOPPING,
+                userId);
+        expectICarSetUserLockStatus(userId, false);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mCarServiceHelperService.onStopUser(newTargetUser(userId));
@@ -229,9 +252,12 @@ public class CarHelperServiceTest {
 
     @Test
     public void testOnCleanupUserNotifiesICar() throws Exception {
-        int userId = 10;
-        expectICarSetUserLockStatus(userId, false);
         bindMockICar();
+
+        int userId = 10;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STOPPED,
+                userId);
+        expectICarSetUserLockStatus(userId, false);
 
         mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mCarServiceHelperService.onCleanupUser(newTargetUser(userId));
@@ -256,6 +282,53 @@ public class CarHelperServiceTest {
     }
 
     // TODO: create a custom matcher / verifier for binder calls
+
+    private void expectICarOnUserLifecycleEvent(int eventType, int expectedUserId)
+            throws Exception {
+        expectICarOnUserLifecycleEvent(eventType, UserHandle.USER_NULL, expectedUserId);
+    }
+
+    private void expectICarOnUserLifecycleEvent(int expectedEventType, int expectedFromUserId,
+            int expectedToUserId) throws Exception {
+        int txn = IBinder.FIRST_CALL_TRANSACTION
+                + CarServiceHelperService.ICAR_CALL_ON_USER_LIFECYCLE;
+        long before = System.currentTimeMillis();
+
+        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
+                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
+                    try {
+                        long after = System.currentTimeMillis();
+                        Log.d(TAG, "Answering txn " + txn);
+                        Parcel data = (Parcel) invocation.getArguments()[1];
+                        data.setDataPosition(0);
+                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        int actualEventType = data.readInt();
+                        long actualTimestamp = data.readLong();
+                        int actualFromUserId = data.readInt();
+                        int actualToUserId = data.readInt();
+                        Log.d(TAG, "Unmarshalled data: eventType=" + actualEventType
+                                + ", timestamp= " + actualTimestamp
+                                + ", fromUserId= " + actualFromUserId
+                                + ", toUserId= " + actualToUserId);
+                        List<String> errors = new ArrayList<>();
+
+                        if (actualTimestamp < before || actualTimestamp > after) {
+                            errors.add("timestamp (" + actualTimestamp + ") not in range [" + before
+                                    + ", " + after + "]");
+                        }
+                        assertParcelValue(errors, "eventType", expectedEventType, actualEventType);
+                        assertParcelValue(errors, "fromUserId", expectedFromUserId,
+                                actualFromUserId);
+                        assertParcelValue(errors, "toUserId", expectedToUserId, actualToUserId);
+                        assertNoParcelErrors(errors);
+                        return true;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Exception answering binder call", e);
+                        mBinderCallException = e;
+                        return false;
+                    }
+                });
+    }
 
     private void expectICarOnSwitchUser(int expectedUserId) throws Exception {
         int txn = IBinder.FIRST_CALL_TRANSACTION + CarServiceHelperService.ICAR_CALL_ON_SWITCH_USER;
@@ -308,6 +381,10 @@ public class CarHelperServiceTest {
                         return false;
                     }
                 });
+    }
+
+    private void verifyICarOnUserLifecycleEventCalled() throws Exception {
+        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_ON_USER_LIFECYCLE);
     }
 
     private void verifyICarOnSwitchUserCalled() throws Exception {
