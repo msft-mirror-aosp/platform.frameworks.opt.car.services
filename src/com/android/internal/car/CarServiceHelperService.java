@@ -751,7 +751,7 @@ public class CarServiceHelperService extends SystemService {
         pids.add(Process.myPid());
 
         ActivityManagerService.dumpStackTraces(
-                pids, null, null, getInterestingNativePids());
+                pids, null, null, getInterestingNativePids(), null);
     }
 
     private void handleCarServiceCrash() {
