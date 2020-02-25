@@ -84,9 +84,10 @@ public class CarServiceHelperService extends SystemService {
     // These constants should match CarUserManager
     @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1;
     @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_SWITCHING = 2;
-    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED = 3;
-    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING = 4;
-    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED = 5;
+    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKING = 3;
+    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_UNLOCKED = 4;
+    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STOPPING = 5;
+    @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STOPPED = 6;
 
     // Typically there are ~2-5 ops while system and non-system users are starting.
     private final int NUMBER_PENDING_OPERATIONS = 5;
@@ -206,21 +207,29 @@ public class CarServiceHelperService extends SystemService {
     }
 
     @Override
-    public void onUnlockUser(@NonNull TargetUser user) {
-        Slog.i(TAG, "onUnlockUser(" + user + ")");
-        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
+    public void onUserUnlocking(@NonNull TargetUser user) {
+        Slog.i(TAG, "onUserUnlocking(" + user + ")");
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, user);
+        // NOTE: handleUserLockStatusChange() should be called by onUserUnlocked(), but it will be
+        // refactored anyways, so we kept the old behavior...
         int userId = user.getUserIdentifier();
         handleUserLockStatusChange(userId, true);
     }
 
     @Override
-    public void onStartUser(@NonNull TargetUser user) {
+    public void onUserUnlocked(@NonNull TargetUser user) {
+        Slog.i(TAG, "onUserUnlocked(" + user + ")");
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
+    }
+
+    @Override
+    public void onUserStarting(@NonNull TargetUser user) {
         Slog.i(TAG, "onStartUser(" + user + ")");
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, user);
     }
 
     @Override
-    public void onStopUser(@NonNull TargetUser user) {
+    public void onUserStopping(@NonNull TargetUser user) {
         Slog.i(TAG, "onStopUser(" + user + ")");
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPING, user);
         int userId = user.getUserIdentifier();
@@ -229,7 +238,7 @@ public class CarServiceHelperService extends SystemService {
     }
 
     @Override
-    public void onCleanupUser(@NonNull TargetUser user) {
+    public void onUserStopped(@NonNull TargetUser user) {
         Slog.i(TAG, "onCleanupUser(" + user + ")");
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPED, user);
         int userId = user.getUserIdentifier();
@@ -237,7 +246,7 @@ public class CarServiceHelperService extends SystemService {
     }
 
     @Override
-    public void onSwitchUser(@Nullable TargetUser from, @NonNull TargetUser to) {
+    public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
         Slog.i(TAG, "onSwitchUser(" + from + ">>" + to + ")");
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING, from, to);
         int userId = to.getUserIdentifier();
