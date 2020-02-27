@@ -38,6 +38,7 @@ import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceManager;
+import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -45,6 +46,7 @@ import android.os.UserManager;
 import android.sysprop.CarProperties;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
+import android.util.TimeUtils;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -78,8 +80,12 @@ public class CarServiceHelperService extends SystemService {
     // packages/services/Car/car-lib/src/android/car/ICar.aidl
     @VisibleForTesting static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
     @VisibleForTesting static final int ICAR_CALL_ON_USER_LIFECYCLE = 1;
-    @VisibleForTesting static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 2;
-    @VisibleForTesting static final int ICAR_CALL_ON_SWITCH_USER = 3;
+    @VisibleForTesting static final int ICAR_CALL_FIRST_USER_UNLOCKED = 2;
+
+    // TODO(145689885) remove once refactored
+    @VisibleForTesting static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 9;
+    @VisibleForTesting static final int ICAR_CALL_ON_SWITCH_USER = 10;
+
 
     // These constants should match CarUserManager
     @VisibleForTesting static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1;
@@ -117,6 +123,11 @@ public class CarServiceHelperService extends SystemService {
     private final String mDefaultUserName;
     private final IActivityManager mActivityManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
+
+    /**
+     * End-to-end time (from process start) for unlocking the first non-system user.
+     */
+    private long mFirstUnlockedUserDuration;
 
     // TODO(b/146207078): rather than store Runnables, it would be more efficient to store some
     // parcelables representing the operation, then pass them to setCarServiceHelper
@@ -219,6 +230,14 @@ public class CarServiceHelperService extends SystemService {
     @Override
     public void onUserUnlocked(@NonNull TargetUser user) {
         Slog.i(TAG, "onUserUnlocked(" + user + ")");
+        if (mFirstUnlockedUserDuration == 0 && user.getUserIdentifier() != UserHandle.USER_SYSTEM) {
+            mFirstUnlockedUserDuration = SystemClock.elapsedRealtime()
+                    - Process.getStartElapsedRealtime();
+            Slog.i(TAG, "Time to unlock 1st user(" + user + "): "
+                    + TimeUtils.formatDuration(mFirstUnlockedUserDuration));
+            sendFirstUserUnlocked(user);
+            return;
+        }
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
     }
 
@@ -679,6 +698,17 @@ public class CarServiceHelperService extends SystemService {
         data.writeInt(to.getUserIdentifier());
         // void onUserLifecycleEvent(int eventType, long timestamp, int from, int to)
         sendBinderCallToCarService(data, ICAR_CALL_ON_USER_LIFECYCLE);
+    }
+
+    private void sendFirstUserUnlocked(@NonNull TargetUser user) {
+        long now = System.currentTimeMillis();
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
+        data.writeInt(user.getUserIdentifier());
+        data.writeLong(now);
+        data.writeLong(mFirstUnlockedUserDuration);
+        // void onFirstUserUnlocked(int userId, long timestampMs, ong duration)
+        sendBinderCallToCarService(data, ICAR_CALL_FIRST_USER_UNLOCKED);
     }
 
     private void sendBinderCallToCarService(Parcel data, int callNumber) {
