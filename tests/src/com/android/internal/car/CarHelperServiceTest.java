@@ -17,6 +17,7 @@
 package com.android.internal.car;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
@@ -35,6 +36,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.ArgumentMatchers.nullable;
 
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
 import android.annotation.NonNull;
@@ -45,11 +47,13 @@ import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.IBinder;
 import android.os.Looper;
 import android.os.Parcel;
 import android.os.Process;
+import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
@@ -59,6 +63,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.dx.mockito.inline.extended.StaticMockitoSession;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
+import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
+import com.android.internal.car.ExternalConstants.ICarConstants;
+import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
+import com.android.internal.car.ExternalConstants.VHalResponseActionConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
@@ -85,12 +94,15 @@ import java.util.List;
 public class CarHelperServiceTest {
 
     private static final String TAG = CarHelperServiceTest.class.getSimpleName();
+
     private static final String DEFAULT_NAME = "Driver";
+
     private static final int ADMIN_USER_ID = 10;
+    private static final int OTHER_USER_ID = 11;
 
-    private static final int HAL_TIMEOUT_MS = 100;
+    private static final int HAL_TIMEOUT_MS = 500;
 
-    private static final int ADDITIONAL_TIME_MS = 100;
+    private static final int ADDITIONAL_TIME_MS = 200;
 
     private static final int HAL_NOT_REPLYING_TIMEOUT_MS = HAL_TIMEOUT_MS + ADDITIONAL_TIME_MS;
 
@@ -161,7 +173,7 @@ public class CarHelperServiceTest {
      * run.
      */
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun_noHal() throws Exception {
+    public void testInitialInfo_noHal() throws Exception {
         setNoUsers();
 
         CarServiceHelperService halLessHelper = new CarServiceHelperService(
@@ -198,7 +210,7 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun_halReturnedDefault() throws Exception {
+    public void testInitialInfo_halReturnedDefault() throws Exception {
         bindMockICar();
 
         setNoUsers();
@@ -209,12 +221,11 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
+        assertDefaultInitialInfoBehavior();
     }
 
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun_halNeverReturned() throws Exception {
+    public void testInitialInfo_halServiceNeverReturned() throws Exception {
         bindMockICar();
 
         setNoUsers();
@@ -226,12 +237,11 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
+        assertDefaultInitialInfoBehavior();
     }
 
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun_halReturnedTooLate() throws Exception {
+    public void testInitialInfo_halServiceReturnedTooLate() throws Exception {
         bindMockICar();
 
         setNoUsers();
@@ -243,18 +253,140 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
+        assertDefaultInitialInfoBehavior();
 
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
-
     }
 
-    // TODO(b/146207078): add tests for all scenarios:
-    //   - HAL create
-    //   - HAL switch
-    //   - HAL timeout
-    //   - Framework erros upon HAL response (for example, could not create user)
+    @Test
+    public void testInitialInfo_halReturnedNonOkResultCode() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.NON_OK_RESULT_CODE);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedOkWithNoBundle() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.NULL_BUNDLE);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchSucceeded() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ true);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertUserStartedAsFg(OTHER_USER_ID);
+        assertNoUserCreated();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchMissingUserId() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_MISSING_USER_ID);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchSystemUser() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_SYSTEM_USER);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchFailedWithRemoteException()
+            throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectStartFgUserToFail(OTHER_USER_ID, new RemoteException("D'OH!"));
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchFailedWithRuntimeException()
+            throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectStartFgUserToFail(OTHER_USER_ID, new RuntimeException("D'OH!"));
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedSwitch_switchFailed() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ false);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertDefaultInitialInfoBehavior();
+    }
+
+    // TODO(b/150399261): add tests for all scenarios:
+    //   - HAL create (guest / ephemeral / admin; failure if system)
 
     /**
      * Test that the {@link CarServiceHelperService} updates last active user to the first admin
@@ -302,7 +434,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         int userId = 10;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STARTING,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING,
                 userId);
 
         mHelper.onUserStarting(newTargetUser(userId));
@@ -317,7 +449,7 @@ public class CarHelperServiceTest {
 
         int currentUserId = 10;
         int targetUserId = 11;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 currentUserId, targetUserId);
         expectICarOnSwitchUser(targetUserId);
 
@@ -333,7 +465,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         int userId = 10;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                 userId);
         expectICarSetUserLockStatus(userId, true);
 
@@ -349,7 +481,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         int systemUserId = UserHandle.USER_SYSTEM;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
                 systemUserId);
 
         int firstUserId = 10;
@@ -372,7 +504,7 @@ public class CarHelperServiceTest {
         expectICarFirstUserUnlocked(firstUserId);
 
         int secondUserId = 11;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
                 secondUserId);
 
         mHelper.onUserUnlocked(newTargetUser(firstUserId));
@@ -389,7 +521,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         int userId = 10;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STOPPING,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING,
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
@@ -405,7 +537,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         int userId = 10;
-        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STOPPED,
+        expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED,
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
@@ -416,6 +548,15 @@ public class CarHelperServiceTest {
         verifyICarSetUserLockStatusCalled();
     }
 
+    /**
+     * Used in cases where the result of calling HAL for the initial info should be the same as
+     * not using HAL.
+     */
+    private void assertDefaultInitialInfoBehavior() throws Exception {
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
+    }
+
     private TargetUser newTargetUser(int userId) {
         TargetUser targetUser = mock(TargetUser.class);
         when(targetUser.getUserIdentifier()).thenReturn(userId);
@@ -424,7 +565,7 @@ public class CarHelperServiceTest {
 
     private void bindMockICar() throws Exception {
         int txn = IBinder.FIRST_CALL_TRANSACTION
-                + CarServiceHelperService.ICAR_CALL_SET_CAR_SERVICE_HELPER;
+                + ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER;
         // Must set the binder expectation, otherwise checks for other transactions would fail
         when(mICarBinder.transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
                 .thenReturn(true);
@@ -441,6 +582,10 @@ public class CarHelperServiceTest {
 
     private void assertUserCreated(String name, int flags) throws Exception {
         verify(mUserManager).createUser(eq(name), eq(flags));
+    }
+
+    private void assertNoUserCreated() throws Exception {
+        verify(mUserManager, never()).createUser(anyString(), anyInt());
     }
 
     private void assertUserStartedAsFg(int userId) throws Exception {
@@ -466,8 +611,7 @@ public class CarHelperServiceTest {
 
     private void expectICarOnUserLifecycleEvent(int expectedEventType, int expectedFromUserId,
             int expectedToUserId) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION
-                + CarServiceHelperService.ICAR_CALL_ON_USER_LIFECYCLE;
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE;
         long before = System.currentTimeMillis();
 
         when(mICarBinder.transact(eq(txn), notNull(), isNull(),
@@ -477,7 +621,7 @@ public class CarHelperServiceTest {
                         Log.d(TAG, "Answering txn " + txn);
                         Parcel data = (Parcel) invocation.getArguments()[1];
                         data.setDataPosition(0);
-                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
                         int actualEventType = data.readInt();
                         long actualTimestamp = data.readLong();
                         int actualFromUserId = data.readInt();
@@ -503,8 +647,7 @@ public class CarHelperServiceTest {
     }
 
     private void expectICarFirstUserUnlocked(int expectedUserId) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION
-                + CarServiceHelperService.ICAR_CALL_FIRST_USER_UNLOCKED;
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED;
         long before = System.currentTimeMillis();
         long minDuration = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime();
 
@@ -515,7 +658,7 @@ public class CarHelperServiceTest {
                         Log.d(TAG, "Answering txn " + txn);
                         Parcel data = (Parcel) invocation.getArguments()[1];
                         data.setDataPosition(0);
-                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
                         int actualUserId = data.readInt();
                         long actualTimestamp = data.readLong();
                         long actualDuration = data.readLong();
@@ -542,7 +685,7 @@ public class CarHelperServiceTest {
     }
 
     private void expectICarOnSwitchUser(int expectedUserId) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION + CarServiceHelperService.ICAR_CALL_ON_SWITCH_USER;
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_ON_SWITCH_USER;
 
         when(mICarBinder.transact(eq(txn), notNull(), isNull(),
                 eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
@@ -550,7 +693,7 @@ public class CarHelperServiceTest {
                         Log.d(TAG, "Answering txn " + txn);
                         Parcel data = (Parcel) invocation.getArguments()[1];
                         data.setDataPosition(0);
-                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
                         int actualUserId = data.readInt();
                         Log.d(TAG, "Unmarshalled data: userId= " + actualUserId);
                         List<String> errors = new ArrayList<>();
@@ -567,15 +710,14 @@ public class CarHelperServiceTest {
 
     private void expectICarSetUserLockStatus(int expectedUserId, boolean expectedUnlocked)
             throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION
-                + CarServiceHelperService.ICAR_CALL_SET_USER_UNLOCK_STATUS;
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS;
         when(mICarBinder.transact(eq(txn), notNull(), isNull(),
                 eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
                     try {
                         Log.d(TAG, "Answering txn " + txn);
                         Parcel data = (Parcel) invocation.getArguments()[1];
                         data.setDataPosition(0);
-                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
                         int actualUserId = data.readInt();
                         int actualUnlocked = data.readInt();
                         Log.d(TAG, "Unmarshalled data: userId= " + actualUserId
@@ -594,22 +736,36 @@ public class CarHelperServiceTest {
                 });
     }
 
+    void expectStartFgUserToSucceed(int userId, boolean result) throws Exception {
+        doReturn(result).when(mActivityManager)
+            .startUserInForegroundWithListener(userId, /* unlockProgressListener= */ null);
+    }
+
+    void expectStartFgUserToFail(int userId, Exception exception) throws Exception {
+        doThrow(exception).when(mActivityManager)
+            .startUserInForegroundWithListener(userId,/* unlockProgressListener= */ null);
+    }
+
     enum InitialUserInfoAction {
         DEFAULT,
         DO_NOT_REPLY,
-        DELAYED_REPLY
+        DELAYED_REPLY,
+        NON_OK_RESULT_CODE,
+        NULL_BUNDLE,
+        SWITCH_OK,
+        SWITCH_MISSING_USER_ID,
+        SWITCH_SYSTEM_USER,
     }
 
     private void expectICarGetInitialUserInfo(InitialUserInfoAction action) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION
-                + CarServiceHelperService.ICAR_CALL_GET_INITIAL_USER_INFO;
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_GET_INITIAL_USER_INFO;
         when(mICarBinder.transact(eq(txn), notNull(), isNull(),
                 eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
                     try {
                         Log.d(TAG, "Answering txn " + txn);
                         Parcel data = (Parcel) invocation.getArguments()[1];
                         data.setDataPosition(0);
-                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
                         int actualRequestType = data.readInt();
                         int actualTimeoutMs = data.readInt();
                         IResultReceiver receiver = IResultReceiver.Stub
@@ -629,7 +785,26 @@ public class CarHelperServiceTest {
                                 sleep("before sending result", HAL_NOT_REPLYING_TIMEOUT_MS);
                                 sendDefaultAction(receiver);
                                 break;
-                            default:
+                            case NON_OK_RESULT_CODE:
+                                Log.d(TAG, "sending bad result code");
+                                receiver.send(-1, null);
+                                break;
+                            case NULL_BUNDLE:
+                                Log.d(TAG, "sending OK without bundle");
+                                receiver.send(UserHalServiceConstants.STATUS_OK, null);
+                                break;
+                            case SWITCH_OK:
+                                sendValidSwitchAction(receiver);
+                                break;
+                            case SWITCH_MISSING_USER_ID:
+                                Log.d(TAG, "sending Switch without user Id");
+                                sendSwitchAction(receiver, null);
+                                break;
+                            case SWITCH_SYSTEM_USER:
+                                Log.d(TAG, "sending Switch with SYSTEM user Id");
+                                sendSwitchAction(receiver, UserHandle.USER_SYSTEM);
+                                break;
+                           default:
                                 throw new IllegalArgumentException("invalid action: " + action);
                         }
 
@@ -642,11 +817,27 @@ public class CarHelperServiceTest {
                 });
     }
 
-    private void sendDefaultAction(IResultReceiver receiver) throws Exception{
+    private void sendDefaultAction(IResultReceiver receiver) throws Exception {
         Log.d(TAG, "Sending DEFAULT action to receiver " + receiver);
-        // TODO(b/150222501): current not returning any specific response,
-        // so resultCode and resultData don't matter
-        receiver.send(0 , null);
+        Bundle data = new Bundle();
+        data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
+                VHalResponseActionConstants.DEFAULT);
+        receiver.send(UserHalServiceConstants.STATUS_OK, data);
+    }
+
+    private void sendValidSwitchAction(IResultReceiver receiver) throws Exception {
+        Log.d(TAG, "Sending SWITCH (" + OTHER_USER_ID + ") action to receiver " + receiver);
+        sendSwitchAction(receiver, OTHER_USER_ID);
+    }
+
+    private void sendSwitchAction(IResultReceiver receiver, Integer id) throws Exception {
+        Bundle data = new Bundle();
+        data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
+                VHalResponseActionConstants.SWITCH);
+        if (id != null) {
+            data.putInt(CarUserServiceConstants.BUNDLE_USER_ID, id);
+        }
+        receiver.send(UserHalServiceConstants.STATUS_OK, data);
     }
 
     private void sleep(String reason, long napTimeMs) {
@@ -656,23 +847,23 @@ public class CarHelperServiceTest {
     }
 
     private void verifyICarOnUserLifecycleEventCalled() throws Exception {
-        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_ON_USER_LIFECYCLE);
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE);
     }
 
     private void verifyICarOnSwitchUserCalled() throws Exception {
-        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_ON_SWITCH_USER);
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_ON_SWITCH_USER);
     }
 
     private void verifyICarSetUserLockStatusCalled() throws Exception {
-        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_SET_USER_UNLOCK_STATUS);
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS);
     }
 
     private void verifyICarFirstUserUnlockedCalled() throws Exception {
-        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_FIRST_USER_UNLOCKED);
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED);
     }
 
     private void verifyICarGetInitialUserInfoCalled() throws Exception {
-        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_GET_INITIAL_USER_INFO);
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_GET_INITIAL_USER_INFO);
     }
 
     private void verifyICarTxnCalled(int txnId) throws Exception {
