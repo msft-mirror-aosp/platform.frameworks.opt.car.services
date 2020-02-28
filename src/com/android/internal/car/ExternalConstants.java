@@ -16,6 +16,9 @@
 package com.android.internal.car;
 
 import android.annotation.NonNull;
+import android.content.pm.UserInfo;
+import android.content.pm.UserInfo.UserInfoFlag;
+import android.util.DebugUtils;
 
 /**
  * Provides constants that are defined somewhere else and must be cloned here
@@ -113,14 +116,65 @@ final class ExternalConstants {
 
     static final class VHalUserFlagsConstants {
 
-        static final int NONE = 0;
-        static final int SYSTEM = 1;
-        static final int GUEST = 2;
-        static final int EPHEMERAL = 4;
-        static final int ADMIN = 8;
+        // NOTE: must be public because of DebugUtils.toString()
+        public static final int NONE = 0;
+        public static final int SYSTEM = 1;
+        public static final int GUEST = 2;
+        public static final int EPHEMERAL = 4;
+        public static final int ADMIN = 8;
 
         private VHalUserFlagsConstants() {
-            throw new UnsupportedOperationException("contains only static constants");
+            throw new UnsupportedOperationException("contains only static constants and methods");
+        }
+
+        // TODO(b/150413515): add unit test for methods
+
+        /**
+         * Checks if a flag contains {@link #SYSTEM}.
+         */
+        public static boolean isSystem(int flags) {
+            return (flags & SYSTEM) != 0;
+        }
+
+        /**
+         * Checks if a flag contains {@link #GUEST}.
+         */
+        public static boolean isGuest(int flags) {
+            return (flags & GUEST) != 0;
+        }
+
+        /**
+         * Checks if a flag contains {@link #EPHEMERAL}.
+         */
+        public static boolean isEphemeral(int flags) {
+            return (flags & EPHEMERAL) != 0;
+        }
+
+        /**
+         * Checks if a flag contains {@link #ADMIN}.
+         */
+        public static boolean isAdmin(int flags) {
+            return (flags & ADMIN) != 0;
+        }
+
+        /**
+         * Converts HAL flags to Android's.
+         */
+        @UserInfoFlag
+        public static int toUserInfoFlags(int halFlags) {
+            int flags = 0;
+            if (isEphemeral(halFlags)) {
+                flags |=UserInfo.FLAG_EPHEMERAL;
+            }
+            if (isAdmin(halFlags)) {
+                flags |=UserInfo.FLAG_ADMIN;
+            }
+            return flags;
+        }
+
+        @NonNull
+        public static String toString(int flags) {
+            return DebugUtils.flagsToString(VHalUserFlagsConstants.class, "", flags);
         }
     }
 }
