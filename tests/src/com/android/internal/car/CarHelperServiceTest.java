@@ -47,6 +47,8 @@ import android.content.res.Resources;
 import android.os.Binder;
 import android.os.IBinder;
 import android.os.Parcel;
+import android.os.Process;
+import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
@@ -235,17 +237,43 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserUnlockedNotifiesICar() throws Exception {
+    public void testOnUserUnlockedNotifiesICar_systemUserFirst() throws Exception {
         bindMockICar();
 
-        int userId = 10;
+        int systemUserId = UserHandle.USER_SYSTEM;
         expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
-                userId);
+                systemUserId);
 
-        mCarServiceHelperService.onUserUnlocked(newTargetUser(userId));
+        int firstUserId = 10;
+        expectICarFirstUserUnlocked(firstUserId);
+
+        mCarServiceHelperService.onUserUnlocked(newTargetUser(systemUserId));
+        mCarServiceHelperService.onUserUnlocked(newTargetUser(firstUserId));
 
         assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled();
+
+        verifyICarOnUserLifecycleEventCalled(); // system user
+        verifyICarFirstUserUnlockedCalled();    // first user
+    }
+
+    @Test
+    public void testOnUserUnlockedNotifiesICar_firstUserReportedJustOnce() throws Exception {
+        bindMockICar();
+
+        int firstUserId = 10;
+        expectICarFirstUserUnlocked(firstUserId);
+
+        int secondUserId = 11;
+        expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+                secondUserId);
+
+        mCarServiceHelperService.onUserUnlocked(newTargetUser(firstUserId));
+        mCarServiceHelperService.onUserUnlocked(newTargetUser(secondUserId));
+
+        assertNoICarCallExceptions();
+
+        verifyICarFirstUserUnlockedCalled();    // first user
+        verifyICarOnUserLifecycleEventCalled(); // second user
     }
 
     @Test
@@ -325,11 +353,7 @@ public class CarHelperServiceTest {
                                 + ", fromUserId= " + actualFromUserId
                                 + ", toUserId= " + actualToUserId);
                         List<String> errors = new ArrayList<>();
-
-                        if (actualTimestamp < before || actualTimestamp > after) {
-                            errors.add("timestamp (" + actualTimestamp + ") not in range [" + before
-                                    + ", " + after + "]");
-                        }
+                        assertParcelValueInRange(errors, "timestamp", before, actualTimestamp, after);
                         assertParcelValue(errors, "eventType", expectedEventType, actualEventType);
                         assertParcelValue(errors, "fromUserId", expectedFromUserId,
                                 actualFromUserId);
@@ -342,6 +366,45 @@ public class CarHelperServiceTest {
                         return false;
                     }
                 });
+    }
+
+    private void expectICarFirstUserUnlocked(int expectedUserId) throws Exception {
+        int txn = IBinder.FIRST_CALL_TRANSACTION
+                + CarServiceHelperService.ICAR_CALL_FIRST_USER_UNLOCKED;
+        long before = System.currentTimeMillis();
+        long minDuration = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime();
+
+        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
+                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
+                    try {
+                        long after = System.currentTimeMillis();
+                        Log.d(TAG, "Answering txn " + txn);
+                        Parcel data = (Parcel) invocation.getArguments()[1];
+                        data.setDataPosition(0);
+                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        int actualUserId = data.readInt();
+                        long actualTimestamp = data.readLong();
+                        long actualDuration = data.readLong();
+                        Log.d(TAG, "Unmarshalled data: userId= " + actualUserId
+                                + ", timestamp= " + actualTimestamp
+                                + ", duration=" + actualDuration);
+                        List<String> errors = new ArrayList<>();
+                        assertParcelValue(errors, "userId", expectedUserId, actualUserId);
+                        assertParcelValueInRange(errors, "timestamp", before, actualTimestamp,
+                                after);
+                        if (actualDuration < minDuration) {
+                            errors.add("Minimum duration should be " + minDuration + " (was "
+                                    + actualDuration + ")");
+                        }
+                        assertNoParcelErrors(errors);
+                        return true;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Exception answering binder call", e);
+                        mBinderCallException = e;
+                        return false;
+                    }
+                });
+
     }
 
     private void expectICarOnSwitchUser(int expectedUserId) throws Exception {
@@ -409,6 +472,10 @@ public class CarHelperServiceTest {
         verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_SET_USER_UNLOCK_STATUS);
     }
 
+    private void verifyICarFirstUserUnlockedCalled() throws Exception {
+        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_FIRST_USER_UNLOCKED);
+    }
+
     private void verifyICarTxnCalled(int txnId) throws Exception {
         int txn = IBinder.FIRST_CALL_TRANSACTION + txnId;
         verify(mICarBinder, times(1)).transact(eq(txn), notNull(), isNull(),
@@ -423,6 +490,12 @@ public class CarHelperServiceTest {
         }
     }
 
+    private void assertParcelValueInRange(List<String> errors, String field, long before,
+            long actual, long after) {
+        if (actual < before || actual> after) {
+            errors.add(field + " (" + actual+ ") not in range [" + before + ", " + after + "]");
+        }
+    }
     private void assertNoParcelErrors(List<String> errors) {
         int size = errors.size();
         if (size == 0) return;
