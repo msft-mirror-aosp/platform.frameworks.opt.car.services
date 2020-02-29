@@ -45,7 +45,9 @@ import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
 import android.os.Binder;
+import android.os.Handler;
 import android.os.IBinder;
+import android.os.Looper;
 import android.os.Parcel;
 import android.os.Process;
 import android.os.SystemClock;
@@ -56,6 +58,8 @@ import android.util.Log;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.dx.mockito.inline.extended.StaticMockitoSession;
+import com.android.internal.annotations.GuardedBy;
+import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
@@ -84,7 +88,16 @@ public class CarHelperServiceTest {
     private static final String DEFAULT_NAME = "Driver";
     private static final int ADMIN_USER_ID = 10;
 
-    private CarServiceHelperService mCarServiceHelperService;
+    private static final int HAL_TIMEOUT_MS = 100;
+
+    private static final int ADDITIONAL_TIME_MS = 100;
+
+    private static final int HAL_NOT_REPLYING_TIMEOUT_MS = HAL_TIMEOUT_MS + ADDITIONAL_TIME_MS;
+
+    private static final long POST_HAL_NOT_REPLYING_TIMEOUT_MS = HAL_NOT_REPLYING_TIMEOUT_MS
+            + ADDITIONAL_TIME_MS;
+
+    private CarServiceHelperService mHelper;
     StaticMockitoSession mStaticMockitoSession;
 
     @Mock
@@ -127,13 +140,15 @@ public class CarHelperServiceTest {
 
         mActivityManager = ActivityManager.getService();
         spyOn(mActivityManager);
-        mCarServiceHelperService = new CarServiceHelperService(
+        mHelper = new CarServiceHelperService(
                 mMockContext,
                 mCarUserManagerHelper,
                 mUserManager,
                 mActivityManager,
                 mCarLaunchParamsModifier,
-                DEFAULT_NAME);
+                DEFAULT_NAME,
+                /* halEnabled= */ true,
+                HAL_TIMEOUT_MS);
     }
 
     @After
@@ -146,21 +161,111 @@ public class CarHelperServiceTest {
      * run.
      */
     @Test
-    public void testStartsSecondaryAdminUserOnFirstRun() throws Exception {
-        doReturn(new ArrayList<>()).when(mUserManager).getUsers(anyBoolean());
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+    public void testStartsSecondaryAdminUserOnFirstRun_noHal() throws Exception {
+        setNoUsers();
 
-        verify(mUserManager).createUser(anyString(), eq(UserInfo.FLAG_ADMIN));
-        verify(mActivityManager).startUserInForegroundWithListener(ADMIN_USER_ID, null);
+        CarServiceHelperService halLessHelper = new CarServiceHelperService(
+                mMockContext,
+                mCarUserManagerHelper,
+                mUserManager,
+                mActivityManager,
+                mCarLaunchParamsModifier,
+                DEFAULT_NAME,
+                /* halEnabled= */ false,
+                HAL_TIMEOUT_MS);
+        halLessHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
     }
+
+    @Test
+    public void testSystemUserUnlockedWhenItCouldNotStart() throws Exception {
+        bindMockICar();
+        setNoUsers();
+        setStartBgResult(UserHandle.USER_SYSTEM, false);
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
+        assertUserStartedAsBg(UserHandle.USER_SYSTEM);
+        assertUserUnlocked(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testStartsSecondaryAdminUserOnFirstRun_halReturnedDefault() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
+    }
+
+    @Test
+    public void testStartsSecondaryAdminUserOnFirstRun_halNeverReturned() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DO_NOT_REPLY);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        sleep("before asserting DEFAULT behavior", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
+    }
+
+    @Test
+    public void testStartsSecondaryAdminUserOnFirstRun_halReturnedTooLate() throws Exception {
+        bindMockICar();
+
+        setNoUsers();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DELAYED_REPLY);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        sleep("before asserting DEFAULT behavior", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+
+        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        assertUserStartedAsFg(ADMIN_USER_ID);
+
+        sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
+
+    }
+
+    // TODO(b/146207078): add tests for all scenarios:
+    //   - HAL create
+    //   - HAL switch
+    //   - HAL timeout
+    //   - Framework erros upon HAL response (for example, could not create user)
 
     /**
      * Test that the {@link CarServiceHelperService} updates last active user to the first admin
      * user on first run.
      */
     @Test
-    public void testUpdateLastActiveUserOnFirstRun() {
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+    public void testUpdateLastActiveUserOnFirstRun() throws Exception {
+        bindMockICar();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verify(mCarUserManagerHelper).setLastActiveUser(ADMIN_USER_ID);
     }
@@ -170,6 +275,9 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testStartsLastActiveUserOnReboot() throws Exception {
+        bindMockICar();
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
+
         List<UserInfo> users = new ArrayList<>();
 
         int adminUserId = ADMIN_USER_ID;
@@ -184,7 +292,7 @@ public class CarHelperServiceTest {
         doReturn(users).when(mUserManager).getUsers(anyBoolean());
         doReturn(secUserId).when(mCarUserManagerHelper).getInitialUser();
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verify(mActivityManager).startUserInForegroundWithListener(secUserId, null);
     }
@@ -197,7 +305,7 @@ public class CarHelperServiceTest {
         expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_STARTING,
                 userId);
 
-        mCarServiceHelperService.onUserStarting(newTargetUser(userId));
+        mHelper.onUserStarting(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarOnUserLifecycleEventCalled();
@@ -213,7 +321,7 @@ public class CarHelperServiceTest {
                 currentUserId, targetUserId);
         expectICarOnSwitchUser(targetUserId);
 
-        mCarServiceHelperService.onUserSwitching(newTargetUser(currentUserId),
+        mHelper.onUserSwitching(newTargetUser(currentUserId),
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
@@ -229,8 +337,8 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, true);
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onUserUnlocking(newTargetUser(userId));
+        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
@@ -247,8 +355,8 @@ public class CarHelperServiceTest {
         int firstUserId = 10;
         expectICarFirstUserUnlocked(firstUserId);
 
-        mCarServiceHelperService.onUserUnlocked(newTargetUser(systemUserId));
-        mCarServiceHelperService.onUserUnlocked(newTargetUser(firstUserId));
+        mHelper.onUserUnlocked(newTargetUser(systemUserId));
+        mHelper.onUserUnlocked(newTargetUser(firstUserId));
 
         assertNoICarCallExceptions();
 
@@ -267,8 +375,8 @@ public class CarHelperServiceTest {
         expectICarOnUserLifecycleEvent(CarServiceHelperService.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
                 secondUserId);
 
-        mCarServiceHelperService.onUserUnlocked(newTargetUser(firstUserId));
-        mCarServiceHelperService.onUserUnlocked(newTargetUser(secondUserId));
+        mHelper.onUserUnlocked(newTargetUser(firstUserId));
+        mHelper.onUserUnlocked(newTargetUser(secondUserId));
 
         assertNoICarCallExceptions();
 
@@ -285,8 +393,8 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onUserStopping(newTargetUser(userId));
+        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
@@ -301,8 +409,8 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
-        mCarServiceHelperService.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-        mCarServiceHelperService.onUserStopped(newTargetUser(userId));
+        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
         verifyICarSetUserLockStatusCalled();
@@ -320,7 +428,33 @@ public class CarHelperServiceTest {
         // Must set the binder expectation, otherwise checks for other transactions would fail
         when(mICarBinder.transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
                 .thenReturn(true);
-        mCarServiceHelperService.handleCarServiceConnection(mICarBinder);
+        mHelper.handleCarServiceConnection(mICarBinder);
+    }
+
+    private void setNoUsers() {
+        doReturn(new ArrayList<>()).when(mUserManager).getUsers(anyBoolean());
+    }
+
+    private void setStartBgResult(int userId, boolean result) throws Exception {
+        doReturn(result).when(mActivityManager).startUserInBackground(userId);
+    }
+
+    private void assertUserCreated(String name, int flags) throws Exception {
+        verify(mUserManager).createUser(eq(name), eq(flags));
+    }
+
+    private void assertUserStartedAsFg(int userId) throws Exception {
+        verify(mActivityManager).startUserInForegroundWithListener(userId,
+                /* unlockProgressListener= */ null);
+    }
+
+    private void assertUserStartedAsBg(int userId) throws Exception {
+        verify(mActivityManager).startUserInBackground(userId);
+    }
+
+    private void assertUserUnlocked(int userId) throws Exception {
+        verify(mActivityManager).unlockUser(userId, /* token= */ null, /* secret= */ null,
+                /* listener= */ null);
     }
 
     // TODO: create a custom matcher / verifier for binder calls
@@ -460,6 +594,67 @@ public class CarHelperServiceTest {
                 });
     }
 
+    enum InitialUserInfoAction {
+        DEFAULT,
+        DO_NOT_REPLY,
+        DELAYED_REPLY
+    }
+
+    private void expectICarGetInitialUserInfo(InitialUserInfoAction action) throws Exception {
+        int txn = IBinder.FIRST_CALL_TRANSACTION
+                + CarServiceHelperService.ICAR_CALL_GET_INITIAL_USER_INFO;
+        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
+                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
+                    try {
+                        Log.d(TAG, "Answering txn " + txn);
+                        Parcel data = (Parcel) invocation.getArguments()[1];
+                        data.setDataPosition(0);
+                        data.enforceInterface(CarServiceHelperService.CAR_SERVICE_INTERFACE);
+                        int actualRequestType = data.readInt();
+                        int actualTimeoutMs = data.readInt();
+                        IResultReceiver receiver = IResultReceiver.Stub
+                                .asInterface(data.readStrongBinder());
+
+                        Log.d(TAG, "Unmarshalled data: requestType= " + actualRequestType
+                                + ", timeout=" + actualTimeoutMs
+                                + ", receiver =" + receiver);
+                        switch (action) {
+                            case DEFAULT:
+                                sendDefaultAction(receiver);
+                                break;
+                            case DO_NOT_REPLY:
+                                Log.d(TAG, "NOT replying to bind call");
+                                break;
+                            case DELAYED_REPLY:
+                                sleep("before sending result", HAL_NOT_REPLYING_TIMEOUT_MS);
+                                sendDefaultAction(receiver);
+                                break;
+                            default:
+                                throw new IllegalArgumentException("invalid action: " + action);
+                        }
+
+                        return true;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Exception answering binder call", e);
+                        mBinderCallException = e;
+                        return false;
+                    }
+                });
+    }
+
+    private void sendDefaultAction(IResultReceiver receiver) throws Exception{
+        Log.d(TAG, "Sending DEFAULT action to receiver " + receiver);
+        // TODO(b/150222501): current not returning any specific response,
+        // so resultCode and resultData don't matter
+        receiver.send(0 , null);
+    }
+
+    private void sleep(String reason, long napTimeMs) {
+        Log.d(TAG, "Sleeping for " + napTimeMs + "ms: " + reason);
+        SystemClock.sleep(napTimeMs);
+        Log.d(TAG, "Woke up (from '"  + reason + "')");
+    }
+
     private void verifyICarOnUserLifecycleEventCalled() throws Exception {
         verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_ON_USER_LIFECYCLE);
     }
@@ -474,6 +669,10 @@ public class CarHelperServiceTest {
 
     private void verifyICarFirstUserUnlockedCalled() throws Exception {
         verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_FIRST_USER_UNLOCKED);
+    }
+
+    private void verifyICarGetInitialUserInfoCalled() throws Exception {
+        verifyICarTxnCalled(CarServiceHelperService.ICAR_CALL_GET_INITIAL_USER_INFO);
     }
 
     private void verifyICarTxnCalled(int txnId) throws Exception {
