@@ -111,9 +111,6 @@ public class CarServiceHelperService extends SystemService {
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl"
     );
 
-    // TODO(b/150222501): read from config
-    private static final int DEFAULT_HAL_TIMEOUT_MS = 5_000;
-
     @GuardedBy("mLock")
     private int mLastSwitchedUser = UserHandle.USER_NULL;
 
@@ -174,8 +171,9 @@ public class CarServiceHelperService extends SystemService {
                 ActivityManager.getService(),
                 new CarLaunchParamsModifier(context),
                 context.getString(com.android.internal.R.string.owner_name),
-                /* halEnabled= */ false, // TODO(b/150222501): read from config
-                DEFAULT_HAL_TIMEOUT_MS);
+                CarProperties.user_hal_enabled().orElse(false),
+                CarProperties.user_hal_timeout().orElse(5_000)
+                );
     }
 
     @VisibleForTesting
