@@ -142,14 +142,6 @@ public class CarHelperServiceTest {
                 .strictness(Strictness.LENIENT)
                 .startMocking();
 
-        doReturn(mApplicationContext).when(mMockContext).getApplicationContext();
-
-        UserInfo adminUser = new UserInfo(ADMIN_USER_ID, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        doReturn(adminUser).when(mUserManager).createUser(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-
-        doReturn(null).when(
-                () -> UserIcons.getDefaultUserIcon(any(Resources.class), anyInt(), anyBoolean()));
-
         mActivityManager = ActivityManager.getService();
         spyOn(mActivityManager);
         mHelper = new CarServiceHelperService(
@@ -175,6 +167,7 @@ public class CarHelperServiceTest {
     @Test
     public void testInitialInfo_noHal() throws Exception {
         setNoUsers();
+        expectCreateDefaultAdminUser();
 
         CarServiceHelperService halLessHelper = new CarServiceHelperService(
                 mMockContext,
@@ -187,8 +180,7 @@ public class CarHelperServiceTest {
                 HAL_TIMEOUT_MS);
         halLessHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -196,6 +188,7 @@ public class CarHelperServiceTest {
         bindMockICar();
         setNoUsers();
         setStartBgResult(UserHandle.USER_SYSTEM, false);
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -203,10 +196,10 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
-        assertUserStartedAsBg(UserHandle.USER_SYSTEM);
-        assertUserUnlocked(UserHandle.USER_SYSTEM);
+        verifyUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        verifyUserStartedAsFg(ADMIN_USER_ID);
+        verifyUserStartedAsBg(UserHandle.USER_SYSTEM);
+        verifyUserUnlocked(UserHandle.USER_SYSTEM);
     }
 
     @Test
@@ -214,6 +207,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -221,7 +215,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -229,6 +223,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DO_NOT_REPLY);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -237,7 +232,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -245,6 +240,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DELAYED_REPLY);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -253,7 +249,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
 
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
     }
@@ -263,6 +259,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.NON_OK_RESULT_CODE);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -270,7 +267,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -278,6 +275,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.NULL_BUNDLE);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -285,7 +283,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -301,8 +299,8 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertUserStartedAsFg(OTHER_USER_ID);
-        assertNoUserCreated();
+        verifyUserStartedAsFg(OTHER_USER_ID);
+        verifyNoUserCreated();
     }
 
     @Test
@@ -310,6 +308,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_MISSING_USER_ID);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -317,7 +316,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -325,6 +324,7 @@ public class CarHelperServiceTest {
         bindMockICar();
 
         setNoUsers();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_SYSTEM_USER);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -332,7 +332,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -342,6 +342,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectCreateDefaultAdminUser();
         expectStartFgUserToFail(OTHER_USER_ID, new RemoteException("D'OH!"));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -349,7 +350,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -359,6 +360,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectCreateDefaultAdminUser();
         expectStartFgUserToFail(OTHER_USER_ID, new RuntimeException("D'OH!"));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -366,7 +368,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     @Test
@@ -375,6 +377,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
+        expectCreateDefaultAdminUser();
         expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ false);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -382,7 +385,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        assertDefaultInitialInfoBehavior();
+        verifyDefaultBootBehavior();
     }
 
     // TODO(b/150399261): add tests for all scenarios:
@@ -395,6 +398,7 @@ public class CarHelperServiceTest {
     @Test
     public void testUpdateLastActiveUserOnFirstRun() throws Exception {
         bindMockICar();
+        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -552,9 +556,9 @@ public class CarHelperServiceTest {
      * Used in cases where the result of calling HAL for the initial info should be the same as
      * not using HAL.
      */
-    private void assertDefaultInitialInfoBehavior() throws Exception {
-        assertUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        assertUserStartedAsFg(ADMIN_USER_ID);
+    private void verifyDefaultBootBehavior() throws Exception {
+        verifyUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        verifyUserStartedAsFg(ADMIN_USER_ID);
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -580,24 +584,24 @@ public class CarHelperServiceTest {
         doReturn(result).when(mActivityManager).startUserInBackground(userId);
     }
 
-    private void assertUserCreated(String name, int flags) throws Exception {
+    private void verifyUserCreated(String name, int flags) throws Exception {
         verify(mUserManager).createUser(eq(name), eq(flags));
     }
 
-    private void assertNoUserCreated() throws Exception {
+    private void verifyNoUserCreated() throws Exception {
         verify(mUserManager, never()).createUser(anyString(), anyInt());
     }
 
-    private void assertUserStartedAsFg(int userId) throws Exception {
+    private void verifyUserStartedAsFg(int userId) throws Exception {
         verify(mActivityManager).startUserInForegroundWithListener(userId,
                 /* unlockProgressListener= */ null);
     }
 
-    private void assertUserStartedAsBg(int userId) throws Exception {
+    private void verifyUserStartedAsBg(int userId) throws Exception {
         verify(mActivityManager).startUserInBackground(userId);
     }
 
-    private void assertUserUnlocked(int userId) throws Exception {
+    private void verifyUserUnlocked(int userId) throws Exception {
         verify(mActivityManager).unlockUser(userId, /* token= */ null, /* secret= */ null,
                 /* listener= */ null);
     }
@@ -736,12 +740,17 @@ public class CarHelperServiceTest {
                 });
     }
 
-    void expectStartFgUserToSucceed(int userId, boolean result) throws Exception {
+    private void expectCreateDefaultAdminUser() {
+        UserInfo adminUser = new UserInfo(ADMIN_USER_ID, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+        doReturn(adminUser).when(mUserManager).createUser(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
+    }
+
+    private void expectStartFgUserToSucceed(int userId, boolean result) throws Exception {
         doReturn(result).when(mActivityManager)
             .startUserInForegroundWithListener(userId, /* unlockProgressListener= */ null);
     }
 
-    void expectStartFgUserToFail(int userId, Exception exception) throws Exception {
+    private void expectStartFgUserToFail(int userId, Exception exception) throws Exception {
         doThrow(exception).when(mActivityManager)
             .startUserInForegroundWithListener(userId,/* unlockProgressListener= */ null);
     }
