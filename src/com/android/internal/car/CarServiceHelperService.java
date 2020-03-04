@@ -422,7 +422,8 @@ public class CarServiceHelperService extends SystemService {
 
     @Nullable
     private UserInfo createInitialAdminUser() {
-        UserInfo adminUserInfo = mUserManager.createUser(mDefaultUserName, UserInfo.FLAG_ADMIN);
+        UserInfo adminUserInfo = mUserManager.createUser(mDefaultUserName,
+                UserManager.USER_TYPE_FULL_SECONDARY, UserInfo.FLAG_ADMIN);
         if (adminUserInfo == null) {
             // Couldn't create user, most likely because there are too many.
             return null;
@@ -473,7 +474,14 @@ public class CarServiceHelperService extends SystemService {
             public void send(int resultCode, Bundle resultData) {
                 mHandler.removeMessages(0);
                 // TODO(b/150222501): log how long it took to receive the response
-
+                // TODO(b/150413515): print resultData as well on 2 logging calls below
+                synchronized (mLock) {
+                    if (mInitialized) {
+                        Slog.w(TAG, "Result from HAL came too late, ignoring: "
+                                + UserHalServiceConstants.statusToString(resultCode));
+                        return;
+                    }
+                }
                 if (DBG) {
                     Slog.d(TAG, "Got result from HAL: "
                             + UserHalServiceConstants.statusToString(resultCode));
@@ -506,9 +514,11 @@ public class CarServiceHelperService extends SystemService {
                         startUserByHalRequest(userId);
                         return;
                     case VHalResponseActionConstants.CREATE:
-                        // TODO(b/150399261): implement it
-                        Slog.i(TAG, "Action CREATE not supported yet");
-                        break;
+                        String name = resultData
+                                .getString(CarUserServiceConstants.BUNDLE_USER_NAME);
+                        int flags = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_FLAGS);
+                        createUserByHalRequest(name, flags);
+                        return;
                     default:
                         Slog.w(TAG, "Invalid InitialUserInfoResponseAction action: " + action);
                 }
@@ -539,6 +549,54 @@ public class CarServiceHelperService extends SystemService {
         fallbackToDefaultInitialUserBehavior();
     }
 
+    private void createUserByHalRequest(@Nullable String name, int halFlags) {
+        String friendlyName = "user with name '" + safeName(name) + "' and flags "
+                + VHalUserFlagsConstants.toString(halFlags);
+
+        Slog.i(TAG, "HAL request creation of " + friendlyName);
+
+        if (VHalUserFlagsConstants.isSystem(halFlags)) {
+            Slog.w(TAG, "Cannot create system user");
+            fallbackToDefaultInitialUserBehavior();
+            return;
+        }
+
+        if (VHalUserFlagsConstants.isAdmin(halFlags)) {
+            boolean validAdmin = true;
+            if (VHalUserFlagsConstants.isGuest(halFlags)) {
+                Slog.w(TAG, "Cannot create guest admin");
+                validAdmin = false;
+            }
+            if (VHalUserFlagsConstants.isEphemeral(halFlags)) {
+                Slog.w(TAG, "Cannot create ephemeral admin");
+                validAdmin = false;
+            }
+            if (!validAdmin) {
+                fallbackToDefaultInitialUserBehavior();
+                return;
+            }
+        }
+
+        String type = VHalUserFlagsConstants.isGuest(halFlags) ? UserManager.USER_TYPE_FULL_GUEST
+                : UserManager.USER_TYPE_FULL_SECONDARY;
+
+        int flags = VHalUserFlagsConstants.toUserInfoFlags(halFlags);
+        if (DBG) Slog.d(TAG, "new user: type=" + type + ", flags=" + UserInfo.flagsToString(flags));
+
+        // TODO(b/150413515): decide what to if HAL requested a non-ephemeral guest but framework
+        // sets all guests as ephemeral - should it fail or just warn?
+
+        UserInfo newUser = mUserManager.createUser(name, type, flags);
+
+        if (newUser == null) {
+            Slog.w(TAG, "Failed to create " + friendlyName);
+            fallbackToDefaultInitialUserBehavior();
+            return;
+        }
+
+        startUserByHalRequest(newUser.id);
+    }
+
     private void fallbackToDefaultInitialUserBehavior() {
         Slog.i(TAG, "Falling back to DEFAULT initial user behavior");
         setupAndStartUsersDirectly();
@@ -551,7 +609,7 @@ public class CarServiceHelperService extends SystemService {
     private void setupAndStartUsersDirecly(@NonNull TimingsTraceAndSlog t) {
         synchronized (mLock) {
             if (mInitialized) {
-                Slog.w(TAG, "Already initialized", new Exception());
+                Slog.wtf(TAG, "Already initialized", new Exception());
                 return;
             }
             mInitialized = true;
@@ -965,6 +1023,17 @@ public class CarServiceHelperService extends SystemService {
             Slog.w(TAG, "*** CARHELPER ignoring: " + "CarService crash");
         }
     }
+
+    /**
+     * Gets a PII-safe representation of the name.
+     */
+    @Nullable
+    private static String safeName(@Nullable String name) {
+        // TODO(b/150419600): move to helper / add unit test
+        return name == null ? name : name.length() + "_chars";
+    }
+
+
 
     private static native int nativeForceSuspend(int timeoutMs);
 
