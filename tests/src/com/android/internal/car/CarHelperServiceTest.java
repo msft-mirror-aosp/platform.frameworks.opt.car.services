@@ -778,7 +778,6 @@ public class CarHelperServiceTest {
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
-        verifyICarOnSwitchUserCalled();
         verifyWtfNeverLogged();
     }
 
@@ -795,7 +794,6 @@ public class CarHelperServiceTest {
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarSetUserLockStatusCalled();
         verifyWtfNeverLogged();
     }
 
@@ -854,7 +852,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarSetUserLockStatusCalled();
         verifyWtfNeverLogged();
     }
 
@@ -871,7 +868,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarSetUserLockStatusCalled();
         verifyWtfNeverLogged();
     }
 
@@ -1242,14 +1238,6 @@ public class CarHelperServiceTest {
 
     private void verifyICarOnUserLifecycleEventCalled() throws Exception {
         verifyICarTxnCalled(ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE);
-    }
-
-    private void verifyICarOnSwitchUserCalled() throws Exception {
-        verifyICarTxnCalled(ICarConstants.ICAR_CALL_ON_SWITCH_USER);
-    }
-
-    private void verifyICarSetUserLockStatusCalled() throws Exception {
-        verifyICarTxnCalled(ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS);
     }
 
     private void verifyICarFirstUserUnlockedCalled() throws Exception {
