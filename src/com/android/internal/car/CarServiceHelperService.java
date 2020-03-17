@@ -244,10 +244,6 @@ public class CarServiceHelperService extends SystemService {
     public void onUserUnlocking(@NonNull TargetUser user) {
         Slog.i(TAG, "onUserUnlocking(" + user + ")");
         sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, user);
-        // NOTE: handleUserLockStatusChange() should be called by onUserUnlocked(), but it will be
-        // refactored anyways, so we kept the old behavior...
-        int userId = user.getUserIdentifier();
-        handleUserLockStatusChange(userId, true);
     }
 
     @Override
@@ -276,15 +272,12 @@ public class CarServiceHelperService extends SystemService {
         sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING, user);
         int userId = user.getUserIdentifier();
         mCarLaunchParamsModifier.handleUserStopped(userId);
-        handleUserLockStatusChange(userId, false);
     }
 
     @Override
     public void onUserStopped(@NonNull TargetUser user) {
         Slog.i(TAG, "onCleanupUser(" + user + ")");
         sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED, user);
-        int userId = user.getUserIdentifier();
-        handleUserLockStatusChange(userId, false);
     }
 
     @Override
@@ -300,7 +293,6 @@ public class CarServiceHelperService extends SystemService {
                 return;  // The event will be delivered upon CarService connection.
             }
         }
-        sendSwitchUserBindercall(userId);
     }
 
     /**
@@ -384,22 +376,6 @@ public class CarServiceHelperService extends SystemService {
 
     private TimingsTraceAndSlog newTimingsTraceAndSlog() {
         return new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
-    }
-
-    private void handleUserLockStatusChange(@UserIdInt int userId, boolean unlocked) {
-        boolean shouldNotify = false;
-        synchronized (mLock) {
-            Boolean oldStatus = mUserUnlockedStatus.get(userId);
-            if (oldStatus == null || oldStatus != unlocked) {
-                mUserUnlockedStatus.put(userId, unlocked);
-                if (mCarService != null && mSystemBootCompleted) {
-                    shouldNotify = true;
-                }
-            }
-        }
-        if (shouldNotify) {
-            sendSetUserLockStatusBinderCall(userId, unlocked);
-        }
     }
 
     private void setupAndStartUsers(@NonNull TimingsTraceAndSlog t) {
