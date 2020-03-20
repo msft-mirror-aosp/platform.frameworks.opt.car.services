@@ -18,6 +18,8 @@ package com.android.internal.car;
 
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
+import static android.car.userlib.UserHelper.safeName;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -25,12 +27,14 @@ import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.UserHalHelper;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
 import android.graphics.Bitmap;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.Bundle;
@@ -57,8 +61,6 @@ import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
 import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
-import com.android.internal.car.ExternalConstants.VHalResponseActionConstants;
-import com.android.internal.car.ExternalConstants.VHalUserFlagsConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
@@ -478,18 +480,18 @@ public class CarServiceHelperService extends SystemService {
                 }
 
                 int action = resultData.getInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
-                        VHalResponseActionConstants.DEFAULT);
+                        InitialUserInfoResponseAction.DEFAULT);
 
                 switch (action) {
-                    case VHalResponseActionConstants.DEFAULT:
+                    case InitialUserInfoResponseAction.DEFAULT:
                         Slog.i(TAG, "User HAL returned DEFAULT behavior");
                         setupAndStartUsersDirectly();
                         return;
-                    case VHalResponseActionConstants.SWITCH:
+                    case InitialUserInfoResponseAction.SWITCH:
                         int userId = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_ID);
                         startUserByHalRequest(userId);
                         return;
-                    case VHalResponseActionConstants.CREATE:
+                    case InitialUserInfoResponseAction.CREATE:
                         String name = resultData
                                 .getString(CarUserServiceConstants.BUNDLE_USER_NAME);
                         int flags = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_FLAGS);
@@ -527,23 +529,23 @@ public class CarServiceHelperService extends SystemService {
 
     private void createUserByHalRequest(@Nullable String name, int halFlags) {
         String friendlyName = "user with name '" + safeName(name) + "' and flags "
-                + VHalUserFlagsConstants.toString(halFlags);
+                + UserHalHelper.userFlagsToString(halFlags);
 
         Slog.i(TAG, "HAL request creation of " + friendlyName);
 
-        if (VHalUserFlagsConstants.isSystem(halFlags)) {
+        if (UserHalHelper.isSystem(halFlags)) {
             Slog.w(TAG, "Cannot create system user");
             fallbackToDefaultInitialUserBehavior();
             return;
         }
 
-        if (VHalUserFlagsConstants.isAdmin(halFlags)) {
+        if (UserHalHelper.isAdmin(halFlags)) {
             boolean validAdmin = true;
-            if (VHalUserFlagsConstants.isGuest(halFlags)) {
+            if (UserHalHelper.isGuest(halFlags)) {
                 Slog.w(TAG, "Cannot create guest admin");
                 validAdmin = false;
             }
-            if (VHalUserFlagsConstants.isEphemeral(halFlags)) {
+            if (UserHalHelper.isEphemeral(halFlags)) {
                 Slog.w(TAG, "Cannot create ephemeral admin");
                 validAdmin = false;
             }
@@ -553,10 +555,10 @@ public class CarServiceHelperService extends SystemService {
             }
         }
 
-        String type = VHalUserFlagsConstants.isGuest(halFlags) ? UserManager.USER_TYPE_FULL_GUEST
+        String type = UserHalHelper.isGuest(halFlags) ? UserManager.USER_TYPE_FULL_GUEST
                 : UserManager.USER_TYPE_FULL_SECONDARY;
 
-        int flags = VHalUserFlagsConstants.toUserInfoFlags(halFlags);
+        int flags = UserHalHelper.toUserInfoFlags(halFlags);
         if (DBG) Slog.d(TAG, "new user: type=" + type + ", flags=" + UserInfo.flagsToString(flags));
 
         // TODO(b/150413515): decide what to if HAL requested a non-ephemeral guest but framework
@@ -999,17 +1001,6 @@ public class CarServiceHelperService extends SystemService {
             Slog.w(TAG, "*** CARHELPER ignoring: " + "CarService crash");
         }
     }
-
-    /**
-     * Gets a PII-safe representation of the name.
-     */
-    @Nullable
-    private static String safeName(@Nullable String name) {
-        // TODO(b/150419600): move to helper / add unit test
-        return name == null ? name : name.length() + "_chars";
-    }
-
-
 
     private static native int nativeForceSuspend(int timeoutMs);
 
