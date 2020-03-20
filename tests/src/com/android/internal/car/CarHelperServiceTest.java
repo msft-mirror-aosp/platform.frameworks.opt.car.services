@@ -45,9 +45,12 @@ import android.annotation.NonNull;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.UserHalHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
+import android.hardware.automotive.vehicle.V2_0.UserFlags;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -70,8 +73,6 @@ import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
 import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
-import com.android.internal.car.ExternalConstants.VHalResponseActionConstants;
-import com.android.internal.car.ExternalConstants.VHalUserFlagsConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
@@ -487,7 +488,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.GUEST));
+                UserFlags.GUEST));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -509,7 +510,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.GUEST | VHalUserFlagsConstants.EPHEMERAL));
+                UserFlags.GUEST | UserFlags.EPHEMERAL));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -530,7 +531,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.ADMIN));
+                UserFlags.ADMIN));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -552,7 +553,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.ADMIN | VHalUserFlagsConstants.GUEST));
+                UserFlags.ADMIN | UserFlags.GUEST));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -573,7 +574,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.ADMIN | VHalUserFlagsConstants.EPHEMERAL));
+                UserFlags.ADMIN | UserFlags.EPHEMERAL));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -693,7 +694,7 @@ public class CarHelperServiceTest {
 
         setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                VHalUserFlagsConstants.SYSTEM));
+                UserFlags.SYSTEM));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
@@ -1193,7 +1194,7 @@ public class CarHelperServiceTest {
         Log.d(TAG, "Sending DEFAULT action to receiver " + receiver);
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
-                VHalResponseActionConstants.DEFAULT);
+                InitialUserInfoResponseAction.DEFAULT);
         receiver.send(UserHalServiceConstants.STATUS_OK, data);
     }
 
@@ -1205,7 +1206,7 @@ public class CarHelperServiceTest {
     private void sendSwitchAction(IResultReceiver receiver, Integer id) throws Exception {
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
-                VHalResponseActionConstants.SWITCH);
+                InitialUserInfoResponseAction.SWITCH);
         if (id != null) {
             data.putInt(CarUserServiceConstants.BUNDLE_USER_ID, id);
         }
@@ -1213,14 +1214,14 @@ public class CarHelperServiceTest {
     }
 
     private void sendCreateDefaultHalUserAction(IResultReceiver receiver) throws Exception {
-        sendCreateAction(receiver, DEFAULT_NAME_SET_BY_HAL, VHalUserFlagsConstants.NONE);
+        sendCreateAction(receiver, DEFAULT_NAME_SET_BY_HAL, UserFlags.NONE);
     }
 
     private void sendCreateAction(IResultReceiver receiver, String name, Integer flags)
             throws Exception {
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
-                VHalResponseActionConstants.CREATE);
+                InitialUserInfoResponseAction.CREATE);
         if (name != null) {
             data.putString(CarUserServiceConstants.BUNDLE_USER_NAME, name);
         }
