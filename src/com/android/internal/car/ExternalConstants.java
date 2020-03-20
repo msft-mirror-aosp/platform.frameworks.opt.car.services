@@ -49,6 +49,7 @@ final class ExternalConstants {
         }
     }
 
+    // TODO(b/151758646): move to userlib
     static final class CarUserManagerConstants {
 
         static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1;
@@ -63,6 +64,7 @@ final class ExternalConstants {
         }
     }
 
+    // TODO(b/151758646): move to userlib
     static final class CarUserServiceConstants {
 
         static final String BUNDLE_USER_ID = "user.id";
@@ -75,6 +77,7 @@ final class ExternalConstants {
         }
     }
 
+    // TODO(b/151758646): move to userlib
     static final class UserHalServiceConstants {
 
         static final int STATUS_OK = 1;
@@ -100,81 +103,6 @@ final class ExternalConstants {
                 default:
                     return "UNKNOWN(" + status + ")";
             }
-        }
-    }
-
-    static final class VHalResponseActionConstants {
-
-        static final int DEFAULT = 0;
-        static final int SWITCH = 1;
-        static final int CREATE = 2;
-
-        private VHalResponseActionConstants() {
-            throw new UnsupportedOperationException("contains only static constants");
-        }
-    }
-
-    static final class VHalUserFlagsConstants {
-
-        // NOTE: must be public because of DebugUtils.toString()
-        public static final int NONE = 0;
-        public static final int SYSTEM = 1;
-        public static final int GUEST = 2;
-        public static final int EPHEMERAL = 4;
-        public static final int ADMIN = 8;
-
-        private VHalUserFlagsConstants() {
-            throw new UnsupportedOperationException("contains only static constants and methods");
-        }
-
-        // TODO(b/150413515): add unit test for methods
-
-        /**
-         * Checks if a flag contains {@link #SYSTEM}.
-         */
-        public static boolean isSystem(int flags) {
-            return (flags & SYSTEM) != 0;
-        }
-
-        /**
-         * Checks if a flag contains {@link #GUEST}.
-         */
-        public static boolean isGuest(int flags) {
-            return (flags & GUEST) != 0;
-        }
-
-        /**
-         * Checks if a flag contains {@link #EPHEMERAL}.
-         */
-        public static boolean isEphemeral(int flags) {
-            return (flags & EPHEMERAL) != 0;
-        }
-
-        /**
-         * Checks if a flag contains {@link #ADMIN}.
-         */
-        public static boolean isAdmin(int flags) {
-            return (flags & ADMIN) != 0;
-        }
-
-        /**
-         * Converts HAL flags to Android's.
-         */
-        @UserInfoFlag
-        public static int toUserInfoFlags(int halFlags) {
-            int flags = 0;
-            if (isEphemeral(halFlags)) {
-                flags |=UserInfo.FLAG_EPHEMERAL;
-            }
-            if (isAdmin(halFlags)) {
-                flags |=UserInfo.FLAG_ADMIN;
-            }
-            return flags;
-        }
-
-        @NonNull
-        public static String toString(int flags) {
-            return DebugUtils.flagsToString(VHalUserFlagsConstants.class, "", flags);
         }
     }
 }
