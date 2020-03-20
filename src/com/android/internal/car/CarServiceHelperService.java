@@ -783,17 +783,34 @@ public class CarServiceHelperService extends SystemService {
         // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
         String userType =
                 isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
-        UserInfo user = mUserManager.preCreateUser(userType);
+        UserInfo user = null;
         try {
+            user = mUserManager.preCreateUser(userType);
             if (user == null) {
-                // Couldn't create user, most likely because there are too many.
-                Slog.w(TAG, "couldn't " + traceMsg);
-                return null;
+                logPrecreationFailure(traceMsg, /* cause= */ null);
             }
+        } catch (Exception e) {
+            logPrecreationFailure(traceMsg, e);
         } finally {
             t.traceEnd();
         }
         return user;
+    }
+
+    /**
+     * Logs proper message when user pre-creation fails (most likely because there are too many).
+     */
+    private void logPrecreationFailure(@NonNull String operation, @Nullable Exception cause) {
+        int maxNumberUsers = UserManager.getMaxSupportedUsers();
+        int currentNumberUsers = mUserManager.getUserCount();
+        StringBuilder message = new StringBuilder(operation.length() + 100)
+                .append(operation).append(" failed. Number users: ").append(currentNumberUsers)
+                .append(" Max: ").append(maxNumberUsers);
+        if (cause == null) {
+            Slog.w(TAG, message.toString());
+        } else {
+            Slog.w(TAG, message.toString(), cause);
+        }
     }
 
     private void notifyAllUnlockedUsers() {
