@@ -8,7 +8,10 @@ java_library {
         "src/**/*.java",
         "src/com/android/internal/car/ICarServiceHelper.aidl",
     ],
-    static_libs: ["android.car.userlib"],
+    static_libs: [
+        "android.hardware.automotive.vehicle-V2.0-java",
+        "android.car.userlib"
+    ],
 }
 
 cc_library_shared {
