@@ -23,11 +23,14 @@ import static android.car.userlib.UserHelper.safeName;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.automotive.watchdog.ICarWatchdogClient;
+import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.UserHalHelper;
+import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -71,6 +74,11 @@ import com.android.server.am.ActivityManagerService;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
+import java.io.File;
+import java.io.IOException;
+import java.lang.ref.WeakReference;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -78,6 +86,8 @@ import java.util.HashSet;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * System service side companion service for CarService.
@@ -89,15 +99,20 @@ public class CarServiceHelperService extends SystemService {
     private static final boolean DBG = true;
     private static final boolean VERBOSE = true;
 
-    // Typically there are ~2-5 ops while system and non-system users are starting.
-    private final int NUMBER_PENDING_OPERATIONS = 5;
-
     private static final String PROP_RESTART_RUNTIME = "ro.car.recovery.restart_runtime.enabled";
 
     private static final List<String> CAR_HAL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.vehicle@2.0::IVehicle",
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl"
     );
+
+    // Message ID representing HAL timeout handling.
+    private static final int WHAT_HAL_TIMEOUT = 1;
+    // Message ID representing post-processing of process dumping.
+    private static final int WHAT_POST_PROCESS_DUMPING = 2;
+
+    // Typically there are ~2-5 ops while system and non-system users are starting.
+    private final int NUMBER_PENDING_OPERATIONS = 5;
 
     @GuardedBy("mLock")
     private int mLastSwitchedUser = UserHandle.USER_NULL;
@@ -124,6 +139,8 @@ public class CarServiceHelperService extends SystemService {
     // Handler is currently only used for handleHalTimedout(), which is removed once received.
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
+    private final ProcessTerminator mProcessTerminator = new ProcessTerminator();
+
     @GuardedBy("mLock")
     private boolean mInitialized;
 
@@ -136,6 +153,15 @@ public class CarServiceHelperService extends SystemService {
     // parcelables representing the operation, then pass them to setCarServiceHelper
     @GuardedBy("mLock")
     private ArrayList<Runnable> mPendingOperations;
+
+    private final CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
+    private final ICarWatchdogMonitorImpl mCarWatchdogMonitor = new ICarWatchdogMonitorImpl(this);
+    private final CarWatchdogDaemonHelper.OnConnectionChangeListener mConnectionListener =
+            (connected) -> {
+                if (connected) {
+                    registerMonitorToWatchdogDaemon();
+                }
+            };
 
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
         @Override
@@ -158,6 +184,7 @@ public class CarServiceHelperService extends SystemService {
                 UserManager.get(context),
                 ActivityManager.getService(),
                 new CarLaunchParamsModifier(context),
+                new CarWatchdogDaemonHelper(),
                 context.getString(com.android.internal.R.string.owner_name),
                 CarProperties.user_hal_enabled().orElse(false),
                 CarProperties.user_hal_timeout().orElse(5_000)
@@ -171,6 +198,7 @@ public class CarServiceHelperService extends SystemService {
             UserManager userManager,
             IActivityManager activityManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
+            CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             String defaultUserName,
             boolean halEnabled,
             int halTimeoutMs) {
@@ -180,6 +208,7 @@ public class CarServiceHelperService extends SystemService {
         mUserManager = userManager;
         mActivityManager = activityManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
+        mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         mDefaultUserName = defaultUserName;
         boolean halValidUserHalSettings = false;
         if (halEnabled) {
@@ -233,6 +262,8 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onStart() {
+        mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
+        mCarWatchdogDaemonHelper.connect();
         Intent intent = new Intent();
         intent.setPackage("com.android.car");
         intent.setAction(ICarConstants.CAR_SERVICE_INTERFACE);
@@ -442,14 +473,14 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void setupAndStartUsersUsingHal() {
-        mHandler.sendMessageDelayed(obtainMessage(CarServiceHelperService::handleHalTimedout, this),
-                mHalTimeoutMs);
+        mHandler.sendMessageDelayed(obtainMessage(CarServiceHelperService::handleHalTimedout, this)
+                .setWhat(WHAT_HAL_TIMEOUT), mHalTimeoutMs);
 
         // TODO(b/150413515): get rid of receiver once returned?
         IResultReceiver receiver = new IResultReceiver.Stub() {
             @Override
             public void send(int resultCode, Bundle resultData) {
-                mHandler.removeMessages(0);
+                mHandler.removeMessages(WHAT_HAL_TIMEOUT);
                 // TODO(b/150222501): log how long it took to receive the response
                 // TODO(b/150413515): print resultData as well on 2 logging calls below
                 synchronized (mLock) {
@@ -678,7 +709,6 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void managePreCreatedUsers() {
-
         // First gets how many pre-createad users are defined by the OEM
         int numberRequestedGuests = CarProperties.number_pre_created_guests().orElse(0);
         int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
@@ -1012,6 +1042,26 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
+    private void handleClientNotResponding(int pid) {
+        mProcessTerminator.requestTerminateProcess(pid);
+    }
+
+    private void registerMonitorToWatchdogDaemon() {
+        try {
+            mCarWatchdogDaemonHelper.registerMonitor(mCarWatchdogMonitor);
+        } catch (RemoteException | IllegalArgumentException | IllegalStateException e) {
+            Slog.w(TAG, "Cannot register to car watchdog daemon: " + e);
+        }
+    }
+
+    private void reportMonitorResultToWatchdogDaemon(int pid) {
+        try {
+            mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
+        } catch (RemoteException | IllegalArgumentException | IllegalStateException e) {
+            Slog.w(TAG, "Cannot report monitor result to car watchdog daemon: " + e);
+        }
+    }
+
     private static native int nativeForceSuspend(int timeoutMs);
 
     private class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
@@ -1039,6 +1089,91 @@ public class CarServiceHelperService extends SystemService {
         @Override
         public void setPassengerDisplays(int[] displayIdsForPassenger) {
             mCarLaunchParamsModifier.setPassengerDisplays(displayIdsForPassenger);
+        }
+    }
+
+    private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
+        private final WeakReference<CarServiceHelperService> mService;
+
+        private ICarWatchdogMonitorImpl(CarServiceHelperService service) {
+            mService = new WeakReference<>(service);
+        }
+
+        @Override
+        public void onClientNotResponding(ICarWatchdogClient client, int pid) {
+            CarServiceHelperService service = mService.get();
+            if (service == null) {
+                return;
+            }
+            service.handleClientNotResponding(pid);
+        }
+    }
+
+    private final class ProcessTerminator {
+        private final Object mProcessLock = new Object();
+        private ExecutorService mExecutor;
+        @GuardedBy("mProcessLock")
+        private int mQueuedTask;
+
+        public void requestTerminateProcess(int pid) {
+            synchronized (mProcessLock) {
+                // If there is a running thread, we re-use it instead of starting a new thread.
+                if (mExecutor == null) {
+                    mExecutor = Executors.newSingleThreadExecutor();
+                }
+                mQueuedTask++;
+            }
+            mExecutor.execute(() -> {
+                dumpAndKillProcess(pid);
+                // mExecutor will be stopped from the main thread, if there is no queued task.
+                mHandler.sendMessage(obtainMessage(ProcessTerminator::postProcessing, this)
+                        .setWhat(WHAT_POST_PROCESS_DUMPING));
+            });
+        }
+
+        private void postProcessing() {
+            synchronized (mProcessLock) {
+                mQueuedTask--;
+                if (mQueuedTask == 0) {
+                    mExecutor.shutdown();
+                    mExecutor = null;
+                }
+            }
+        }
+
+        private void dumpAndKillProcess(int pid) {
+            if (DBG) {
+                Slog.d(TAG, "Dumping and killing process(pid: " + pid + ")");
+            }
+            ArrayList<Integer> javaPids = new ArrayList<>(1);
+            ArrayList<Integer> nativePids = new ArrayList<>();
+            try {
+                if (isJavaApp(pid)) {
+                    javaPids.add(pid);
+                } else {
+                    nativePids.add(pid);
+                }
+            } catch (IOException e) {
+                Slog.w(TAG, "Cannot get process information: " + e);
+                return;
+            }
+            nativePids.addAll(getInterestingNativePids());
+            long startDumpTime = SystemClock.uptimeMillis();
+            ActivityManagerService.dumpStackTraces(javaPids, null, null, nativePids, null);
+            if (DBG) {
+                Slog.d(TAG, "Dumping process took " +
+                        (SystemClock.uptimeMillis() - startDumpTime) + "ms");
+            }
+            Process.killProcess(pid);
+            reportMonitorResultToWatchdogDaemon(pid);
+        }
+
+        private boolean isJavaApp(int pid) throws IOException {
+            Path exePath = new File("/proc/" + pid + "/exe").toPath();
+            String target = Files.readSymbolicLink(exePath).toString();
+            // Zygote's target exe is also /system/bin/app_process32 or /system/bin/app_process64.
+            // But, we can be very sure that Zygote will not be the client of car watchdog daemon.
+            return target == "/system/bin/app_process32" || target == "/system/bin/app_process64";
         }
     }
 }
