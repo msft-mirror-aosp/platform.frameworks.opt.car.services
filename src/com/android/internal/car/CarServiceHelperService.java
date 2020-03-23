@@ -34,6 +34,7 @@ import android.content.Intent;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
 import android.graphics.Bitmap;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
@@ -444,8 +445,6 @@ public class CarServiceHelperService extends SystemService {
         mHandler.sendMessageDelayed(obtainMessage(CarServiceHelperService::handleHalTimedout, this),
                 mHalTimeoutMs);
 
-        // TODO(b/150419360): proper request type (cold boot, first boot, OTA, etc...
-        int requestType = 3; // COLD BOOT
         // TODO(b/150413515): get rid of receiver once returned?
         IResultReceiver receiver = new IResultReceiver.Stub() {
             @Override
@@ -503,8 +502,19 @@ public class CarServiceHelperService extends SystemService {
                 fallbackToDefaultInitialUserBehavior();
             }
         };
+        int initialUserInfoRequestType = getInitialUserInfoRequestType();
+        sendOrQueueGetInitialUserInfo(initialUserInfoRequestType, receiver);
+    }
 
-        sendOrQueueGetInitialUserInfo(requestType, receiver);
+    // TODO(b/150419360): add unit test
+    private int getInitialUserInfoRequestType() {
+        if (!hasInitialSecondaryUser()) {
+            return InitialUserInfoRequestType.FIRST_BOOT;
+        }
+        if (mContext.getPackageManager().isDeviceUpgrading()) {
+            return InitialUserInfoRequestType.FIRST_BOOT_AFTER_OTA;
+        }
+        return InitialUserInfoRequestType.COLD_BOOT;
     }
 
     private void startUserByHalRequest(@UserIdInt int userId) {
