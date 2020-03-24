@@ -17,6 +17,7 @@
 package com.android.internal.car;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
@@ -46,6 +47,7 @@ import android.app.ActivityManager;
 import android.app.IActivityManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.UserHalHelper;
+import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
@@ -130,6 +132,8 @@ public class CarHelperServiceTest {
     @Mock
     private CarLaunchParamsModifier mCarLaunchParamsModifier;
     @Mock
+    private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
+    @Mock
     private IBinder mICarBinder;
 
     @Captor
@@ -161,6 +165,7 @@ public class CarHelperServiceTest {
                 mUserManager,
                 mActivityManager,
                 mCarLaunchParamsModifier,
+                mCarWatchdogDaemonHelper,
                 DEFAULT_NAME,
                 /* halEnabled= */ true,
                 HAL_TIMEOUT_MS);
@@ -186,6 +191,7 @@ public class CarHelperServiceTest {
                 mUserManager,
                 mActivityManager,
                 mCarLaunchParamsModifier,
+                mCarWatchdogDaemonHelper,
                 DEFAULT_NAME,
                 /* halEnabled= */ false,
                 HAL_TIMEOUT_MS);

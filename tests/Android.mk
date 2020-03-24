@@ -29,6 +29,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     androidx.test.ext.junit \
     androidx.test.rules \
     android.car.userlib \
+    android.car.watchdoglib \
     mockito-target-extended-minus-junit4 \
     services \
     truth-prebuilt
