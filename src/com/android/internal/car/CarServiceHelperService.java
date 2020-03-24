@@ -183,7 +183,7 @@ public class CarServiceHelperService extends SystemService {
                 new InitialUserSetter(context, !CarProperties.user_hal_enabled().orElse(false)),
                 UserManager.get(context),
                 new CarLaunchParamsModifier(context),
-                new CarWatchdogDaemonHelper(),
+                new CarWatchdogDaemonHelper(TAG),
                 CarProperties.user_hal_enabled().orElse(false),
                 CarProperties.user_hal_timeout().orElse(5_000)
                 );
@@ -904,8 +904,8 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void handleClientNotResponding(int pid) {
-        mProcessTerminator.requestTerminateProcess(pid);
+    private void handleClientsNotResponding(@NonNull int[] pids) {
+        mProcessTerminator.requestTerminateProcess(pids);
     }
 
     private void registerMonitorToWatchdogDaemon() {
@@ -962,12 +962,12 @@ public class CarServiceHelperService extends SystemService {
         }
 
         @Override
-        public void onClientNotResponding(ICarWatchdogClient client, int pid) {
+        public void onClientsNotResponding(int[] pids) {
             CarServiceHelperService service = mService.get();
-            if (service == null) {
+            if (service == null || pids == null || pids.length == 0) {
                 return;
             }
-            service.handleClientNotResponding(pid);
+            service.handleClientsNotResponding(pids);
         }
     }
 
@@ -977,7 +977,7 @@ public class CarServiceHelperService extends SystemService {
         @GuardedBy("mProcessLock")
         private int mQueuedTask;
 
-        public void requestTerminateProcess(int pid) {
+        public void requestTerminateProcess(@NonNull int[] pids) {
             synchronized (mProcessLock) {
                 // If there is a running thread, we re-use it instead of starting a new thread.
                 if (mExecutor == null) {
@@ -986,7 +986,9 @@ public class CarServiceHelperService extends SystemService {
                 mQueuedTask++;
             }
             mExecutor.execute(() -> {
-                dumpAndKillProcess(pid);
+                for (int pid : pids) {
+                    dumpAndKillProcess(pid);
+                }
                 // mExecutor will be stopped from the main thread, if there is no queued task.
                 mHandler.sendMessage(obtainMessage(ProcessTerminator::postProcessing, this)
                         .setWhat(WHAT_POST_PROCESS_DUMPING));
