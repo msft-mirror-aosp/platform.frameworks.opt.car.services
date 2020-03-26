@@ -95,7 +95,8 @@ public class CarServiceHelperService extends SystemService {
 
     private static final List<String> CAR_HAL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.vehicle@2.0::IVehicle",
-            "android.hardware.automotive.audiocontrol@1.0::IAudioControl"
+            "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
+            "android.hardware.automotive.audiocontrol@2.0::IAudioControl"
     );
 
     @GuardedBy("mLock")
