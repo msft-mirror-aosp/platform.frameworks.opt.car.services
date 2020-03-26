@@ -25,10 +25,9 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.automotive.watchdog.ICarWatchdogClient;
 import android.automotive.watchdog.ICarWatchdogMonitor;
-import android.app.ActivityManager;
-import android.app.IActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.ComponentName;
@@ -127,10 +126,10 @@ public class CarServiceHelperService extends SystemService {
 
     @GuardedBy("mLock")
     private final HashMap<Integer, Boolean> mUserUnlockedStatus = new HashMap<>();
+
     private final CarUserManagerHelper mCarUserManagerHelper;
+    private final InitialUserSetter mInitialUserSetter;
     private final UserManager mUserManager;
-    private final String mDefaultUserName;
-    private final IActivityManager mActivityManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
     private final boolean mHalEnabled;
@@ -181,11 +180,10 @@ public class CarServiceHelperService extends SystemService {
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarUserManagerHelper(context),
+                new InitialUserSetter(context, !CarProperties.user_hal_enabled().orElse(false)),
                 UserManager.get(context),
-                ActivityManager.getService(),
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(),
-                context.getString(com.android.internal.R.string.owner_name),
                 CarProperties.user_hal_enabled().orElse(false),
                 CarProperties.user_hal_timeout().orElse(5_000)
                 );
@@ -194,22 +192,19 @@ public class CarServiceHelperService extends SystemService {
     @VisibleForTesting
     CarServiceHelperService(
             Context context,
-            CarUserManagerHelper carUserManagerHelper,
+            CarUserManagerHelper userManagerHelper,
+            InitialUserSetter initialUserSetter,
             UserManager userManager,
-            IActivityManager activityManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
-            String defaultUserName,
             boolean halEnabled,
             int halTimeoutMs) {
         super(context);
         mContext = context;
-        mCarUserManagerHelper = carUserManagerHelper;
+        mCarUserManagerHelper = userManagerHelper;
         mUserManager = userManager;
-        mActivityManager = activityManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
-        mDefaultUserName = defaultUserName;
         boolean halValidUserHalSettings = false;
         if (halEnabled) {
             if (halTimeoutMs > 0) {
@@ -228,6 +223,7 @@ public class CarServiceHelperService extends SystemService {
             mHalTimeoutMs = -1;
             Slog.i(TAG, "Not using User HAL");
         }
+        mInitialUserSetter = initialUserSetter;
     }
 
     @Override
@@ -430,39 +426,6 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
-    @Nullable
-    private UserInfo createInitialAdminUser() {
-        UserInfo adminUserInfo = mUserManager.createUser(mDefaultUserName,
-                UserManager.USER_TYPE_FULL_SECONDARY, UserInfo.FLAG_ADMIN);
-        if (adminUserInfo == null) {
-            // Couldn't create user, most likely because there are too many.
-            return null;
-        }
-
-        Bitmap bitmap = UserIcons.convertToBitmap(
-                UserIcons.getDefaultUserIcon(mContext.getResources(), adminUserInfo.id, false));
-        mUserManager.setUserIcon(adminUserInfo.id, bitmap);
-        return adminUserInfo;
-    }
-
-    private boolean hasInitialSecondaryUser() {
-        List<UserInfo> users = mUserManager.getUsers(/* excludeDying= */ true);
-        boolean isHeadlessMode = UserManager.isHeadlessSystemUserMode();
-        int size = users.size();
-
-        for (int i = 0; i < size; i++) {
-            int id = users.get(i).id;
-            if (!mUserManager.isManagedProfile(id)) {
-                if (isHeadlessMode && (id == UserHandle.USER_SYSTEM)) {
-                    continue;
-                }
-                return true;
-            }
-        }
-
-        return false;
-    }
-
     private void handleHalTimedout() {
         synchronized (mLock) {
             if (mInitialized) return;
@@ -539,7 +502,7 @@ public class CarServiceHelperService extends SystemService {
 
     // TODO(b/150419360): add unit test
     private int getInitialUserInfoRequestType() {
-        if (!hasInitialSecondaryUser()) {
+        if (!mCarUserManagerHelper.hasInitialUser()) {
             return InitialUserInfoRequestType.FIRST_BOOT;
         }
         if (mContext.getPackageManager().isDeviceUpgrading()) {
@@ -554,18 +517,10 @@ public class CarServiceHelperService extends SystemService {
             fallbackToDefaultInitialUserBehavior();
             return;
         }
-        try {
-            Slog.i(TAG, "Starting user " + userId + " as requested by HAL");
-            if (mActivityManager.startUserInForegroundWithListener(userId,
-                        /* unlockProgressListener= */ null)) {
-                // All good...
-                return;
-            }
-            Slog.w(TAG, "AM didn't start user " + userId);
-        } catch (RemoteException | RuntimeException e) {
-            Slog.w(TAG, "AM failed to start user " + userId + ": " + e);
-        }
-        fallbackToDefaultInitialUserBehavior();
+
+        Slog.i(TAG, "Starting user " + userId + " as requested by HAL");
+
+        mInitialUserSetter.switchUser(userId);
     }
 
     private void createUserByHalRequest(@Nullable String name, int halFlags) {
@@ -574,46 +529,7 @@ public class CarServiceHelperService extends SystemService {
 
         Slog.i(TAG, "HAL request creation of " + friendlyName);
 
-        if (UserHalHelper.isSystem(halFlags)) {
-            Slog.w(TAG, "Cannot create system user");
-            fallbackToDefaultInitialUserBehavior();
-            return;
-        }
-
-        if (UserHalHelper.isAdmin(halFlags)) {
-            boolean validAdmin = true;
-            if (UserHalHelper.isGuest(halFlags)) {
-                Slog.w(TAG, "Cannot create guest admin");
-                validAdmin = false;
-            }
-            if (UserHalHelper.isEphemeral(halFlags)) {
-                Slog.w(TAG, "Cannot create ephemeral admin");
-                validAdmin = false;
-            }
-            if (!validAdmin) {
-                fallbackToDefaultInitialUserBehavior();
-                return;
-            }
-        }
-
-        String type = UserHalHelper.isGuest(halFlags) ? UserManager.USER_TYPE_FULL_GUEST
-                : UserManager.USER_TYPE_FULL_SECONDARY;
-
-        int flags = UserHalHelper.toUserInfoFlags(halFlags);
-        if (DBG) Slog.d(TAG, "new user: type=" + type + ", flags=" + UserInfo.flagsToString(flags));
-
-        // TODO(b/150413515): decide what to if HAL requested a non-ephemeral guest but framework
-        // sets all guests as ephemeral - should it fail or just warn?
-
-        UserInfo newUser = mUserManager.createUser(name, type, flags);
-
-        if (newUser == null) {
-            Slog.w(TAG, "Failed to create " + friendlyName);
-            fallbackToDefaultInitialUserBehavior();
-            return;
-        }
-
-        startUserByHalRequest(newUser.id);
+        mInitialUserSetter.createUser(name, halFlags);
     }
 
     private void fallbackToDefaultInitialUserBehavior() {
@@ -634,78 +550,7 @@ public class CarServiceHelperService extends SystemService {
             mInitialized = true;
         }
 
-        // Offloading the whole unlock into separate thread did not help due to single locks
-        // used in AMS / PMS ended up stopping the world with lots of lock contention.
-        // To run these in background, there should be some improvements there.
-        int targetUserId;
-        if (!hasInitialSecondaryUser()) {
-            Slog.i(TAG, "Create new admin user and switch");
-            // On very first boot, create an admin user and switch to that user.
-            t.traceBegin("createNewAdminUser");
-            UserInfo user = createInitialAdminUser();
-            t.traceEnd();
-            if (user == null) {
-                Slog.e(TAG, "cannot create admin user");
-                return;
-            }
-            targetUserId = user.id;
-        } else {
-            t.traceBegin("getInitialUser");
-            targetUserId = mCarUserManagerHelper.getInitialUser();
-            t.traceEnd();
-            Slog.i(TAG, "Switching to user " + targetUserId + " on boot");
-        }
-
-        IActivityManager am = ActivityManager.getService();
-        if (am == null) {
-            Slog.wtf(TAG, "cannot get ActivityManagerService");
-            return;
-        }
-
-        // If system user is the only user to unlock, handle it when system completes the boot.
-        if (targetUserId == UserHandle.USER_SYSTEM) {
-            return;
-        }
-
-        unlockSystemUser(t);
-
-        t.traceBegin("ForegroundUserStart" + targetUserId);
-        try {
-            if (!mActivityManager.startUserInForegroundWithListener(targetUserId, null)) {
-                Slog.e(TAG, "cannot start foreground user:" + targetUserId);
-            } else {
-                mCarUserManagerHelper.setLastActiveUser(targetUserId);
-            }
-        } catch (RemoteException e) {
-            // should not happen for local call.
-            Slog.wtf("RemoteException from AMS", e);
-        }
-        t.traceEnd(); // ForegroundUserStart
-    }
-
-    private void unlockSystemUser(@NonNull TimingsTraceAndSlog t) {
-        t.traceBegin("UnlockSystemUser");
-        try {
-            // This is for force changing state into RUNNING_LOCKED. Otherwise unlock does not
-            // update the state and user 0 unlock happens twice.
-            boolean started = mActivityManager.startUserInBackground(UserHandle.USER_SYSTEM);
-            if (!started) {
-                Slog.w(TAG, "could not restart system user in foreground; trying unlock instead");
-                t.traceBegin("forceUnlockSystemUser");
-                boolean unlocked = mActivityManager.unlockUser(UserHandle.USER_SYSTEM,
-                        /* token= */ null, /* secret= */ null, /* listener= */ null);
-                t.traceEnd();
-                if (!unlocked) {
-                    Slog.w(TAG, "could not unlock system user neither");
-                    return;
-                }
-            }
-        } catch (RemoteException e) {
-            // should not happen for local call.
-            Slog.wtf("RemoteException from AMS", e);
-        } finally {
-            t.traceEnd();
-        }
+        mInitialUserSetter.executeDefaultBehavior();
     }
 
     private void managePreCreatedUsers() {

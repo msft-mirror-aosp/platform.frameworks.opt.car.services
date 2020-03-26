@@ -22,7 +22,6 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doThrow;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
@@ -44,8 +43,8 @@ import static org.mockito.Mockito.times;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager;
-import android.app.IActivityManager;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
@@ -103,11 +102,9 @@ public class CarHelperServiceTest {
 
     private static final String TAG = CarHelperServiceTest.class.getSimpleName();
 
-    private static final String DEFAULT_NAME = "Driver";
-    private static final String DEFAULT_NAME_SET_BY_HAL = "HAL 9000";
-
-    private static final int ADMIN_USER_ID = 10;
-    private static final int OTHER_USER_ID = 11;
+    private static final String HAL_USER_NAME = "HAL 9000";
+    private static final int HAL_USER_ID = 42;
+    private static final int HAL_USER_FLAGS = 108;
 
     private static final int HAL_TIMEOUT_MS = 500;
 
@@ -119,14 +116,15 @@ public class CarHelperServiceTest {
             + ADDITIONAL_TIME_MS;
 
     private CarServiceHelperService mHelper;
-    StaticMockitoSession mStaticMockitoSession;
+
+    private StaticMockitoSession mStaticMockitoSession;
 
     @Mock
     private Context mMockContext;
     @Mock
     private Context mApplicationContext;
     @Mock
-    private CarUserManagerHelper mCarUserManagerHelper;
+    private CarUserManagerHelper mUserManagerHelper;
     @Mock
     private UserManager mUserManager;
     @Mock
@@ -135,11 +133,12 @@ public class CarHelperServiceTest {
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
     @Mock
     private IBinder mICarBinder;
+    @Mock
+    private InitialUserSetter mInitialUserSetter;
 
     @Captor
     private ArgumentCaptor<Parcel> mBinderCallData;
 
-    private IActivityManager mActivityManager;
     private Exception mBinderCallException;
 
     /**
@@ -154,19 +153,15 @@ public class CarHelperServiceTest {
                 .strictness(Strictness.LENIENT)
                 .startMocking();
 
-        mActivityManager = ActivityManager.getService();
-        spyOn(mActivityManager);
-
         interceptWtfCalls();
 
         mHelper = new CarServiceHelperService(
                 mMockContext,
-                mCarUserManagerHelper,
+                mUserManagerHelper,
+                mInitialUserSetter,
                 mUserManager,
-                mActivityManager,
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
-                DEFAULT_NAME,
                 /* halEnabled= */ true,
                 HAL_TIMEOUT_MS);
     }
@@ -182,19 +177,16 @@ public class CarHelperServiceTest {
      */
     @Test
     public void testInitialInfo_noHal() throws Exception {
-        setNoUsers();
-        expectCreateDefaultAdminUser();
-
         CarServiceHelperService halLessHelper = new CarServiceHelperService(
                 mMockContext,
-                mCarUserManagerHelper,
+                mUserManagerHelper,
+                mInitialUserSetter,
                 mUserManager,
-                mActivityManager,
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
-                DEFAULT_NAME,
                 /* halEnabled= */ false,
                 HAL_TIMEOUT_MS);
+
         halLessHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyDefaultBootBehavior();
@@ -202,31 +194,9 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testSystemUserUnlockedWhenItCouldNotStart() throws Exception {
-        bindMockICar();
-        setNoUsers();
-        setStartBgResult(UserHandle.USER_SYSTEM, false);
-        expectCreateDefaultAdminUser();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        verifyUserStartedAsFg(ADMIN_USER_ID);
-        verifyUserStartedAsBg(UserHandle.USER_SYSTEM);
-        verifyUserUnlocked(UserHandle.USER_SYSTEM);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
     public void testInitialInfo_halReturnedDefault() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -242,8 +212,6 @@ public class CarHelperServiceTest {
     public void testInitialInfo_halServiceNeverReturned() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DO_NOT_REPLY);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -260,8 +228,6 @@ public class CarHelperServiceTest {
     public void testInitialInfo_halServiceReturnedTooLate() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.DELAYED_REPLY);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -280,8 +246,6 @@ public class CarHelperServiceTest {
     public void testInitialInfo_halReturnedNonOkResultCode() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.NON_OK_RESULT_CODE);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -297,8 +261,6 @@ public class CarHelperServiceTest {
     public void testInitialInfo_halReturnedOkWithNoBundle() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.NULL_BUNDLE);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -311,20 +273,16 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testInitialInfo_halReturnedSwitch_switchSucceeded() throws Exception {
+    public void testInitialInfo_halReturnedSwitch_ok() throws Exception {
         bindMockICar();
 
-        setNoUsers();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
-        expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ true);
-
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyNoUserCreated();
+        verifyUserSwitchedByHal();
         verifyWtfNeverLogged();
     }
 
@@ -332,8 +290,6 @@ public class CarHelperServiceTest {
     public void testInitialInfo_halReturnedSwitch_switchMissingUserId() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
         expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_MISSING_USER_ID);
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -341,98 +297,15 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
+        verifyUserNotSwitchedByHal();
         verifyDefaultBootBehavior();
         verifyWtfNeverLogged();
     }
 
     @Test
-    public void testInitialInfo_halReturnedSwitch_switchSystemUser() throws Exception {
+    public void testInitialInfo_halReturnedCreateOk() throws Exception {
         bindMockICar();
 
-        setNoUsers();
-        expectCreateDefaultAdminUser();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_SYSTEM_USER);
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedSwitch_switchFailedWithRemoteException()
-            throws Exception {
-        bindMockICar();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
-        expectCreateDefaultAdminUser();
-        expectStartFgUserToFail(OTHER_USER_ID, new RemoteException("D'OH!"));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedSwitch_switchFailedWithRuntimeException()
-            throws Exception {
-        bindMockICar();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
-        expectCreateDefaultAdminUser();
-        expectStartFgUserToFail(OTHER_USER_ID, new RuntimeException("D'OH!"));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedSwitch_switchFailed() throws Exception {
-        bindMockICar();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK);
-        expectCreateDefaultAdminUser();
-        expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ false);
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    /*
-     * This is the simplest case for success case for create - crete a simple user (without flags),
-     * then switch, and both pass.
-     *
-     * Afterwards, there will be 2 types of testes for create:
-     *  - successful tests for different flags
-     *  - different types of failures
-     */
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_simpleUser() throws Exception {
-        bindMockICar();
-
-        expectCreateDefaultHalUser();
-
-        setNoUsers();
         expectICarGetInitialUserInfo((r) -> sendCreateDefaultHalUserAction(r));
 
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
@@ -440,319 +313,7 @@ public class CarHelperServiceTest {
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
 
-        verifyDefaultHalUserCreated();
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_simpleUser_noFlags() throws Exception {
-        bindMockICar();
-
-        expectCreateDefaultHalUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                /* flags= */ null));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(DEFAULT_NAME_SET_BY_HAL, /* flags= */ 0);
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_simpleUser_noName() throws Exception {
-        bindMockICar();
-
-        expectCreateUserToSucceed(OTHER_USER_ID, /* name= */ null, /* flags= */ 0);
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, /* name= */ null,
-                /* flags= */ null));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(/* name= */ null, /* flags= */ 0);
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_guestUser() throws Exception {
-        bindMockICar();
-
-        expectCreateUserToSucceed(OTHER_USER_ID, DEFAULT_NAME_SET_BY_HAL,
-                UserManager.USER_TYPE_FULL_GUEST, /* flags= */ 0);
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.GUEST));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(DEFAULT_NAME_SET_BY_HAL, UserManager.USER_TYPE_FULL_GUEST,
-                /* flags= */ 0);
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_ephemeralGuestUser() throws Exception {
-        bindMockICar();
-
-        expectCreateUserToSucceed(OTHER_USER_ID, DEFAULT_NAME_SET_BY_HAL,
-                UserManager.USER_TYPE_FULL_GUEST, UserInfo.FLAG_EPHEMERAL);
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.GUEST | UserFlags.EPHEMERAL));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(DEFAULT_NAME_SET_BY_HAL, UserManager.USER_TYPE_FULL_GUEST,
-                UserInfo.FLAG_EPHEMERAL);
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateOk_adminUser() throws Exception {
-        bindMockICar();
-
-        expectCreateUserToSucceed(OTHER_USER_ID, DEFAULT_NAME_SET_BY_HAL, UserInfo.FLAG_ADMIN);
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.ADMIN));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserCreated(DEFAULT_NAME_SET_BY_HAL, UserInfo.FLAG_ADMIN);
-        verifyUserStartedAsFg(OTHER_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_guestAdminUser() throws Exception {
-        bindMockICar();
-
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.ADMIN | UserFlags.GUEST));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserNotCreated(DEFAULT_NAME_SET_BY_HAL);
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_ephemeralAdminUser() throws Exception {
-        bindMockICar();
-
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.ADMIN | UserFlags.EPHEMERAL));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserNotCreated(DEFAULT_NAME_SET_BY_HAL);
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_createReturnedNull() throws Exception {
-        bindMockICar();
-
-        // Call from HAL response
-        expectCreateUserToFail(OTHER_USER_ID, DEFAULT_NAME_SET_BY_HAL, /* flags= */ 0);
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateDefaultHalUserAction(r));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_switchReturnedFalse() throws Exception {
-        bindMockICar();
-
-        // Call from HAL response
-        expectCreateDefaultHalUser();
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateDefaultHalUserAction(r));
-
-        // Set failure
-        expectStartFgUserToSucceed(OTHER_USER_ID, /* success= */ false);
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultHalUserCreated();
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_switchThrewRemoteException()
-            throws Exception {
-        bindMockICar();
-
-        // Call from HAL response
-        expectCreateDefaultHalUser();
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateDefaultHalUserAction(r));
-
-        // Set failure
-        expectStartFgUserToFail(OTHER_USER_ID, new RemoteException("D'OH!"));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultHalUserCreated();
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_switchThrewRuntimeException()
-            throws Exception {
-        bindMockICar();
-
-        // Call from HAL response
-        expectCreateDefaultHalUser();
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateDefaultHalUserAction(r));
-
-        // Set failure
-        expectStartFgUserToFail(OTHER_USER_ID, new RuntimeException("D'OH!"));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyDefaultHalUserCreated();
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    @Test
-    public void testInitialInfo_halReturnedCreateFailure_invalidUser_System()
-            throws Exception {
-        bindMockICar();
-
-        // Call from Fallback
-        expectCreateDefaultAdminUser();
-
-        setNoUsers();
-        expectICarGetInitialUserInfo((r) -> sendCreateAction(r, DEFAULT_NAME_SET_BY_HAL,
-                UserFlags.SYSTEM));
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        assertNoICarCallExceptions();
-        verifyICarGetInitialUserInfoCalled();
-
-        verifyUserNotCreated(DEFAULT_NAME_SET_BY_HAL);
-        verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
-    }
-
-    /**
-     * Test that the {@link CarServiceHelperService} updates last active user to the first admin
-     * user on first run.
-     */
-    @Test
-    public void testUpdateLastActiveUserOnFirstRun() throws Exception {
-        bindMockICar();
-        expectCreateDefaultAdminUser();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verify(mCarUserManagerHelper).setLastActiveUser(ADMIN_USER_ID);
-        verifyWtfNeverLogged();
-    }
-
-    /**
-     * Test that the {@link CarServiceHelperService} starts up the last active user on reboot.
-     */
-    @Test
-    public void testStartsLastActiveUserOnReboot() throws Exception {
-        bindMockICar();
-        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT);
-
-        List<UserInfo> users = new ArrayList<>();
-
-        int adminUserId = ADMIN_USER_ID;
-        UserInfo admin = new UserInfo(adminUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-
-        int secUserId = ADMIN_USER_ID + 1;
-        UserInfo secUser = new UserInfo(secUserId, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-
-        users.add(admin);
-        users.add(secUser);
-
-        doReturn(users).when(mUserManager).getUsers(anyBoolean());
-        doReturn(secUserId).when(mCarUserManagerHelper).getInitialUser();
-
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verify(mActivityManager).startUserInForegroundWithListener(secUserId, null);
+        verifyUserCreatedByHal();
         verifyWtfNeverLogged();
     }
 
@@ -883,8 +444,7 @@ public class CarHelperServiceTest {
      * not using HAL.
      */
     private void verifyDefaultBootBehavior() throws Exception {
-        verifyUserCreated(DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-        verifyUserStartedAsFg(ADMIN_USER_ID);
+        verify(mInitialUserSetter).executeDefaultBehavior();
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -902,49 +462,16 @@ public class CarHelperServiceTest {
         mHelper.handleCarServiceConnection(mICarBinder);
     }
 
-    private void setNoUsers() {
-        doReturn(new ArrayList<>()).when(mUserManager).getUsers(anyBoolean());
+    private void verifyUserCreatedByHal() throws Exception {
+        verify(mInitialUserSetter).createUser(HAL_USER_NAME, HAL_USER_FLAGS);
     }
 
-    private void setStartBgResult(int userId, boolean result) throws Exception {
-        doReturn(result).when(mActivityManager).startUserInBackground(userId);
+    private void verifyUserSwitchedByHal() {
+        verify(mInitialUserSetter).switchUser(HAL_USER_ID);
     }
 
-    private void verifyUserCreated(String name, int flags) throws Exception {
-        verifyUserCreated(name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
-    }
-
-    private void verifyUserCreated(String name, String type, int flags) throws Exception {
-        verify(mUserManager).createUser(eq(name), eq(type), eq(flags));
-    }
-
-    private void verifyUserNotCreated(String name) throws Exception {
-        // name + flags version
-        verify(mUserManager, never()).createUser(eq(name), anyInt());
-        // name + type + flags version
-        verify(mUserManager, never()).createUser(eq(name), anyString(), anyInt());
-    }
-
-    private void verifyNoUserCreated() throws Exception {
-        verify(mUserManager, never()).createUser(anyString(), anyInt());
-    }
-
-    private void verifyDefaultHalUserCreated() throws Exception {
-        verifyUserCreated(DEFAULT_NAME_SET_BY_HAL, /* flags= */ 0);
-    }
-
-    private void verifyUserStartedAsFg(int userId) throws Exception {
-        verify(mActivityManager).startUserInForegroundWithListener(userId,
-                /* unlockProgressListener= */ null);
-    }
-
-    private void verifyUserStartedAsBg(int userId) throws Exception {
-        verify(mActivityManager).startUserInBackground(userId);
-    }
-
-    private void verifyUserUnlocked(int userId) throws Exception {
-        verify(mActivityManager).unlockUser(userId, /* token= */ null, /* secret= */ null,
-                /* listener= */ null);
+    private void verifyUserNotSwitchedByHal() {
+        verify(mInitialUserSetter, never()).switchUser(anyInt());
     }
 
     // TODO: create a custom matcher / verifier for binder calls
@@ -1081,41 +608,6 @@ public class CarHelperServiceTest {
                 });
     }
 
-    private void expectCreateDefaultAdminUser() {
-        expectCreateUserToSucceed(ADMIN_USER_ID, DEFAULT_NAME, UserInfo.FLAG_ADMIN);
-    }
-
-    private void expectCreateDefaultHalUser() {
-        expectCreateUserToSucceed(OTHER_USER_ID, DEFAULT_NAME_SET_BY_HAL, /* flags= */ 0);
-    }
-
-    private void expectCreateUserToSucceed(int id, String name, int flags) {
-        expectCreateUserToSucceed(id, name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
-    }
-
-    private void expectCreateUserToSucceed(int id, String name, String type, int flags) {
-        UserInfo userInfo = new UserInfo(id, name, flags);
-        doReturn(userInfo).when(mUserManager).createUser(name, type, flags);
-    }
-
-    private void expectCreateUserToFail(int id, String name, int flags) {
-        expectCreateUserToFail(id, name, UserManager.USER_TYPE_FULL_SECONDARY, flags);
-    }
-
-    private void expectCreateUserToFail(int id, String name, String type, int flags) {
-        doReturn(null).when(mUserManager).createUser(name, type, flags);
-    }
-
-    private void expectStartFgUserToSucceed(int userId, boolean result) throws Exception {
-        doReturn(result).when(mActivityManager)
-            .startUserInForegroundWithListener(userId, /* unlockProgressListener= */ null);
-    }
-
-    private void expectStartFgUserToFail(int userId, Exception exception) throws Exception {
-        doThrow(exception).when(mActivityManager)
-            .startUserInForegroundWithListener(userId,/* unlockProgressListener= */ null);
-    }
-
     enum InitialUserInfoAction {
         DEFAULT,
         DO_NOT_REPLY,
@@ -1123,8 +615,7 @@ public class CarHelperServiceTest {
         NON_OK_RESULT_CODE,
         NULL_BUNDLE,
         SWITCH_OK,
-        SWITCH_MISSING_USER_ID,
-        SWITCH_SYSTEM_USER,
+        SWITCH_MISSING_USER_ID
     }
 
     private void expectICarGetInitialUserInfo(InitialUserInfoAction action) throws Exception {
@@ -1154,10 +645,6 @@ public class CarHelperServiceTest {
                 case SWITCH_MISSING_USER_ID:
                     Log.d(TAG, "sending Switch without user Id");
                     sendSwitchAction(receiver, null);
-                    break;
-                case SWITCH_SYSTEM_USER:
-                    Log.d(TAG, "sending Switch with SYSTEM user Id");
-                    sendSwitchAction(receiver, UserHandle.USER_SYSTEM);
                     break;
                default:
                     throw new IllegalArgumentException("invalid action: " + action);
@@ -1205,8 +692,8 @@ public class CarHelperServiceTest {
     }
 
     private void sendValidSwitchAction(IResultReceiver receiver) throws Exception {
-        Log.d(TAG, "Sending SWITCH (" + OTHER_USER_ID + ") action to receiver " + receiver);
-        sendSwitchAction(receiver, OTHER_USER_ID);
+        Log.d(TAG, "Sending SWITCH (" + HAL_USER_ID + ") action to receiver " + receiver);
+        sendSwitchAction(receiver, HAL_USER_ID);
     }
 
     private void sendSwitchAction(IResultReceiver receiver, Integer id) throws Exception {
@@ -1220,7 +707,7 @@ public class CarHelperServiceTest {
     }
 
     private void sendCreateDefaultHalUserAction(IResultReceiver receiver) throws Exception {
-        sendCreateAction(receiver, DEFAULT_NAME_SET_BY_HAL, UserFlags.NONE);
+        sendCreateAction(receiver, HAL_USER_NAME, HAL_USER_FLAGS);
     }
 
     private void sendCreateAction(IResultReceiver receiver, String name, Integer flags)
