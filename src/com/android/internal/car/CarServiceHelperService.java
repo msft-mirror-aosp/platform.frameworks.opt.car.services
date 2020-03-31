@@ -567,11 +567,6 @@ public class CarServiceHelperService extends SystemService {
             return;
         }
 
-        if (numberRequestedGuests == 0 && numberRequestedUsers == 0) {
-            Slog.i(TAG, "managePreCreatedUsers(): not defined by OEM");
-            return;
-        }
-
         // Then checks how many exist already
         List<UserInfo> allUsers = mUserManager.getUsers(/* excludePartial= */ true,
                 /* excludeDying= */ true, /* excludePreCreated= */ false);
@@ -584,7 +579,10 @@ public class CarServiceHelperService extends SystemService {
 
         // List of pre-created users that were not properly initialized. Typically happens when
         // the system crashed / rebooted before they were fully started.
-        SparseBooleanArray invalidUsers = new SparseBooleanArray();
+        SparseBooleanArray invalidPreCreatedUsers = new SparseBooleanArray();
+
+        // List of all pre-created users - it will be used to remove unused ones (when needed)
+        SparseBooleanArray existingPrecreatedUsers = new SparseBooleanArray();
 
         for (int i = 0; i < allUsersSize; i++) {
             UserInfo user = allUsers.get(i);
@@ -592,10 +590,12 @@ public class CarServiceHelperService extends SystemService {
             if (!user.isInitialized()) {
                 Slog.w(TAG, "Found invalid pre-created user that needs to be removed: "
                         + user.toFullString());
-                invalidUsers.append(user.id, /* notUsed=*/ true);
+                invalidPreCreatedUsers.append(user.id, /* notUsed=*/ true);
                 continue;
             }
-            if (user.isGuest()) {
+            boolean isGuest = user.isGuest();
+            existingPrecreatedUsers.put(user.id, isGuest);
+            if (isGuest) {
                 numberExistingGuests++;
             } else {
                 numberExistingUsers++;
@@ -604,15 +604,17 @@ public class CarServiceHelperService extends SystemService {
         if (DBG) {
             Slog.i(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
                     + " pre-created guests," + numberExistingUsers + " pre-created users, and these"
-                    + " invalid users: " + invalidUsers );
+                    + " invalid users: " + invalidPreCreatedUsers );
         }
 
-        int numberGuests = numberRequestedGuests - numberExistingGuests;
-        int numberUsers = numberRequestedUsers - numberExistingUsers;
-        int numberInvalidUsers = invalidUsers.size();
+        int numberGuestsToAdd = numberRequestedGuests - numberExistingGuests;
+        int numberUsersToAdd = numberRequestedUsers - numberExistingUsers;
+        int numberGuestsToRemove = numberExistingGuests - numberRequestedGuests;
+        int numberUsersToRemove = numberExistingUsers - numberRequestedUsers;
+        int numberInvalidUsersToRemove = invalidPreCreatedUsers.size();
 
-        if (numberGuests <= 0 && numberUsers <= 0 && numberInvalidUsers == 0) {
-            Slog.i(TAG, "managePreCreatedUsers(): all pre-created and no invalid ones");
+        if (numberGuestsToAdd == 0 && numberUsersToAdd == 0 && numberInvalidUsersToRemove == 0) {
+            Slog.i(TAG, "managePreCreatedUsers(): right number of pre-created and no invalid ones");
             return;
         }
 
@@ -627,18 +629,50 @@ public class CarServiceHelperService extends SystemService {
                     Trace.TRACE_TAG_SYSTEM_SERVER);
 
             t.traceBegin("preCreateUsers");
-            if (numberUsers > 0) {
-                preCreateUsers(t, numberUsers, /* isGuest= */ false);
+            if (numberUsersToAdd > 0) {
+                preCreateUsers(t, numberUsersToAdd, /* isGuest= */ false);
             }
-            if (numberGuests > 0) {
-                preCreateUsers(t, numberGuests, /* isGuest= */ true);
+            if (numberGuestsToAdd > 0) {
+                preCreateUsers(t, numberGuestsToAdd, /* isGuest= */ true);
             }
+
+            // TODO(b/152792035): add unit test for remove logic
+            int totalNumberToRemove = Math.max(numberUsersToRemove, 0)
+                    + Math.max(numberGuestsToRemove, 0);
+            if (DBG) Slog.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
+            if (totalNumberToRemove > 0) {
+                int[] usersToRemove = new int[totalNumberToRemove];
+                int j = 0;
+                int numberUsersToRemoveLeft = numberUsersToRemove;
+                int numberGuestsToRemoveLeft = numberGuestsToRemove;
+                // TODO(b/152792035): avoid this loop by checking pre-created users in loop L586
+                // and add users to remove there rather than going through the users again here
+                for (int i = 0; i < existingPrecreatedUsers.size(); i++) {
+                    int userId = existingPrecreatedUsers.keyAt(i);
+                    boolean isGuest = existingPrecreatedUsers.valueAt(i);
+                    if (!isGuest && numberUsersToRemoveLeft > 0) {
+                        if (DBG) Slog.d(TAG, "Marking user" + userId + " for removal");
+                        numberUsersToRemoveLeft--;
+                        usersToRemove[j++] = userId;
+                    }
+                    if (isGuest && numberGuestsToRemoveLeft > 0 ) {
+                        if (DBG) Slog.d(TAG, "Marking guest " + userId + " for removal");
+                        numberGuestsToRemoveLeft--;
+                        usersToRemove[j++] = userId;
+                    }
+                }
+                for (int userId : usersToRemove) {
+                    Slog.i(TAG,  "removing pre-created user with id " + userId);
+                    mUserManager.removeUser(userId);
+                }
+            }
+
             t.traceEnd();
 
-            if (numberInvalidUsers > 0) {
+            if (numberInvalidUsersToRemove > 0) {
                 t.traceBegin("removeInvalidPreCreatedUsers");
-                for (int i = 0; i < numberInvalidUsers; i++) {
-                    int userId = invalidUsers.keyAt(i);
+                for (int i = 0; i < numberInvalidUsersToRemove; i++) {
+                    int userId = invalidPreCreatedUsers.keyAt(i);
                     Slog.i(TAG, "removing invalid pre-created user " + userId);
                     mUserManager.removeUser(userId);
                 }
@@ -661,7 +695,7 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
-    // TODO(b/111451156): add unit test?
+    // TODO(b/152792035): add unit test
     @Nullable
     public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
         String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
