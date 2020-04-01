@@ -197,6 +197,12 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 // Do not touch, always allow.
                 return RESULT_SKIP;
             }
+            if (userId == UserHandle.USER_SYSTEM) {
+                // This will be only allowed if it has FLAG_SHOW_FOR_ALL_USERS.
+                // The flag is not immediately accessible here so skip the check.
+                // But other WM policy will enforce it.
+                return RESULT_SKIP;
+            }
             if (mPassengerDisplays.isEmpty()) {
                 // No displays for passengers. This could be old user and do not do anything.
                 return RESULT_SKIP;
