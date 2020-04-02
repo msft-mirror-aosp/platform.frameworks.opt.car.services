@@ -25,6 +25,7 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.automotive.watchdog.ICarWatchdogClient;
 import android.automotive.watchdog.ICarWatchdogMonitor;
+import android.automotive.watchdog.StateType;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.InitialUserSetter;
@@ -252,6 +253,12 @@ public class CarServiceHelperService extends SystemService {
             }
             if (shouldNotify) {
                 notifyAllUnlockedUsers();
+            }
+            try {
+                mCarWatchdogDaemonHelper.notifySystemStateChange(
+                    StateType.BOOT_PHASE, phase, /* arg2= */ 0);
+            } catch (IllegalArgumentException | RemoteException e) {
+                Slog.w(TAG, "Failed to notify boot phase change: " + e);
             }
             t.traceEnd();
         }
