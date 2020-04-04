@@ -24,9 +24,8 @@ import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
-import android.util.IntArray;
 import android.util.Slog;
-import android.util.SparseArray;
+import android.util.SparseIntArray;
 import android.view.Display;
 
 import com.android.internal.annotations.GuardedBy;
@@ -61,15 +60,20 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     private int mCurrentDriverUser = UserHandle.USER_SYSTEM;
 
     /**
-     * This one is for holding all passenger displays which are mostly static unless displays are
-     * added / removed. Note that {@link #mPassengerUserDisplayMapping} can be empty while user is
-     * assigned and that cannot always tell if specific display is for driver or not.
+     * This one is for holding all passenger (=profile user) displays which are mostly static unless
+     * displays are added / removed. Note that {@link #mDisplayToProfileUserMapping} can be empty
+     * while user is assigned and that cannot always tell if specific display is for driver or not.
      */
     @GuardedBy("mLock")
     private final ArrayList<Integer> mPassengerDisplays = new ArrayList<>();
 
+    /** key: display id, value: profile user id */
     @GuardedBy("mLock")
-    private final SparseArray<ArrayList<Integer>> mPassengerUserDisplayMapping = new SparseArray<>();
+    private final SparseIntArray mDisplayToProfileUserMapping = new SparseIntArray();
+
+    /** key: profile user id, value: display id */
+    @GuardedBy("mLock")
+    private final SparseIntArray mDefaultDisplayForProfileUser = new SparseIntArray();
 
 
     @VisibleForTesting
@@ -83,10 +87,8 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         @Override
         public void onDisplayRemoved(int displayId) {
             synchronized (mLock) {
-                for (int i = 0; i < mPassengerUserDisplayMapping.size(); i++) {
-                    ArrayList<Integer> displays = mPassengerUserDisplayMapping.valueAt(i);
-                    displays.remove(Integer.valueOf(displayId));  // should pass Object, not int
-                }
+                mPassengerDisplays.remove(Integer.valueOf(displayId));
+                updateProfileUserConfigForDisplayRemovalLocked(displayId);
             }
         }
 
@@ -95,6 +97,14 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             // ignore
         }
     };
+
+    private void updateProfileUserConfigForDisplayRemovalLocked(int displayId) {
+        mDisplayToProfileUserMapping.delete(displayId);
+        int i = mDefaultDisplayForProfileUser.indexOfValue(displayId);
+        if (i >= 0) {
+            mDefaultDisplayForProfileUser.removeAt(i);
+        }
+    }
 
     /** Constructor. Can be constructed any time. */
     public CarLaunchParamsModifier(Context context) {
@@ -120,8 +130,18 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     public void handleCurrentUserSwitching(int newUserId) {
         synchronized (mLock) {
             mCurrentDriverUser = newUserId;
-            mPassengerUserDisplayMapping.remove(newUserId);
+            mDefaultDisplayForProfileUser.clear();
+            mDisplayToProfileUserMapping.clear();
         }
+    }
+
+    private void removeUserFromWhitelistsLocked(int userId) {
+        for (int i = mDisplayToProfileUserMapping.size() - 1; i >= 0; i--) {
+            if (mDisplayToProfileUserMapping.valueAt(i) == userId) {
+                mDisplayToProfileUserMapping.removeAt(i);
+            }
+        }
+        mDefaultDisplayForProfileUser.delete(userId);
     }
 
     /** Notifies user stopped. */
@@ -129,22 +149,42 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         // Note that the current user is never stopped. It always takes switching into
         // non-current user before stopping the user.
         synchronized (mLock) {
-            mPassengerUserDisplayMapping.remove(stoppedUser);
+            removeUserFromWhitelistsLocked(stoppedUser);
         }
     }
 
     /**
      * Sets display whiltelist for the userId. For passenger user, activity will be always launched
-     * to a display in the whitelist. If requested display is not in whitelist, the 1st display
+     * to a display in the whitelist. If requested display is not in the whitelist, the 1st display
      * in the whitelist will be selected as target display.
+     *
+     * <p>The whitelist is kept only for profile user. Assigning the current user unassigns users
+     * for the given displays.
      */
     public void setDisplayWhitelistForUser(int userId, int[] displayIds) {
         synchronized (mLock) {
-            ArrayList<Integer> displays = new ArrayList<Integer>(displayIds.length);
-            for (int id : displayIds) {
-                displays.add(id);
+            for (int displayId : displayIds) {
+                if (!mPassengerDisplays.contains(displayId)) {
+                    Slog.w(TAG, "setDisplayWhitelistForUser called with display:" + displayId
+                            + " not in passenger display list:" + mPassengerDisplays);
+                    continue;
+                }
+                if (userId == mCurrentDriverUser) {
+                    mDisplayToProfileUserMapping.delete(displayId);
+                } else {
+                    mDisplayToProfileUserMapping.put(displayId, userId);
+                }
+                // now the display cannot be a default display for other user
+                int i = mDefaultDisplayForProfileUser.indexOfValue(displayId);
+                if (i >= 0) {
+                    mDefaultDisplayForProfileUser.removeAt(i);
+                }
             }
-            mPassengerUserDisplayMapping.put(userId, displays);
+            if (displayIds.length > 0) {
+                mDefaultDisplayForProfileUser.put(userId, displayIds[0]);
+            } else {
+                removeUserFromWhitelistsLocked(userId);
+            }
         }
     }
 
@@ -157,6 +197,14 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      */
     public void setPassengerDisplays(int[] displayIdsForPassenger) {
         synchronized (mLock) {
+            for (int id : displayIdsForPassenger) {
+                mPassengerDisplays.remove(Integer.valueOf(id));
+            }
+            // handle removed displays
+            for (int i = 0; i < mPassengerDisplays.size(); i++) {
+                int displayId = mPassengerDisplays.get(i);
+                updateProfileUserConfigForDisplayRemovalLocked(displayId);
+            }
             mPassengerDisplays.clear();
             mPassengerDisplays.ensureCapacity(displayIdsForPassenger.length);
             for (int id : displayIdsForPassenger) {
@@ -222,35 +270,37 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 // For now, don't change anything.
                 return RESULT_SKIP;
             }
-            ArrayList<Integer> displaysForUser = mPassengerUserDisplayMapping.get(userId);
-            if (displaysForUser == null || displaysForUser.size() == 0) {
-                // If there is no assigned displays for the user, pick up 1st passenger display so
-                // that it does not go to driver's display.
-                if (mPassengerDisplays.contains(originalDisplayId)) {
-                    Slog.w(TAG, "Launching without whitelist, user:" + userId
-                            + " display:" + originalDisplayId);
-                } else {
-                    newDisplayId = mPassengerDisplays.get(0);  // pick 1st passenger display
-                    Slog.w(TAG, "Launching passenger without whitelisted displays, user:"
-                            + userId + " requested display:" + originalDisplayId
-                            +" changed display:" + newDisplayId);
-                }
-            } else {
-                // If there are displays assigned to the user while excluding the requested display,
-                // move to the 1at assigned display.
-                if (!displaysForUser.contains(originalDisplayId)) {
-                    newDisplayId = displaysForUser.get(0);  // pick up 1st one
-                    Slog.w(TAG, "Launching passenger to not allowed displays, user:"
-                            + userId + " requested display:" + originalDisplayId
-                            +" changed display:" + newDisplayId);
-                }
+            int userForDisplay = mDisplayToProfileUserMapping.get(originalDisplayId,
+                    UserHandle.USER_NULL);
+            if (userForDisplay == userId) {
+                return RESULT_SKIP;
             }
+            newDisplayId = getAlternativeDisplayForPassengerLocked(userId, originalDisplayId);
         }
         if (originalDisplayId != newDisplayId) {
+            Slog.w(TAG, "Launching passenger to not allowed displays, user:"
+                    + userId + " requested display:" + originalDisplayId
+                    +" changed display:" + newDisplayId);
             outParams.mPreferredDisplayId = newDisplayId;
             return RESULT_CONTINUE;
         } else {
             return RESULT_SKIP;
         }
+    }
+
+    private int getAlternativeDisplayForPassengerLocked(int userId, int originalDisplayId) {
+        int displayId = mDefaultDisplayForProfileUser.get(userId, Display.INVALID_DISPLAY);
+        if (displayId != Display.INVALID_DISPLAY) {
+            return displayId;
+        }
+        // return the 1st passenger display if it exists
+        if (!mPassengerDisplays.isEmpty()) {
+            Slog.w(TAG, "No default display for user:" + userId
+                    + " reassign to 1st passenger display");
+            return mPassengerDisplays.get(0);
+        }
+        Slog.w(TAG, "No default display for user:" + userId
+                + " and no passenger display, keep the requested display:" + originalDisplayId);
+        return originalDisplayId;
     }
 }
