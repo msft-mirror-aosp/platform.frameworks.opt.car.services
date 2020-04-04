@@ -162,7 +162,7 @@ public class CarLaunchParamsModifierTest {
         mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
 
-        // USER_SYSTEM should be allowed until switch to other user.
+        // USER_SYSTEM should be allowed always
         assertAllDisplaysAllowedForUser(UserHandle.USER_SYSTEM);
     }
 
@@ -174,10 +174,12 @@ public class CarLaunchParamsModifierTest {
         final int driver1 = 10;
         mModifier.handleCurrentUserSwitching(driver1);
         assertAllDisplaysAllowedForUser(driver1);
+        assertAllDisplaysAllowedForUser(UserHandle.USER_SYSTEM);
 
         final int driver2 = 10;
         mModifier.handleCurrentUserSwitching(driver2);
         assertAllDisplaysAllowedForUser(driver2);
+        assertAllDisplaysAllowedForUser(UserHandle.USER_SYSTEM);
     }
 
     @Test
@@ -193,6 +195,26 @@ public class CarLaunchParamsModifierTest {
     }
 
     @Test
+    public void testPassengerChange() {
+        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+                mDisplay11ForPassenger.getDisplayId()});
+
+        int passengerUserId1 = 100;
+        mModifier.setDisplayWhitelistForUser(passengerUserId1,
+                new int[]{mDisplay11ForPassenger.getDisplayId()});
+
+        assertDisplayIsAllowed(passengerUserId1, mDisplay11ForPassenger);
+
+        int passengerUserId2 = 101;
+        mModifier.setDisplayWhitelistForUser(passengerUserId2,
+                new int[]{mDisplay11ForPassenger.getDisplayId()});
+
+        assertDisplayIsAllowed(passengerUserId2, mDisplay11ForPassenger);
+        // 11 not allowed, so reassigned to the 1st passenger display
+        assertDisplayIsReassigned(passengerUserId1, mDisplay11ForPassenger, mDisplay10ForPassenger);
+    }
+
+    @Test
     public void testPassengerNotAllowed() {
         mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
@@ -200,6 +222,39 @@ public class CarLaunchParamsModifierTest {
         final int passengerUserId = 100;
         mModifier.setDisplayWhitelistForUser(
                 passengerUserId, new int[]{mDisplay10ForPassenger.getDisplayId()});
+
+        assertDisplayIsReassigned(passengerUserId, mDisplay0ForDriver, mDisplay10ForPassenger);
+        assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
+    }
+
+    @Test
+    public void testPassengerNotAllowedAfterUserSwitch() {
+        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+                mDisplay11ForPassenger.getDisplayId()});
+
+        int passengerUserId = 100;
+        mModifier.setDisplayWhitelistForUser(
+                passengerUserId, new int[]{mDisplay11ForPassenger.getDisplayId()});
+        assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
+
+        mModifier.handleCurrentUserSwitching(2);
+
+        assertDisplayIsReassigned(passengerUserId, mDisplay0ForDriver, mDisplay10ForPassenger);
+        assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
+    }
+
+    @Test
+    public void testPassengerNotAllowedAfterAssigningCurrentUser() {
+        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+                mDisplay11ForPassenger.getDisplayId()});
+
+        int passengerUserId = 100;
+        mModifier.setDisplayWhitelistForUser(
+                passengerUserId, new int[]{mDisplay11ForPassenger.getDisplayId()});
+        assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
+
+        mModifier.setDisplayWhitelistForUser(
+                UserHandle.USER_SYSTEM, new int[]{mDisplay11ForPassenger.getDisplayId()});
 
         assertDisplayIsReassigned(passengerUserId, mDisplay0ForDriver, mDisplay10ForPassenger);
         assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
@@ -219,6 +274,25 @@ public class CarLaunchParamsModifierTest {
         assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
 
         mModifier.mDisplayListener.onDisplayRemoved(mDisplay11ForPassenger.getDisplayId());
+
+        assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
+        assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
+    }
+
+    @Test
+    public void testPassengerDisplayRemovedFromSetPassengerDisplays() {
+        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+                mDisplay11ForPassenger.getDisplayId()});
+
+        final int passengerUserId = 100;
+        mModifier.setDisplayWhitelistForUser(passengerUserId,
+                new int[]{mDisplay10ForPassenger.getDisplayId(),
+                        mDisplay11ForPassenger.getDisplayId()});
+
+        assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
+        assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
+
+        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
         assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
