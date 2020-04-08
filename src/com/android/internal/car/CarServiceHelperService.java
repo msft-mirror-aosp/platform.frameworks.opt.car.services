@@ -511,8 +511,8 @@ public class CarServiceHelperService extends SystemService {
         sendOrQueueGetInitialUserInfo(initialUserInfoRequestType, receiver);
     }
 
-    // TODO(b/150419360): add unit test
-    private int getInitialUserInfoRequestType() {
+    @VisibleForTesting
+    int getInitialUserInfoRequestType() {
         if (!mCarUserManagerHelper.hasInitialUser()) {
             return InitialUserInfoRequestType.FIRST_BOOT;
         }
