@@ -25,6 +25,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
@@ -439,6 +440,20 @@ public class CarHelperServiceTest {
         verifyWtfNeverLogged();
     }
 
+    @Test
+    public void testSendSetInitialUserInfoNotifiesICar() throws Exception {
+        bindMockICar();
+
+        UserInfo user = new UserInfo(42, "Dude", UserInfo.FLAG_ADMIN);
+        expectICarSetInitialUserInfo(user);
+
+        mHelper.setInitialUser(user);
+
+        verifyICarSetInitialUserCalled();
+        assertNoICarCallExceptions();
+        verifyWtfNeverLogged();
+    }
+
     /**
      * Used in cases where the result of calling HAL for the initial info should be the same as
      * not using HAL.
@@ -679,6 +694,27 @@ public class CarHelperServiceTest {
                 });
     }
 
+    private void expectICarSetInitialUserInfo(UserInfo user) throws RemoteException {
+        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_SET_INITIAL_USER;
+        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
+                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
+                    try {
+                        Log.d(TAG, "Answering txn " + txn);
+                        Parcel data = (Parcel) invocation.getArguments()[1];
+                        data.setDataPosition(0);
+                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
+                        int actualUserId = data.readInt();
+                        Log.d(TAG, "Unmarshalled data: user= " + actualUserId);
+                        assertThat(actualUserId).isEqualTo(user.id);
+                        return true;
+                    } catch (Exception e) {
+                        Log.e(TAG, "Exception answering binder call", e);
+                        mBinderCallException = e;
+                        return false;
+                    }
+                });
+    }
+
     private interface GetInitialUserInfoAction {
         void onReceiver(IResultReceiver receiver) throws Exception;
     }
@@ -740,6 +776,10 @@ public class CarHelperServiceTest {
 
     private void verifyICarGetInitialUserInfoCalled() throws Exception {
         verifyICarTxnCalled(ICarConstants.ICAR_CALL_GET_INITIAL_USER_INFO);
+    }
+
+    private void verifyICarSetInitialUserCalled() throws Exception {
+        verifyICarTxnCalled(ICarConstants.ICAR_CALL_SET_INITIAL_USER);
     }
 
     private void verifyICarTxnCalled(int txnId) throws Exception {
