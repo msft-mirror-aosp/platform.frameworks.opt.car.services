@@ -1035,6 +1035,16 @@ public class CarServiceHelperService extends SystemService {
             }
             service.handleClientsNotResponding(pids);
         }
+
+        @Override
+        public int getInterfaceVersion() {
+            return this.VERSION;
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return this.HASH;
+        }
     }
 
     private final class ProcessTerminator {
