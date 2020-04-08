@@ -17,7 +17,7 @@
 package com.android.internal.car;
 
 /**
- * Helper API for car service. Only for itneraction between system server and car service.
+ * Helper API for car service. Only for interaction between system server and car service.
  * @hide
  */
 interface ICarServiceHelper {
