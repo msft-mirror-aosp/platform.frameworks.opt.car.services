@@ -49,9 +49,11 @@ import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
+import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
 import android.hardware.automotive.vehicle.V2_0.UserFlags;
+import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.os.Binder;
 import android.os.Bundle;
@@ -123,6 +125,8 @@ public class CarHelperServiceTest {
     @Mock
     private Context mMockContext;
     @Mock
+    private PackageManager mPackageManager;
+    @Mock
     private Context mApplicationContext;
     @Mock
     private CarUserManagerHelper mUserManagerHelper;
@@ -165,6 +169,7 @@ public class CarHelperServiceTest {
                 mCarWatchdogDaemonHelper,
                 /* halEnabled= */ true,
                 HAL_TIMEOUT_MS);
+        when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
     }
 
     @After
@@ -452,6 +457,30 @@ public class CarHelperServiceTest {
         verifyICarSetInitialUserCalled();
         assertNoICarCallExceptions();
         verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testInitialUserInfoRequestType_FirstBoot() throws Exception {
+        when(mUserManagerHelper.hasInitialUser()).thenReturn(false);
+        when(mPackageManager.isDeviceUpgrading()).thenReturn(true);
+        assertThat(mHelper.getInitialUserInfoRequestType())
+                .isEqualTo(InitialUserInfoRequestType.FIRST_BOOT);
+    }
+
+    @Test
+    public void testInitialUserInfoRequestType_FirstBootAfterOTA() throws Exception {
+        when(mUserManagerHelper.hasInitialUser()).thenReturn(true);
+        when(mPackageManager.isDeviceUpgrading()).thenReturn(true);
+        assertThat(mHelper.getInitialUserInfoRequestType())
+                .isEqualTo(InitialUserInfoRequestType.FIRST_BOOT_AFTER_OTA);
+    }
+
+    @Test
+    public void testInitialUserInfoRequestType_ColdBoot() throws Exception {
+        when(mUserManagerHelper.hasInitialUser()).thenReturn(true);
+        when(mPackageManager.isDeviceUpgrading()).thenReturn(false);
+        assertThat(mHelper.getInitialUserInfoRequestType())
+                .isEqualTo(InitialUserInfoRequestType.COLD_BOOT);
     }
 
     /**
