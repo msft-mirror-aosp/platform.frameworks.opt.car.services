@@ -182,7 +182,7 @@ public class CarServiceHelperService extends SystemService {
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarUserManagerHelper(context),
-                new InitialUserSetter(context, !CarProperties.user_hal_enabled().orElse(false)),
+                /* initialUserSetter= */ null,
                 UserManager.get(context),
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
@@ -225,7 +225,14 @@ public class CarServiceHelperService extends SystemService {
             mHalTimeoutMs = -1;
             Slog.i(TAG, "Not using User HAL");
         }
-        mInitialUserSetter = initialUserSetter;
+        if (initialUserSetter == null) {
+            // Called from main constructor, which cannot pass a lambda referencing itself
+            mInitialUserSetter = new InitialUserSetter(context,
+                    (u) -> setInitialUser(u),
+                    !CarProperties.user_hal_enabled().orElse(false));
+        } else {
+            mInitialUserSetter = initialUserSetter;
+        }
     }
 
     @Override
@@ -382,14 +389,12 @@ public class CarServiceHelperService extends SystemService {
             mPendingOperations = null;
         }
         Slog.i(TAG, "**CarService connected**");
-        TimingsTraceAndSlog t = newTimingsTraceAndSlog();
 
-        t.traceBegin("send-set-helper");
         sendSetCarServiceHelperBinderCall();
-        t.traceEnd();
         if (pendingOperations != null) {
             int numberOperations = pendingOperations.size();
-            Slog.i(TAG, "Running " + numberOperations + " pending operations");
+            if (DBG) Slog.d(TAG, "Running " + numberOperations + " pending operations");
+            TimingsTraceAndSlog t = newTimingsTraceAndSlog();
             t.traceBegin("send-pending-ops-" + numberOperations);
             for (int i = 0; i < numberOperations; i++) {
                 Runnable operation = pendingOperations.get(i);
@@ -406,9 +411,7 @@ public class CarServiceHelperService extends SystemService {
             notifyAllUnlockedUsers();
         }
         if (lastSwitchedUser != UserHandle.USER_NULL) {
-            t.traceBegin("send-switch-helper");
             sendSwitchUserBindercall(lastSwitchedUser);
-            t.traceEnd();
         }
     }
 
@@ -508,8 +511,8 @@ public class CarServiceHelperService extends SystemService {
         sendOrQueueGetInitialUserInfo(initialUserInfoRequestType, receiver);
     }
 
-    // TODO(b/150419360): add unit test
-    private int getInitialUserInfoRequestType() {
+    @VisibleForTesting
+    int getInitialUserInfoRequestType() {
         if (!mCarUserManagerHelper.hasInitialUser()) {
             return InitialUserInfoRequestType.FIRST_BOOT;
         }
@@ -837,6 +840,27 @@ public class CarServiceHelperService extends SystemService {
         sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_GET_INITIAL_USER_INFO);
     }
 
+    @VisibleForTesting
+    void setInitialUser(@Nullable UserInfo user) {
+        synchronized (mLock) {
+            if (mCarService == null) {
+                if (DBG) Slog.d(TAG, "Queuing setInitialUser() call");
+                queueOperationLocked(() -> sendSetInitialUser(user));
+                return;
+            }
+        }
+        sendSetInitialUser(user);
+    }
+
+    private void sendSetInitialUser(@Nullable UserInfo user) {
+        if (DBG) Slog.d(TAG, "sendSetInitialUser(): " + user);
+        Parcel data = Parcel.obtain();
+        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
+        data.writeInt(user != null ? user.id : UserHandle.USER_NULL);
+        // void setInitialUser(int userId)
+        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_INITIAL_USER);
+    }
+
     private void sendFirstUserUnlocked(@NonNull TargetUser user) {
         long now = System.currentTimeMillis();
         Parcel data = Parcel.obtain();
@@ -844,7 +868,7 @@ public class CarServiceHelperService extends SystemService {
         data.writeInt(user.getUserIdentifier());
         data.writeLong(now);
         data.writeLong(mFirstUnlockedUserDuration);
-        // void onFirstUserUnlocked(int userId, long timestampMs, ong duration)
+        // void onFirstUserUnlocked(int userId, long timestampMs, long duration)
         sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED);
     }
 
