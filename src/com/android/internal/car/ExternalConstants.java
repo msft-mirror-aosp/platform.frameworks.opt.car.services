@@ -39,6 +39,7 @@ final class ExternalConstants {
         static final int ICAR_CALL_ON_USER_LIFECYCLE = 1;
         static final int ICAR_CALL_FIRST_USER_UNLOCKED = 2;
         static final int ICAR_CALL_GET_INITIAL_USER_INFO = 3;
+        static final int ICAR_CALL_SET_INITIAL_USER = 4;
 
         // TODO(145689885) remove once refactored
         static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 9;
