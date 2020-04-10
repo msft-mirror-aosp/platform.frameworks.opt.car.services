@@ -558,7 +558,9 @@ public class CarServiceHelperService extends SystemService {
 
         Slog.i(TAG, "Starting user " + userId + " as requested by HAL");
 
-        mInitialUserSetter.switchUser(userId);
+        // It doesn't need to replace guest, as the switch would fail anyways if the requested user
+        // was a guest because it wouldn't exist.
+        mInitialUserSetter.switchUser(userId, /* replaceGuest= */ false);
     }
 
     private void createUserByHalRequest(@Nullable String name, int halFlags) {
