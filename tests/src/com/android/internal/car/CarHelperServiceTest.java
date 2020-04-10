@@ -511,11 +511,11 @@ public class CarHelperServiceTest {
     }
 
     private void verifyUserSwitchedByHal() {
-        verify(mInitialUserSetter).switchUser(HAL_USER_ID);
+        verify(mInitialUserSetter).switchUser(HAL_USER_ID, false);
     }
 
     private void verifyUserNotSwitchedByHal() {
-        verify(mInitialUserSetter, never()).switchUser(anyInt());
+        verify(mInitialUserSetter, never()).switchUser(anyInt(), anyBoolean());
     }
 
     // TODO: create a custom matcher / verifier for binder calls
