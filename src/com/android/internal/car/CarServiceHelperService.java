@@ -25,15 +25,18 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.automotive.watchdog.ICarWatchdogClient;
 import android.automotive.watchdog.ICarWatchdogMonitor;
+import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
+import android.content.BroadcastReceiver;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
 import android.graphics.Bitmap;
@@ -179,6 +182,27 @@ public class CarServiceHelperService extends SystemService {
         }
     };
 
+    private final BroadcastReceiver mShutdownEventReceiver = new BroadcastReceiver() {
+        @Override
+        public void onReceive(Context context, Intent intent) {
+             // Skip immediately if intent is not relevant to device shutdown.
+            if (!intent.getAction().equals(Intent.ACTION_REBOOT)
+                    && !intent.getAction().equals(Intent.ACTION_SHUTDOWN)) {
+                return;
+            }
+            int powerCycle = PowerCycle.POWER_CYCLE_SUSPEND;
+            try {
+                mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
+                        powerCycle, /* arg2= */ 0);
+            } catch (IllegalArgumentException | RemoteException e) {
+                Slog.w(TAG, "Notifying system state change failed: " + e);
+            }
+            if (DBG) {
+                Slog.d(TAG, "Notified car watchdog daemon a power cycle(" + powerCycle + ")");
+            }
+        }
+    };
+
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarUserManagerHelper(context),
@@ -273,6 +297,9 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onStart() {
+        IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
+        filter.addAction(Intent.ACTION_SHUTDOWN);
+        getContext().registerReceiverForAllUsers(mShutdownEventReceiver, filter, null, null);
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         Intent intent = new Intent();
