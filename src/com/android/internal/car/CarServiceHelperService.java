@@ -194,11 +194,11 @@ public class CarServiceHelperService extends SystemService {
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
                         powerCycle, /* arg2= */ 0);
-            } catch (IllegalArgumentException | RemoteException e) {
+                if (DBG) {
+                    Slog.d(TAG, "Notified car watchdog daemon a power cycle(" + powerCycle + ")");
+                }
+            } catch (RemoteException | RuntimeException e) {
                 Slog.w(TAG, "Notifying system state change failed: " + e);
-            }
-            if (DBG) {
-                Slog.d(TAG, "Notified car watchdog daemon a power cycle(" + powerCycle + ")");
             }
         }
     };
@@ -288,7 +288,7 @@ public class CarServiceHelperService extends SystemService {
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
                     StateType.BOOT_PHASE, phase, /* arg2= */ 0);
-            } catch (IllegalArgumentException | RemoteException e) {
+            } catch (RemoteException | RuntimeException e) {
                 Slog.w(TAG, "Failed to notify boot phase change: " + e);
             }
             t.traceEnd();
@@ -1006,7 +1006,7 @@ public class CarServiceHelperService extends SystemService {
     private void registerMonitorToWatchdogDaemon() {
         try {
             mCarWatchdogDaemonHelper.registerMonitor(mCarWatchdogMonitor);
-        } catch (RemoteException | IllegalArgumentException | IllegalStateException e) {
+        } catch (RemoteException | RuntimeException e) {
             Slog.w(TAG, "Cannot register to car watchdog daemon: " + e);
         }
     }
@@ -1014,7 +1014,7 @@ public class CarServiceHelperService extends SystemService {
     private void reportMonitorResultToWatchdogDaemon(int pid) {
         try {
             mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
-        } catch (RemoteException | IllegalArgumentException | IllegalStateException e) {
+        } catch (RemoteException | RuntimeException e) {
             Slog.w(TAG, "Cannot report monitor result to car watchdog daemon: " + e);
         }
     }
