@@ -153,6 +153,17 @@ public class CarServiceHelperService extends SystemService {
      */
     private long mFirstUnlockedUserDuration;
 
+    /**
+     * Used to calculate how long it took to get the {@code INITIAL_USER_INFO} response from HAL:
+     *
+     * <ul>
+     *   <li>{@code 0}: HAL not called yet
+     *   <li>{@code <0}: stores the time HAL was called (multiplied by -1)
+     *   <li>{@code >0}: contains the duration (in ms)
+     * </ul>
+     */
+    private int mHalResponseTime;
+
     // TODO(b/150413515): rather than store Runnables, it would be more efficient to store some
     // parcelables representing the operation, then pass them to setCarServiceHelper
     @GuardedBy("mLock")
@@ -397,6 +408,21 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
+    @VisibleForTesting
+    int getHalResponseTime() {
+        return mHalResponseTime;
+    }
+
+    @VisibleForTesting
+    void setInitialHalResponseTime() {
+        mHalResponseTime = -((int) SystemClock.uptimeMillis());
+    }
+
+    @VisibleForTesting
+    void setFinalHalResponseTime() {
+        mHalResponseTime += (int) SystemClock.uptimeMillis();
+    }
+
     @VisibleForTesting void handleCarServiceConnection(IBinder iBinder) {
         int lastSwitchedUser;
         boolean systemBootCompleted;
@@ -481,6 +507,13 @@ public class CarServiceHelperService extends SystemService {
         IResultReceiver receiver = new IResultReceiver.Stub() {
             @Override
             public void send(int resultCode, Bundle resultData) {
+                setFinalHalResponseTime();
+                if (DBG) {
+                    Slog.d(TAG, "Got result from HAL (" +
+                            UserHalServiceConstants.statusToString(resultCode) + ") in "
+                            + TimeUtils.formatDuration(mHalResponseTime));
+                }
+
                 mHandler.removeMessages(WHAT_HAL_TIMEOUT);
                 // TODO(b/150222501): log how long it took to receive the response
                 // TODO(b/150413515): print resultData as well on 2 logging calls below
@@ -490,10 +523,6 @@ public class CarServiceHelperService extends SystemService {
                                 + UserHalServiceConstants.statusToString(resultCode));
                         return;
                     }
-                }
-                if (DBG) {
-                    Slog.d(TAG, "Got result from HAL: "
-                            + UserHalServiceConstants.statusToString(resultCode));
                 }
 
                 if (resultCode != UserHalServiceConstants.STATUS_OK) {
@@ -534,6 +563,7 @@ public class CarServiceHelperService extends SystemService {
                 fallbackToDefaultInitialUserBehavior();
             }
         };
+        setInitialHalResponseTime();
         int initialUserInfoRequestType = getInitialUserInfoRequestType();
         sendOrQueueGetInitialUserInfo(initialUserInfoRequestType, receiver);
     }
@@ -897,7 +927,8 @@ public class CarServiceHelperService extends SystemService {
         data.writeInt(user.getUserIdentifier());
         data.writeLong(now);
         data.writeLong(mFirstUnlockedUserDuration);
-        // void onFirstUserUnlocked(int userId, long timestampMs, long duration)
+        data.writeInt(mHalResponseTime);
+        // void onFirstUserUnlocked(int userId, long timestamp, long duration, int halResponseTime)
         sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED);
     }
 
