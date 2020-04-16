@@ -488,7 +488,7 @@ public class CarHelperServiceTest {
      * not using HAL.
      */
     private void verifyDefaultBootBehavior() throws Exception {
-        verify(mInitialUserSetter).executeDefaultBehavior();
+        verify(mInitialUserSetter).executeDefaultBehavior(/* replaceGuest= */ false);
     }
 
     private TargetUser newTargetUser(int userId) {

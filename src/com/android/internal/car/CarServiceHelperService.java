@@ -590,7 +590,7 @@ public class CarServiceHelperService extends SystemService {
             mInitialized = true;
         }
 
-        mInitialUserSetter.executeDefaultBehavior();
+        mInitialUserSetter.executeDefaultBehavior(/* replaceGuest= */ false);
     }
 
     private void managePreCreatedUsers() {
