@@ -22,6 +22,8 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.mock;
+
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
@@ -57,16 +59,26 @@ public class CarLaunchParamsModifierTest {
     @Mock
     private ActivityStackSupervisor mActivityStackSupervisor;
     @Mock
+    private RootWindowContainer mRootWindowContainer;
+    @Mock
     private LaunchParamsController mLaunchParamsController;
 
     @Mock
     private Display mDisplay0ForDriver;
     @Mock
+    private TaskDisplayArea mDisplayArea0ForDriver;
+    @Mock
     private Display mDisplay1Private;
+    @Mock
+    private TaskDisplayArea mDisplayArea1Private;
     @Mock
     private Display mDisplay10ForPassenger;
     @Mock
+    private TaskDisplayArea mDisplayArea10ForPassenger;
+    @Mock
     private Display mDisplay11ForPassenger;
+    @Mock
+    private TaskDisplayArea mDisplayArea11ForPassenger;
 
     // All mocks from here before CarLaunchParamsModifier are arguments for
     // LaunchParamsModifier.onCalculate() call.
@@ -85,11 +97,19 @@ public class CarLaunchParamsModifierTest {
     @Mock
     private LaunchParamsController.LaunchParams mOutParams;
 
-    private void mockDisplay(Display display, int displayId, int flags, int type) {
+    private void mockDisplay(Display display, TaskDisplayArea defaultTaskDisplayArea,
+            int displayId, int flags, int type) {
         when(mDisplayManager.getDisplay(displayId)).thenReturn(display);
         when(display.getDisplayId()).thenReturn(displayId);
         when(display.getFlags()).thenReturn(flags);
         when(display.getType()).thenReturn(type);
+
+        // Return the same id as the display for simplicity
+        DisplayContent dc = mock(DisplayContent.class);
+        defaultTaskDisplayArea.mDisplayContent = dc;
+        when(mRootWindowContainer.getDisplayContentOrCreate(displayId)).thenReturn(dc);
+        when(dc.getDisplay()).thenReturn(display);
+        when(dc.getDefaultTaskDisplayArea()).thenReturn(defaultTaskDisplayArea);
     }
 
     @Before
@@ -104,10 +124,11 @@ public class CarLaunchParamsModifierTest {
         mActivityTaskManagerService.mStackSupervisor = mActivityStackSupervisor;
         when(mActivityStackSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
-        mockDisplay(mDisplay0ForDriver,0, 0, 0);
-        mockDisplay(mDisplay10ForPassenger,10, 0, 0);
-        mockDisplay(mDisplay11ForPassenger,11, 0, 0);
-        mockDisplay(mDisplay1Private,1, Display.FLAG_PRIVATE, 0);
+        mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
+        mockDisplay(mDisplay0ForDriver, mDisplayArea0ForDriver, 0, 0, 0);
+        mockDisplay(mDisplay10ForPassenger, mDisplayArea10ForPassenger, 10, 0, 0);
+        mockDisplay(mDisplay11ForPassenger, mDisplayArea11ForPassenger, 11, 0, 0);
+        mockDisplay(mDisplay1Private, mDisplayArea1Private, 1, Display.FLAG_PRIVATE, 0);
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mModifier.init();
@@ -120,7 +141,8 @@ public class CarLaunchParamsModifierTest {
 
     private void assertDisplayIsAllowed(int userId, Display display) {
         mTask.mUserId = userId;
-        mCurrentParams.mPreferredDisplayId = display.getDisplayId();
+        mCurrentParams.mPreferredTaskDisplayArea = mModifier
+                .getDefaultTaskDisplayAreaOnDisplay(display.getDisplayId());
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
                 isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
@@ -130,11 +152,15 @@ public class CarLaunchParamsModifierTest {
             Display displayAssigned) {
         assertThat(displayRequested.getDisplayId()).isNotEqualTo(displayAssigned.getDisplayId());
         mTask.mUserId = userId;
-        mCurrentParams.mPreferredDisplayId = displayRequested.getDisplayId();
+        TaskDisplayArea requestedTaskDisplayArea = mModifier
+                .getDefaultTaskDisplayAreaOnDisplay(displayRequested.getDisplayId());
+        TaskDisplayArea assignedTaskDisplayArea = mModifier
+                .getDefaultTaskDisplayAreaOnDisplay(displayAssigned.getDisplayId());
+        mCurrentParams.mPreferredTaskDisplayArea = requestedTaskDisplayArea;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
                 isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_CONTINUE);
-        assertThat(mOutParams.mPreferredDisplayId).isEqualTo(displayAssigned.getDisplayId());
+        assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(assignedTaskDisplayArea);
     }
 
     @Test
