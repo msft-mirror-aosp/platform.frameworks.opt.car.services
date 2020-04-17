@@ -209,6 +209,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
         verifyWtfNeverLogged();
@@ -225,6 +226,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isLessThan(0);
 
         verifyDefaultBootBehavior();
         verifyWtfNeverLogged();
@@ -241,6 +243,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
 
@@ -258,6 +261,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
         verifyWtfNeverLogged();
@@ -273,6 +277,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
         verifyWtfNeverLogged();
@@ -287,6 +292,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserSwitchedByHal();
         verifyWtfNeverLogged();
@@ -302,6 +308,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserNotSwitchedByHal();
         verifyDefaultBootBehavior();
@@ -318,6 +325,7 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserCreatedByHal();
         verifyWtfNeverLogged();
@@ -382,6 +390,7 @@ public class CarHelperServiceTest {
         int firstUserId = 10;
         expectICarFirstUserUnlocked(firstUserId);
 
+        setHalResponseTime();
         mHelper.onUserUnlocked(newTargetUser(systemUserId));
         mHelper.onUserUnlocked(newTargetUser(firstUserId));
 
@@ -403,6 +412,7 @@ public class CarHelperServiceTest {
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
                 secondUserId);
 
+        setHalResponseTime();
         mHelper.onUserUnlocked(newTargetUser(firstUserId));
         mHelper.onUserUnlocked(newTargetUser(secondUserId));
 
@@ -483,12 +493,18 @@ public class CarHelperServiceTest {
                 .isEqualTo(InitialUserInfoRequestType.COLD_BOOT);
     }
 
+    private void setHalResponseTime() {
+        mHelper.setInitialHalResponseTime();
+        SystemClock.sleep(1); // must sleep at least 1ms so it's not 0
+        mHelper.setFinalHalResponseTime();
+    }
+
     /**
      * Used in cases where the result of calling HAL for the initial info should be the same as
      * not using HAL.
      */
     private void verifyDefaultBootBehavior() throws Exception {
-        verify(mInitialUserSetter).executeDefaultBehavior();
+        verify(mInitialUserSetter).executeDefaultBehavior(/* replaceGuest= */ false);
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -578,17 +594,17 @@ public class CarHelperServiceTest {
                         int actualUserId = data.readInt();
                         long actualTimestamp = data.readLong();
                         long actualDuration = data.readLong();
+                        int actualHalResponseTime = data.readInt();
                         Log.d(TAG, "Unmarshalled data: userId= " + actualUserId
                                 + ", timestamp= " + actualTimestamp
-                                + ", duration=" + actualDuration);
+                                + ", duration=" + actualDuration
+                                + ", halResponseTime=" + actualHalResponseTime);
                         List<String> errors = new ArrayList<>();
                         assertParcelValue(errors, "userId", expectedUserId, actualUserId);
                         assertParcelValueInRange(errors, "timestamp", before, actualTimestamp,
                                 after);
-                        if (actualDuration < minDuration) {
-                            errors.add("Minimum duration should be " + minDuration + " (was "
-                                    + actualDuration + ")");
-                        }
+                        assertMinimumParcelValue(errors, "duration", minDuration, actualDuration);
+                        assertMinimumParcelValue(errors, "halResponseTime", 1, actualHalResponseTime);
                         assertNoParcelErrors(errors);
                         return true;
                     } catch (Exception e) {
@@ -831,6 +847,14 @@ public class CarHelperServiceTest {
             errors.add(field + " (" + actual+ ") not in range [" + before + ", " + after + "]");
         }
     }
+
+    private void assertMinimumParcelValue(List<String> errors, String field, long min,
+            long actual) {
+        if (actual < min) {
+            errors.add("Minimum " + field + " should be " + min + " (was " + actual + ")");
+        }
+    }
+
     private void assertNoParcelErrors(List<String> errors) {
         int size = errors.size();
         if (size == 0) return;
