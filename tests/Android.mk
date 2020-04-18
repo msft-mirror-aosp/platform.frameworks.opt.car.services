@@ -26,6 +26,7 @@ LOCAL_JAVA_LIBRARIES += \
     services
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
+    android.car.internal.event-log-tags \
     androidx.test.ext.junit \
     androidx.test.rules \
     android.car.userlib \
