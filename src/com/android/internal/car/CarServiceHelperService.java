@@ -114,6 +114,8 @@ public class CarServiceHelperService extends SystemService {
     private static final int WHAT_HAL_TIMEOUT = 1;
     // Message ID representing post-processing of process dumping.
     private static final int WHAT_POST_PROCESS_DUMPING = 2;
+    // Message ID representing process killing.
+    private static final int WHAT_PROCESS_KILL = 3;
 
     // Typically there are ~2-5 ops while system and non-system users are starting.
     private final int NUMBER_PENDING_OPERATIONS = 5;
@@ -1042,7 +1044,8 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void reportMonitorResultToWatchdogDaemon(int pid) {
+    private void killProcessAndReportToMonitor(int pid) {
+        Process.killProcess(pid);
         try {
             mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
         } catch (RemoteException | RuntimeException e) {
@@ -1108,6 +1111,9 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private final class ProcessTerminator {
+
+        private static final long ONE_SECOND_MS = 1_000L;
+
         private final Object mProcessLock = new Object();
         private ExecutorService mExecutor;
         @GuardedBy("mProcessLock")
@@ -1160,12 +1166,19 @@ public class CarServiceHelperService extends SystemService {
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
             ActivityManagerService.dumpStackTraces(javaPids, null, null, nativePids, null);
+            long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
             if (DBG) {
-                Slog.d(TAG, "Dumping process took " +
-                        (SystemClock.uptimeMillis() - startDumpTime) + "ms");
+                Slog.d(TAG, "Dumping process took " + dumpTime + "ms");
             }
-            Process.killProcess(pid);
-            reportMonitorResultToWatchdogDaemon(pid);
+            // To give clients a chance of wrapping up before the termination.
+            if (dumpTime < ONE_SECOND_MS) {
+                mHandler.sendMessageDelayed(obtainMessage(
+                        CarServiceHelperService::killProcessAndReportToMonitor,
+                        CarServiceHelperService.this, pid).setWhat(WHAT_PROCESS_KILL),
+                        ONE_SECOND_MS - dumpTime);
+            } else {
+                killProcessAndReportToMonitor(pid);
+            }
         }
 
         private boolean isJavaApp(int pid) throws IOException {
