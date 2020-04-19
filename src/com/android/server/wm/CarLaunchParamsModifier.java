@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import android.annotation.Nullable;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
 import android.content.Context;
@@ -51,6 +52,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     private final Context mContext;
 
     private DisplayManager mDisplayManager;  // set only from init()
+    private ActivityTaskManagerService mAtm;  // set only from init()
 
     private final Object mLock = new Object();
 
@@ -59,6 +61,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     @GuardedBy("mLock")
     private int mCurrentDriverUser = UserHandle.USER_SYSTEM;
 
+    // TODO: Switch from tracking displays to tracking display areas instead
     /**
      * This one is for holding all passenger (=profile user) displays which are mostly static unless
      * displays are added / removed. Note that {@link #mDisplayToProfileUserMapping} can be empty
@@ -117,9 +120,8 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      * are ready.
      */
     public void init() {
-        ActivityTaskManagerService service =
-                (ActivityTaskManagerService) ActivityTaskManager.getService();
-        LaunchParamsController controller = service.mStackSupervisor.getLaunchParamsController();
+        mAtm = (ActivityTaskManagerService) ActivityTaskManager.getService();
+        LaunchParamsController controller = mAtm.mStackSupervisor.getLaunchParamsController();
         controller.registerModifier(this);
         mDisplayManager = mContext.getSystemService(DisplayManager.class);
         mDisplayManager.registerDisplayListener(mDisplayListener,
@@ -238,8 +240,8 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             Slog.w(TAG, "onCalculate, cannot decide user");
             return RESULT_SKIP;
         }
-        final int originalDisplayId = currentParams.mPreferredDisplayId;
-        int newDisplayId = currentParams.mPreferredDisplayId;
+        final TaskDisplayArea originalDisplayArea = currentParams.mPreferredTaskDisplayArea;
+        TaskDisplayArea newDisplayArea = currentParams.mPreferredTaskDisplayArea;
         synchronized (mLock) {
             if (userId == mCurrentDriverUser) {
                 // Do not touch, always allow.
@@ -255,12 +257,13 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 // No displays for passengers. This could be old user and do not do anything.
                 return RESULT_SKIP;
             }
-            Display display = mDisplayManager.getDisplay(originalDisplayId);
+
             // This check is only for preventing NPE. AMS / WMS is supposed to handle the removed
             // display case properly.
-            if (display == null) {
+            if (originalDisplayArea == null) {
                 return RESULT_SKIP;
             }
+            Display display = originalDisplayArea.mDisplayContent.getDisplay();
             if ((display.getFlags() & Display.FLAG_PRIVATE) != 0) {
                 // private display should follow its own restriction rule.
                 return RESULT_SKIP;
@@ -270,37 +273,51 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 // For now, don't change anything.
                 return RESULT_SKIP;
             }
-            int userForDisplay = mDisplayToProfileUserMapping.get(originalDisplayId,
+            int userForDisplay = mDisplayToProfileUserMapping.get(display.getDisplayId(),
                     UserHandle.USER_NULL);
             if (userForDisplay == userId) {
                 return RESULT_SKIP;
             }
-            newDisplayId = getAlternativeDisplayForPassengerLocked(userId, originalDisplayId);
+            newDisplayArea = getAlternativeDisplayAreaForPassengerLocked(userId,
+                    originalDisplayArea);
         }
-        if (originalDisplayId != newDisplayId) {
+        if (newDisplayArea != null && originalDisplayArea != newDisplayArea) {
             Slog.w(TAG, "Launching passenger to not allowed displays, user:"
-                    + userId + " requested display:" + originalDisplayId
-                    +" changed display:" + newDisplayId);
-            outParams.mPreferredDisplayId = newDisplayId;
+                    + userId + " requested display area:" + originalDisplayArea
+                    +" changed display area:" + newDisplayArea);
+            outParams.mPreferredTaskDisplayArea = newDisplayArea;
             return RESULT_CONTINUE;
         } else {
             return RESULT_SKIP;
         }
     }
 
-    private int getAlternativeDisplayForPassengerLocked(int userId, int originalDisplayId) {
+    @Nullable
+    private TaskDisplayArea getAlternativeDisplayAreaForPassengerLocked(int userId,
+            TaskDisplayArea originalDisplayArea) {
         int displayId = mDefaultDisplayForProfileUser.get(userId, Display.INVALID_DISPLAY);
         if (displayId != Display.INVALID_DISPLAY) {
-            return displayId;
+            return getDefaultTaskDisplayAreaOnDisplay(displayId);
         }
-        // return the 1st passenger display if it exists
+        // return the 1st passenger display area if it exists
         if (!mPassengerDisplays.isEmpty()) {
-            Slog.w(TAG, "No default display for user:" + userId
-                    + " reassign to 1st passenger display");
-            return mPassengerDisplays.get(0);
+            Slog.w(TAG, "No default display area for user:" + userId
+                    + " reassign to 1st passenger display area");
+            return getDefaultTaskDisplayAreaOnDisplay(mPassengerDisplays.get(0));
         }
         Slog.w(TAG, "No default display for user:" + userId
-                + " and no passenger display, keep the requested display:" + originalDisplayId);
-        return originalDisplayId;
+                + " and no passenger display, keep the requested display area:"
+                + originalDisplayArea);
+        return originalDisplayArea;
+    }
+
+    @VisibleForTesting
+    @Nullable
+    TaskDisplayArea getDefaultTaskDisplayAreaOnDisplay(int displayId) {
+        DisplayContent dc = mAtm.mRootWindowContainer.getDisplayContentOrCreate(displayId);
+        if (dc == null) {
+            return null;
+        }
+        return dc.getDefaultTaskDisplayArea();
     }
 }
