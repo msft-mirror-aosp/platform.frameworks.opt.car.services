@@ -208,8 +208,11 @@ public class CarServiceHelperService extends SystemService {
         @Override
         public void onReceive(Context context, Intent intent) {
              // Skip immediately if intent is not relevant to device shutdown.
-            if (!intent.getAction().equals(Intent.ACTION_REBOOT)
-                    && !intent.getAction().equals(Intent.ACTION_SHUTDOWN)) {
+             // FLAG_RECEIVER_FOREGROUND is checked to ignore the intent from UserController when
+             // a user is stopped.
+            if ((!intent.getAction().equals(Intent.ACTION_REBOOT)
+                    && !intent.getAction().equals(Intent.ACTION_SHUTDOWN))
+                    || (intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
                 return;
             }
             int powerCycle = PowerCycle.POWER_CYCLE_SUSPEND;
