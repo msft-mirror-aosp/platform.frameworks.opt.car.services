@@ -332,7 +332,7 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserStartingNotifiesICar() throws Exception {
+    public void testOnUserStarting_notifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -347,7 +347,17 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserSwitchingNotifiesICar() throws Exception {
+    public void testOnUserStarting_preCreatedDoesntNotifyICar() throws Exception {
+        bindMockICar();
+
+        mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
+
+        verifyICarOnUserLifecycleEventNeverCalled();
+        verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testOnUserSwitching_notifiesICar() throws Exception {
         bindMockICar();
 
         int currentUserId = 10;
@@ -364,7 +374,17 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserUnlockingNotifiesICar() throws Exception {
+    public void testOnUserSwitching_preCreatedDoesntNotifyICar() throws Exception {
+        bindMockICar();
+
+        mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
+
+        verifyICarOnUserLifecycleEventNeverCalled();
+        verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testOnUserUnlocking_notifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -372,7 +392,6 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, true);
 
-        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
@@ -380,7 +399,17 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserUnlockedNotifiesICar_systemUserFirst() throws Exception {
+    public void testOnUserUnlocking_preCreatedDoesntNotifyICar() throws Exception {
+        bindMockICar();
+
+        mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
+
+        verifyICarOnUserLifecycleEventNeverCalled();
+        verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testOnUserUnlocked_notifiesICar_systemUserFirst() throws Exception {
         bindMockICar();
 
         int systemUserId = UserHandle.USER_SYSTEM;
@@ -402,7 +431,7 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserUnlockedNotifiesICar_firstUserReportedJustOnce() throws Exception {
+    public void testOnUserUnlocked_notifiesICar_firstUserReportedJustOnce() throws Exception {
         bindMockICar();
 
         int firstUserId = 10;
@@ -424,7 +453,7 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserStoppingNotifiesICar() throws Exception {
+    public void testOnUserStopping_notifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -432,7 +461,6 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
-        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
@@ -440,7 +468,17 @@ public class CarHelperServiceTest {
     }
 
     @Test
-    public void testOnUserStoppedNotifiesICar() throws Exception {
+    public void testOnUserStopping_preCreatedDoesntNotifyICar() throws Exception {
+        bindMockICar();
+
+        mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
+
+        verifyICarOnUserLifecycleEventNeverCalled();
+        verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testOnUserStopped_notifiesICar() throws Exception {
         bindMockICar();
 
         int userId = 10;
@@ -448,10 +486,19 @@ public class CarHelperServiceTest {
                 userId);
         expectICarSetUserLockStatus(userId, false);
 
-        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
         mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
+        verifyWtfNeverLogged();
+    }
+
+    @Test
+    public void testOnUserStopped_preCreatedDoesntNotifyICar() throws Exception {
+        bindMockICar();
+
+        mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
+
+        verifyICarOnUserLifecycleEventNeverCalled();
         verifyWtfNeverLogged();
     }
 
@@ -508,8 +555,16 @@ public class CarHelperServiceTest {
     }
 
     private TargetUser newTargetUser(int userId) {
+        return newTargetUser(userId, /* preCreated= */ false);
+    }
+
+    private TargetUser newTargetUser(int userId, boolean preCreated) {
         TargetUser targetUser = mock(TargetUser.class);
         when(targetUser.getUserIdentifier()).thenReturn(userId);
+        UserInfo userInfo = new UserInfo();
+        userInfo.id = userId;
+        userInfo.preCreated = preCreated;
+        when(targetUser.getUserInfo()).thenReturn(userInfo);
         return targetUser;
     }
 
@@ -815,6 +870,10 @@ public class CarHelperServiceTest {
         verifyICarTxnCalled(ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE);
     }
 
+    private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
+        verifyICarTxnNeverCalled(ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE);
+    }
+
     private void verifyICarFirstUserUnlockedCalled() throws Exception {
         verifyICarTxnCalled(ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED);
     }
@@ -829,8 +888,12 @@ public class CarHelperServiceTest {
 
     private void verifyICarTxnCalled(int txnId) throws Exception {
         int txn = IBinder.FIRST_CALL_TRANSACTION + txnId;
-        verify(mICarBinder, times(1)).transact(eq(txn), notNull(), isNull(),
-                eq(Binder.FLAG_ONEWAY));
+        verify(mICarBinder).transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY));
+    }
+
+    private void verifyICarTxnNeverCalled(int txnId) throws Exception {
+        int txn = IBinder.FIRST_CALL_TRANSACTION + txnId;
+        verify(mICarBinder, never()).transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY));
     }
 
     private void assertParcelValue(List<String> errors, String field, int expected,

@@ -20,6 +20,13 @@ import static com.android.internal.util.function.pooled.PooledLambda.obtainMessa
 
 import static android.car.userlib.UserHelper.safeName;
 
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
@@ -65,7 +72,6 @@ import android.util.TimeUtils;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
 import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
@@ -332,14 +338,16 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onUserUnlocking(@NonNull TargetUser user) {
+        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKING, user.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserUnlocking(" + user + ")");
 
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, user);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, user);
     }
 
     @Override
     public void onUserUnlocked(@NonNull TargetUser user) {
+        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKED, user.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserUnlocked(" + user + ")");
 
@@ -351,44 +359,47 @@ public class CarServiceHelperService extends SystemService {
             sendFirstUserUnlocked(user);
             return;
         }
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
     }
 
     @Override
     public void onUserStarting(@NonNull TargetUser user) {
+        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STARTING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STARTING, user.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserStarting(" + user + ")");
 
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING, user);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, user);
     }
 
     @Override
     public void onUserStopping(@NonNull TargetUser user) {
+        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPING, user.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserStopping(" + user + ")");
 
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING, user);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPING, user);
         int userId = user.getUserIdentifier();
         mCarLaunchParamsModifier.handleUserStopped(userId);
     }
 
     @Override
     public void onUserStopped(@NonNull TargetUser user) {
+        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPED, user.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserStopped(" + user + ")");
 
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED, user);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPED, user);
     }
 
     @Override
     public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
+        if (isPreCreated(to, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_SWITCHING,
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
                         to.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserSwitching(" + from + ">>" + to + ")");
 
-        sendUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING, from,
-                to);
+        sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING, from, to);
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
         synchronized (mLock) {
@@ -397,6 +408,21 @@ public class CarServiceHelperService extends SystemService {
                 return;  // The event will be delivered upon CarService connection.
             }
         }
+    }
+
+    private boolean isPreCreated(@NonNull TargetUser user, int eventType) {
+        UserInfo userInfo = user.getUserInfo();
+        if (userInfo == null) {
+            Slog.wtf(TAG, "no UserInfo on " + user + " on eventType " + eventType);
+            return false;
+        }
+        if (!userInfo.preCreated) return false;
+
+        if (DBG) {
+            Slog.d(TAG, "Ignoring event of type " + eventType + " for pre-created user "
+                    + userInfo.toFullString());
+        }
+        return true;
     }
 
     /**
@@ -795,7 +821,7 @@ public class CarServiceHelperService extends SystemService {
         for (int i = 1; i <= size; i++) {
             UserInfo preCreated = preCreateUsers(t, isGuest);
             if (preCreated == null) {
-                Slog.w(TAG, "Could not pre-create " + (isGuest ? " guest " : "")
+                Slog.w(TAG, "Could not pre-create" + (isGuest ? " guest" : "")
                         + " user #" + i);
                 continue;
             }
