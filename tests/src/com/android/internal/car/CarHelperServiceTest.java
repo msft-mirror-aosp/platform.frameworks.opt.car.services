@@ -44,6 +44,7 @@ import static org.mockito.Mockito.times;
 
 import android.annotation.NonNull;
 import android.app.ActivityManager;
+import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
@@ -78,7 +79,6 @@ import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
 import com.android.internal.os.IResultReceiver;
-import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -101,7 +101,7 @@ import java.util.List;
  * This class contains unit tests for the {@link CarServiceHelperService}.
  */
 @RunWith(AndroidJUnit4.class)
-public class CarHelperServiceTest {
+public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private static final String TAG = CarHelperServiceTest.class.getSimpleName();
 
@@ -119,8 +119,6 @@ public class CarHelperServiceTest {
             + ADDITIONAL_TIME_MS;
 
     private CarServiceHelperService mHelper;
-
-    private StaticMockitoSession mStaticMockitoSession;
 
     @Mock
     private Context mMockContext;
@@ -151,15 +149,6 @@ public class CarHelperServiceTest {
      */
     @Before
     public void setUpMocks() {
-        mStaticMockitoSession = mockitoSession()
-                .initMocks(this)
-                .spyStatic(Slog.class)
-                .mockStatic(UserIcons.class)
-                .strictness(Strictness.LENIENT)
-                .startMocking();
-
-        interceptWtfCalls();
-
         mHelper = new CarServiceHelperService(
                 mMockContext,
                 mUserManagerHelper,
@@ -170,11 +159,6 @@ public class CarHelperServiceTest {
                 /* halEnabled= */ true,
                 HAL_TIMEOUT_MS);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
-    }
-
-    @After
-    public void tearDown() {
-        mStaticMockitoSession.finishMocking();
     }
 
     /**
@@ -196,7 +180,6 @@ public class CarHelperServiceTest {
         halLessHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -212,7 +195,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -229,7 +211,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isLessThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -248,7 +229,6 @@ public class CarHelperServiceTest {
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -264,7 +244,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -280,7 +259,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -295,7 +273,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserSwitchedByHal();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -312,7 +289,6 @@ public class CarHelperServiceTest {
 
         verifyUserNotSwitchedByHal();
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -328,7 +304,6 @@ public class CarHelperServiceTest {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserCreatedByHal();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -343,7 +318,6 @@ public class CarHelperServiceTest {
 
         assertNoICarCallExceptions();
         verifyICarOnUserLifecycleEventCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -353,7 +327,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -370,7 +343,6 @@ public class CarHelperServiceTest {
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -380,7 +352,6 @@ public class CarHelperServiceTest {
         mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -395,7 +366,6 @@ public class CarHelperServiceTest {
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -405,7 +375,6 @@ public class CarHelperServiceTest {
         mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -427,7 +396,6 @@ public class CarHelperServiceTest {
 
         verifyICarOnUserLifecycleEventCalled(); // system user
         verifyICarFirstUserUnlockedCalled();    // first user
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -449,7 +417,6 @@ public class CarHelperServiceTest {
 
         verifyICarFirstUserUnlockedCalled();    // first user
         verifyICarOnUserLifecycleEventCalled(); // second user
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -464,7 +431,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -474,7 +440,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -489,7 +454,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -499,7 +463,6 @@ public class CarHelperServiceTest {
         mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -513,7 +476,6 @@ public class CarHelperServiceTest {
 
         verifyICarSetInitialUserCalled();
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -940,43 +902,5 @@ public class CarHelperServiceTest {
         if (mBinderCallException != null)
             throw mBinderCallException;
 
-    }
-
-    // TODO(b/149099817): members below should be moved to common code
-
-    // Tracks Log.wtf() calls made during code execution / used on verifyWtfNeverLogged()
-    private final List<UnsupportedOperationException> mWtfs = new ArrayList<>();
-
-    private void interceptWtfCalls() {
-        doAnswer((invocation) -> {
-            return addWtf(invocation);
-        }).when(() -> Slog.wtf(anyString(), anyString()));
-        doAnswer((invocation) -> {
-            return addWtf(invocation);
-        }).when(() -> Slog.wtf(anyString(), anyString(), notNull()));
-    }
-
-    private Object addWtf(InvocationOnMock invocation) {
-        String message = "Called " + invocation;
-        Log.d(TAG, message); // Log always, as some test expect it
-        mWtfs.add(new UnsupportedOperationException(message));
-        return null;
-    }
-
-    // TODO: should be part of @After, but then it would hide the real test failure (if any). We'd
-    // need a custom rule (like CTS's SafeCleaner) for it...
-    private void verifyWtfNeverLogged() {
-        int size = mWtfs.size();
-
-        switch (size) {
-            case 0:
-                return;
-            case 1:
-                throw mWtfs.get(0);
-            default:
-                StringBuilder msg = new StringBuilder("wtf called ").append(size).append(" times")
-                        .append(": ").append(mWtfs);
-                fail(msg.toString());
-        }
     }
 }
