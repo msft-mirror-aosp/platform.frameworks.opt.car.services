@@ -144,18 +144,11 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private Exception mBinderCallException;
 
-
-    @Override
-    protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(Slog.class);
-    }
     /**
      * Initialize objects and setup testing environment.
      */
     @Before
     public void setUpMocks() {
-        interceptSlogWtfCalls();
-
         mHelper = new CarServiceHelperService(
                 mMockContext,
                 mUserManagerHelper,
@@ -187,7 +180,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         halLessHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -203,7 +195,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -220,7 +211,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isLessThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -239,7 +229,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -255,7 +244,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -271,7 +259,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -286,7 +273,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserSwitchedByHal();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -303,7 +289,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         verifyUserNotSwitchedByHal();
         verifyDefaultBootBehavior();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -319,7 +304,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserCreatedByHal();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -334,7 +318,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarOnUserLifecycleEventCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -344,7 +327,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -361,7 +343,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -371,7 +352,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -386,7 +366,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -396,7 +375,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -418,7 +396,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         verifyICarOnUserLifecycleEventCalled(); // system user
         verifyICarFirstUserUnlockedCalled();    // first user
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -440,7 +417,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         verifyICarFirstUserUnlockedCalled();    // first user
         verifyICarOnUserLifecycleEventCalled(); // second user
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -455,7 +431,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -465,7 +440,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -480,7 +454,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -490,7 +463,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-        verifyWtfNeverLogged();
     }
 
     @Test
@@ -504,7 +476,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         verifyICarSetInitialUserCalled();
         assertNoICarCallExceptions();
-        verifyWtfNeverLogged();
     }
 
     @Test
