@@ -76,7 +76,6 @@ import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
 import com.android.internal.os.IResultReceiver;
-import com.android.internal.util.UserIcons;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.Watchdog;
