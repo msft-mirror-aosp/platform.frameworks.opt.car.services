@@ -83,11 +83,14 @@ import com.android.server.am.ActivityManagerService;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
+import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileReader;
 import java.io.IOException;
 import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -1110,11 +1113,29 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void killProcessAndReportToMonitor(int pid) {
+        String processName = getProcessName(pid);
         Process.killProcess(pid);
+        Slog.w(TAG, "carwatchdog killed " + processName + " (pid: " + pid + ")");
         try {
             mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
         } catch (RemoteException | RuntimeException e) {
             Slog.w(TAG, "Cannot report monitor result to car watchdog daemon: " + e);
+        }
+    }
+
+    private static String getProcessName(int pid) {
+        String unknownProcessName = "unknown process";
+        String filename = "/proc/" + pid + "/cmdline";
+        try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
+            String line = reader.readLine().replace('\0', ' ').trim();
+            int index = line.indexOf(' ');
+            if (index != -1) {
+                line = line.substring(0, index);
+            }
+            return Paths.get(line).getFileName().toString();
+        } catch (IOException e) {
+            Slog.w(TAG, "Cannot read " + filename);
+            return unknownProcessName;
         }
     }
 
