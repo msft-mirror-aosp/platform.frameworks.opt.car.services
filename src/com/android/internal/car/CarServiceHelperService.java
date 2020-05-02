@@ -685,7 +685,8 @@ public class CarServiceHelperService extends SystemService {
         mInitialUserSetter.executeDefaultBehavior(/* replaceGuest= */ false);
     }
 
-    private void managePreCreatedUsers() {
+    @VisibleForTesting
+    void managePreCreatedUsers() {
         // First gets how many pre-createad users are defined by the OEM
         int numberRequestedGuests = CarProperties.number_pre_created_guests().orElse(0);
         int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
@@ -763,6 +764,7 @@ public class CarServiceHelperService extends SystemService {
         // submitting just 1 task, for 2 reasons:
         //   1.To minimize it's effect on other system server initialization tasks.
         //   2.The pre-created users will be unlocked in parallel anyways.
+        // TODO(b/152792035): refactor into a separate method so it can be spied on test cases
         new Thread( () -> {
             TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG + "Async",
                     Trace.TRACE_TAG_SYSTEM_SERVER);
@@ -775,7 +777,6 @@ public class CarServiceHelperService extends SystemService {
                 preCreateUsers(t, numberGuestsToAdd, /* isGuest= */ true);
             }
 
-            // TODO(b/152792035): add unit test for remove logic
             int totalNumberToRemove = Math.max(numberUsersToRemove, 0)
                     + Math.max(numberGuestsToRemove, 0);
             if (DBG) Slog.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
@@ -822,6 +823,7 @@ public class CarServiceHelperService extends SystemService {
 
     private void preCreateUsers(@NonNull TimingsTraceAndSlog t, int size, boolean isGuest) {
         String msg = isGuest ? "preCreateGuests-" + size : "preCreateUsers-" + size;
+        if (DBG) Slog.d(TAG, "preCreateUsers: " + msg);
         t.traceBegin(msg);
         for (int i = 1; i <= size; i++) {
             UserInfo preCreated = preCreateUsers(t, isGuest);
@@ -834,7 +836,7 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
-    // TODO(b/152792035): add unit test
+    // TODO(b/152792035): add unit test to verify exception is caught
     @Nullable
     public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
         String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
