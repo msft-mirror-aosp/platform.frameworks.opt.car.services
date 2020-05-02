@@ -328,17 +328,17 @@ public class CarServiceHelperService extends SystemService {
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
         filter.addAction(Intent.ACTION_SHUTDOWN);
-        getContext().registerReceiverForAllUsers(mShutdownEventReceiver, filter, null, null);
+        mContext.registerReceiverForAllUsers(mShutdownEventReceiver, filter, null, null);
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         Intent intent = new Intent();
         intent.setPackage("com.android.car");
         intent.setAction(ICarConstants.CAR_SERVICE_INTERFACE);
-        if (!getContext().bindServiceAsUser(intent, mCarServiceConnection, Context.BIND_AUTO_CREATE,
+        if (!mContext.bindServiceAsUser(intent, mCarServiceConnection, Context.BIND_AUTO_CREATE,
                 UserHandle.SYSTEM)) {
             Slog.wtf(TAG, "cannot start car service");
         }
-        System.loadLibrary("car-framework-service-jni");
+        loadNativeLibrary();
     }
 
     @Override
@@ -413,6 +413,11 @@ public class CarServiceHelperService extends SystemService {
                 return;  // The event will be delivered upon CarService connection.
             }
         }
+    }
+
+    @VisibleForTesting
+    void loadNativeLibrary() {
+        System.loadLibrary("car-framework-service-jni");
     }
 
     private boolean isPreCreated(@NonNull TargetUser user, int eventType) {
@@ -765,7 +770,7 @@ public class CarServiceHelperService extends SystemService {
         //   1.To minimize it's effect on other system server initialization tasks.
         //   2.The pre-created users will be unlocked in parallel anyways.
         // TODO(b/152792035): refactor into a separate method so it can be spied on test cases
-        new Thread( () -> {
+        runAsync(() -> {
             TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG + "Async",
                     Trace.TRACE_TAG_SYSTEM_SERVER);
 
@@ -818,7 +823,7 @@ public class CarServiceHelperService extends SystemService {
                 }
                 t.traceEnd();
             }
-        }, "CarServiceHelperManagePreCreatedUsers").start();
+        });
     }
 
     private void preCreateUsers(@NonNull TimingsTraceAndSlog t, int size, boolean isGuest) {
@@ -836,7 +841,12 @@ public class CarServiceHelperService extends SystemService {
         t.traceEnd();
     }
 
-    // TODO(b/152792035): add unit test to verify exception is caught
+    @VisibleForTesting
+    void runAsync(Runnable r) {
+        // TODO(152792035): refactor to use SystemServerInitThreadPool or other mechanism
+        new Thread(r, "CarServiceHelperManagePreCreatedUsers").start();
+    }
+
     @Nullable
     public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
         String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
@@ -861,7 +871,8 @@ public class CarServiceHelperService extends SystemService {
     /**
      * Logs proper message when user pre-creation fails (most likely because there are too many).
      */
-    private void logPrecreationFailure(@NonNull String operation, @Nullable Exception cause) {
+    @VisibleForTesting
+    void logPrecreationFailure(@NonNull String operation, @Nullable Exception cause) {
         int maxNumberUsers = UserManager.getMaxSupportedUsers();
         int currentNumberUsers = mUserManager.getUserCount();
         StringBuilder message = new StringBuilder(operation.length() + 100)
@@ -1086,7 +1097,8 @@ public class CarServiceHelperService extends SystemService {
                 pids, null, null, getInterestingNativePids(), null);
     }
 
-    private void handleCarServiceCrash() {
+    @VisibleForTesting
+    void handleCarServiceCrash() {
         // Recovery behavior.  Kill the system server and reset
         // everything if enabled by the property.
         boolean restartOnServiceCrash = SystemProperties.getBoolean(PROP_RESTART_RUNTIME, false);
