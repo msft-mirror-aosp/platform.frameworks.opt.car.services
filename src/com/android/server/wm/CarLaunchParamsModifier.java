@@ -28,6 +28,7 @@ import android.os.UserHandle;
 import android.util.Slog;
 import android.util.SparseIntArray;
 import android.view.Display;
+import android.window.WindowContainerToken;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -48,6 +49,8 @@ import java.util.ArrayList;
 public final class CarLaunchParamsModifier implements LaunchParamsController.LaunchParamsModifier {
 
     private static final String TAG = "CAR.LAUNCH";
+
+    private static final boolean DBG = false;
 
     private final Context mContext;
 
@@ -164,6 +167,10 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      * for the given displays.
      */
     public void setDisplayWhitelistForUser(int userId, int[] displayIds) {
+        if (DBG) {
+            Slog.d(TAG, "setDisplayWhitelistForUser userId:" + userId
+                    + " displays:" + displayIds);
+        }
         synchronized (mLock) {
             for (int displayId : displayIds) {
                 if (!mPassengerDisplays.contains(displayId)) {
@@ -198,6 +205,9 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      * for any non-driver user if there is no display assigned for the user. </p>
      */
     public void setPassengerDisplays(int[] displayIdsForPassenger) {
+        if (DBG) {
+            Slog.d(TAG, "setPassengerDisplays displays:" + displayIdsForPassenger);
+        }
         synchronized (mLock) {
             for (int id : displayIdsForPassenger) {
                 mPassengerDisplays.remove(Integer.valueOf(id));
@@ -240,8 +250,32 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             Slog.w(TAG, "onCalculate, cannot decide user");
             return RESULT_SKIP;
         }
-        final TaskDisplayArea originalDisplayArea = currentParams.mPreferredTaskDisplayArea;
+        TaskDisplayArea originalDisplayArea = currentParams.mPreferredTaskDisplayArea;
         TaskDisplayArea newDisplayArea = currentParams.mPreferredTaskDisplayArea;
+        if (DBG) {
+            Slog.d(TAG, "onCalculate, userId:" + userId
+                    + " original displayArea:" + originalDisplayArea
+                    + " ActivityOptions:" + options);
+        }
+        // If originalDisplayArea is set, respect that before ActivityOptions check.
+        if (originalDisplayArea == null) {
+            if (options != null) {
+                WindowContainerToken daToken = options.getLaunchTaskDisplayArea();
+                if (daToken != null) {
+                    originalDisplayArea = (TaskDisplayArea) WindowContainer.fromBinder(
+                            daToken.asBinder());
+                } else {
+                    int originalDisplayId = options.getLaunchDisplayId();
+                    if (originalDisplayId != Display.INVALID_DISPLAY) {
+                        originalDisplayArea = getDefaultTaskDisplayAreaOnDisplay(originalDisplayId);
+                    }
+                }
+            }
+        }
+        // Still no display set, assume default display
+        if (originalDisplayArea == null) {
+            originalDisplayArea = getDefaultTaskDisplayAreaOnDisplay(Display.DEFAULT_DISPLAY);
+        }
         synchronized (mLock) {
             if (userId == mCurrentDriverUser) {
                 // Do not touch, always allow.
@@ -261,6 +295,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             // This check is only for preventing NPE. AMS / WMS is supposed to handle the removed
             // display case properly.
             if (originalDisplayArea == null) {
+                Slog.w(TAG, "onCalculate original display area null");
                 return RESULT_SKIP;
             }
             Display display = originalDisplayArea.mDisplayContent.getDisplay();
@@ -286,7 +321,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                     + userId + " requested display area:" + originalDisplayArea
                     +" changed display area:" + newDisplayArea);
             outParams.mPreferredTaskDisplayArea = newDisplayArea;
-            return RESULT_CONTINUE;
+            return RESULT_DONE;
         } else {
             return RESULT_SKIP;
         }
