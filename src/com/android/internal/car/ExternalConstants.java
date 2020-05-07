@@ -15,21 +15,16 @@
  */
 package com.android.internal.car;
 
-import android.annotation.NonNull;
-import android.content.pm.UserInfo;
-import android.content.pm.UserInfo.UserInfoFlag;
-import android.util.DebugUtils;
-
 /**
  * Provides constants that are defined somewhere else and must be cloned here
  */
-// TODO(b/149797595): move to a common project used by this project and CarService
 final class ExternalConstants {
 
     private ExternalConstants() {
         throw new UnsupportedOperationException("contains only static constants");
     }
 
+    // TODO(b/149797595): remove once ICar.aidl is split in 2
     static final class ICarConstants {
         static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
 
@@ -50,7 +45,11 @@ final class ExternalConstants {
         }
     }
 
-    // TODO(b/151758646): move to userlib
+   /**
+     * Constants used by {@link android.user.user.CarUserManager} - they cannot be defined on
+     * {@link android.car.userlib.CommonConstants} to avoid an extra dependency in the
+     * {@code android.car} project
+     */
     static final class CarUserManagerConstants {
 
         static final int USER_LIFECYCLE_EVENT_TYPE_STARTING = 1;
@@ -62,48 +61,6 @@ final class ExternalConstants {
 
         private CarUserManagerConstants() {
             throw new UnsupportedOperationException("contains only static constants");
-        }
-    }
-
-    // TODO(b/151758646): move to userlib
-    static final class CarUserServiceConstants {
-
-        static final String BUNDLE_USER_ID = "user.id";
-        static final String BUNDLE_USER_FLAGS = "user.flags";
-        static final String BUNDLE_USER_NAME = "user.name";
-        static final String BUNDLE_INITIAL_INFO_ACTION = "initial_info.action";
-
-        private CarUserServiceConstants() {
-            throw new UnsupportedOperationException("contains only static constants");
-        }
-    }
-
-    // TODO(b/151758646): move to userlib
-    static final class UserHalServiceConstants {
-
-        static final int STATUS_OK = 1;
-        static final int STATUS_HAL_SET_TIMEOUT = 2;
-        static final int STATUS_HAL_RESPONSE_TIMEOUT = 3;
-        static final int STATUS_WRONG_HAL_RESPONSE = 4;
-
-        private UserHalServiceConstants() {
-            throw new UnsupportedOperationException("contains only static constants and methods");
-        }
-
-        @NonNull
-        static String statusToString(int status) {
-            switch (status) {
-                case STATUS_OK:
-                    return "OK";
-                case STATUS_HAL_SET_TIMEOUT:
-                    return "SET_TIMEOUT";
-                case STATUS_HAL_RESPONSE_TIMEOUT:
-                    return "RESPONSE_TIMEOUT";
-                case STATUS_WRONG_HAL_RESPONSE:
-                    return "WRONG_HAL_RESPONSE";
-                default:
-                    return "UNKNOWN(" + status + ")";
-            }
         }
     }
 }
