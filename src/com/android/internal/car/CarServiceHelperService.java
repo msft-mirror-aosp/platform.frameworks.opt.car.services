@@ -35,7 +35,9 @@ import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
 import android.app.admin.DevicePolicyManager;
+import android.car.userlib.CommonConstants.CarUserServiceConstants;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.HalCallback;
 import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
@@ -72,9 +74,7 @@ import android.util.TimeUtils;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
-import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
@@ -566,7 +566,7 @@ public class CarServiceHelperService extends SystemService {
                 setFinalHalResponseTime();
                 if (DBG) {
                     Slog.d(TAG, "Got result from HAL (" +
-                            UserHalServiceConstants.statusToString(resultCode) + ") in "
+                            UserHalHelper.halCallbackStatusToString(resultCode) + ") in "
                             + TimeUtils.formatDuration(mHalResponseTime));
                 }
 
@@ -576,14 +576,14 @@ public class CarServiceHelperService extends SystemService {
                 synchronized (mLock) {
                     if (mInitialized) {
                         Slog.w(TAG, "Result from HAL came too late, ignoring: "
-                                + UserHalServiceConstants.statusToString(resultCode));
+                                + UserHalHelper.halCallbackStatusToString(resultCode));
                         return;
                     }
                 }
 
-                if (resultCode != UserHalServiceConstants.STATUS_OK) {
+                if (resultCode != HalCallback.STATUS_OK) {
                     Slog.w(TAG, "Service returned non-ok status ("
-                            + UserHalServiceConstants.statusToString(resultCode)
+                            + UserHalHelper.halCallbackStatusToString(resultCode)
                             + "); using default behavior");
                     fallbackToDefaultInitialUserBehavior();
                     return;
