@@ -159,7 +159,7 @@ public class CarLaunchParamsModifierTest {
         mCurrentParams.mPreferredTaskDisplayArea = requestedTaskDisplayArea;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
-                isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_CONTINUE);
+                isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(assignedTaskDisplayArea);
     }
 
