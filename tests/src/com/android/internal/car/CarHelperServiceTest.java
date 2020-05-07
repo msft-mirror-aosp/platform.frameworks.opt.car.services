@@ -50,6 +50,8 @@ import android.app.ActivityManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.mocks.SyncAnswer;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.HalCallback;
+import android.car.userlib.CommonConstants.CarUserServiceConstants;
 import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
@@ -78,9 +80,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
-import com.android.internal.car.ExternalConstants.CarUserServiceConstants;
 import com.android.internal.car.ExternalConstants.ICarConstants;
-import com.android.internal.car.ExternalConstants.UserHalServiceConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
@@ -824,7 +824,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     break;
                 case NULL_BUNDLE:
                     Log.d(TAG, "sending OK without bundle");
-                    receiver.send(UserHalServiceConstants.STATUS_OK, null);
+                    receiver.send(HalCallback.STATUS_OK, null);
                     break;
                 case SWITCH_OK:
                     sendValidSwitchAction(receiver);
@@ -917,7 +917,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
                 InitialUserInfoResponseAction.DEFAULT);
-        receiver.send(UserHalServiceConstants.STATUS_OK, data);
+        receiver.send(HalCallback.STATUS_OK, data);
     }
 
     private void sendValidSwitchAction(IResultReceiver receiver) throws Exception {
@@ -932,7 +932,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         if (id != null) {
             data.putInt(CarUserServiceConstants.BUNDLE_USER_ID, id);
         }
-        receiver.send(UserHalServiceConstants.STATUS_OK, data);
+        receiver.send(HalCallback.STATUS_OK, data);
     }
 
     private void sendCreateDefaultHalUserAction(IResultReceiver receiver) throws Exception {
@@ -950,7 +950,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         if (flags != null) {
             data.putInt(CarUserServiceConstants.BUNDLE_USER_FLAGS, flags);
         }
-        receiver.send(UserHalServiceConstants.STATUS_OK, data);
+        receiver.send(HalCallback.STATUS_OK, data);
     }
 
     private void sleep(String reason, long napTimeMs) {
