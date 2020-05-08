@@ -21,6 +21,7 @@ import static android.car.test.util.UserTestingHelper.newGuestUser;
 import static android.car.test.util.UserTestingHelper.newSecondaryUser;
 import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
@@ -41,6 +42,7 @@ import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.notNull;
 import static org.mockito.ArgumentMatchers.nullable;
 
+import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 
@@ -56,6 +58,7 @@ import android.car.userlib.InitialUserSetter;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.content.pm.UserInfo;
 import android.content.res.Resources;
@@ -71,6 +74,7 @@ import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
+import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
@@ -85,6 +89,7 @@ import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.wm.CarLaunchParamsModifier;
+import com.android.server.utils.TimingsTraceAndSlog;
 
 import org.junit.After;
 import org.junit.Before;
@@ -102,7 +107,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
-
 /**
  * This class contains unit tests for the {@link CarServiceHelperService}.
  */
@@ -114,7 +118,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private static final int PRE_CREATED_USER_ID = 24;
     private static final int PRE_CREATED_GUEST_ID = 25;
     private static final int USER_MANAGER_TIMEOUT_MS = 100;
-
 
     private static final String HAL_USER_NAME = "HAL 9000";
     private static final int HAL_USER_ID = 42;
@@ -129,6 +132,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private static final long POST_HAL_NOT_REPLYING_TIMEOUT_MS = HAL_NOT_REPLYING_TIMEOUT_MS
             + ADDITIONAL_TIME_MS;
 
+    // Spy used in tests that need to verify folloing method:
+    // managePreCreatedUsers, postAsyncPreCreatedUser, preCreateUsers
     private CarServiceHelperService mHelper;
 
     @Mock
@@ -167,7 +172,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Before
     public void setUpMocks() {
-        mHelper = new CarServiceHelperService(
+        mHelper = spy(new CarServiceHelperService(
                 mMockContext,
                 mUserManagerHelper,
                 mInitialUserSetter,
@@ -175,9 +180,30 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
                 /* halEnabled= */ true,
-                HAL_TIMEOUT_MS);
+                HAL_TIMEOUT_MS));
 
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
+    }
+
+    @Test
+    public void testCarServiceLaunched() throws Exception {
+        mockRegisterReceiver();
+        mockBindService();
+        mockLoadLibrary();
+
+        mHelper.onStart();
+
+        verifyBindService();
+    }
+
+    @Test
+    public void testHandleCarServiceCrash() throws Exception {
+        mockHandleCarServiceCrash();
+        mockCarServiceException();
+
+        mHelper.handleCarServiceConnection(mICarBinder);
+
+        verify(mHelper).handleCarServiceCrash();
     }
 
     /**
@@ -557,8 +583,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
+
         mHelper.managePreCreatedUsers();
         syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -571,8 +597,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_GUEST_ID);
+
         mHelper.managePreCreatedUsers();
         syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -585,18 +611,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ false);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
+
         mHelper.managePreCreatedUsers();
-        syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
+        syncRemoveStatus.await(ADDITIONAL_TIME_MS);
 
         verifyUserRemoved(user);
     }
 
     @Test
-    public void testManagePreCreatedUserDoNothing() throws Exception {
-        // TODO(b/152792035) refactor managePreCreatedUsers to separate the thread
-        // operation into a new method
+    public void testManagePreCreatedUsersDoNothing() throws Exception {
         UserInfo user = expectPreCreatedUser(/* isGuest= */ false,
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(1);
@@ -606,10 +630,23 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         mHelper.managePreCreatedUsers();
 
-        // TODO(b/152792035) remove after refactoring managePreCreatedUsers
-        sleep("before checking mUserManager", 200);
-        verifyNoUserPreCreated();
-        verifyUserNotRemoved(user);
+        verifyPostPreCreatedUserSkipped();
+    }
+
+    @Test
+    public void testManagePreCreatedUsersOnBootCompleted() throws Exception {
+        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        verifyManagePreCreatedUsers();
+    }
+
+    @Test
+    public void testPreCreateUserExceptionLogged() throws Exception {
+        SyncAnswer syncException = mockPreCreateUserException();
+        TimingsTraceAndSlog trace = new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
+        mHelper.preCreateUsers(trace, false);
+
+        verifyPostPreCreatedUserException();
+        assertThat(trace.getUnfinishedTracesForDebug()).isEmpty();
     }
 
     private void setHalResponseTime() {
@@ -641,11 +678,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void bindMockICar() throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION
-                + ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER;
         // Must set the binder expectation, otherwise checks for other transactions would fail
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
-                .thenReturn(true);
+        expectICarSetCarServiceHelper();
         mHelper.handleCarServiceConnection(mICarBinder);
     }
 
@@ -661,11 +695,51 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         verify(mInitialUserSetter, never()).switchUser(anyInt(), anyBoolean());
     }
 
-    // TODO: create a custom matcher / verifier for binder calls
+    private void verifyBindService () throws Exception {
+        verify(mMockContext).bindServiceAsUser(
+                argThat(intent -> intent.getAction().equals(ICarConstants.CAR_SERVICE_INTERFACE)),
+                any(), eq(Context.BIND_AUTO_CREATE), eq(UserHandle.SYSTEM));
+    }
 
+    private void verifyHandleCarServiceCrash() throws Exception {
+        verify(mHelper).handleCarServiceCrash();
+    }
+
+    private void mockRegisterReceiver() {
+        when(mMockContext.registerReceiverForAllUsers(any(), any(), any(), any()))
+                .thenReturn(new Intent());
+    }
+
+    private void mockBindService() {
+        when(mMockContext.bindServiceAsUser(any(), any(),
+                eq(Context.BIND_AUTO_CREATE), eq(UserHandle.SYSTEM)))
+                .thenReturn(true);
+    }
+
+    private void mockLoadLibrary() {
+        doNothing().when(mHelper).loadNativeLibrary();
+    }
+
+    private void mockCarServiceException() throws Exception {
+        when(mICarBinder.transact(anyInt(), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
+                .thenThrow(new RemoteException("mock car service Crash"));
+    }
+
+    private void mockHandleCarServiceCrash() throws Exception {
+        doNothing().when(mHelper).handleCarServiceCrash();
+    }
+
+    // TODO: create a custom matcher / verifier for binder calls
     private void expectICarOnUserLifecycleEvent(int eventType, int expectedUserId)
             throws Exception {
         expectICarOnUserLifecycleEvent(eventType, UserHandle.USER_NULL, expectedUserId);
+    }
+
+    private void expectICarSetCarServiceHelper() throws Exception {
+        int txn = IBinder.FIRST_CALL_TRANSACTION
+                + ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER;
+        when(mICarBinder.transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
+                .thenReturn(true);
     }
 
     private void expectICarOnUserLifecycleEvent(int expectedEventType, int expectedFromUserId,
@@ -1031,12 +1105,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         verify(mUserManager).removeUser(user.id);
     }
 
-    private void verifyNoUserPreCreated() throws Exception {
-        verify(mUserManager, never()).preCreateUser(any());
+    private void verifyPostPreCreatedUserSkipped() throws Exception {
+        verify(mHelper, never()).runAsync(any());
     }
 
-    private void verifyUserNotRemoved(UserInfo user) throws Exception {
-        verify(mUserManager, never()).removeUser(user.id);
+    private void verifyPostPreCreatedUserException() throws Exception {
+        verify(mHelper).logPrecreationFailure(anyString(), any());
+    }
+
+    private void verifyManagePreCreatedUsers() throws Exception {
+        verify(mHelper).managePreCreatedUsers();
     }
 
     private void assertParcelValue(List<String> errors, String field, int expected,
