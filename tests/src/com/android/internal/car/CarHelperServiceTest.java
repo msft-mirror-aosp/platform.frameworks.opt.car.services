@@ -382,7 +382,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int targetUserId = 11;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 currentUserId, targetUserId);
-        expectICarOnSwitchUser(targetUserId);
 
         mHelper.onUserSwitching(newTargetUser(currentUserId),
                 newTargetUser(targetUserId));
@@ -406,7 +405,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                 userId);
-        expectICarSetUserLockStatus(userId, true);
 
         mHelper.onUserUnlocking(newTargetUser(userId));
 
@@ -471,7 +469,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING,
                 userId);
-        expectICarSetUserLockStatus(userId, false);
 
         mHelper.onUserStopping(newTargetUser(userId));
 
@@ -494,7 +491,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED,
                 userId);
-        expectICarSetUserLockStatus(userId, false);
 
         mHelper.onUserStopped(newTargetUser(userId));
 
@@ -815,58 +811,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     }
                 });
 
-    }
-
-    private void expectICarOnSwitchUser(int expectedUserId) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_ON_SWITCH_USER;
-
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
-                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
-                    try {
-                        Log.d(TAG, "Answering txn " + txn);
-                        Parcel data = (Parcel) invocation.getArguments()[1];
-                        data.setDataPosition(0);
-                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
-                        int actualUserId = data.readInt();
-                        Log.d(TAG, "Unmarshalled data: userId= " + actualUserId);
-                        List<String> errors = new ArrayList<>();
-                        assertParcelValue(errors, "userId", expectedUserId, actualUserId);
-                        assertNoParcelErrors(errors);
-                        return true;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Exception answering binder call", e);
-                        mBinderCallException = e;
-                        return false;
-                    }
-                });
-    }
-
-    private void expectICarSetUserLockStatus(int expectedUserId, boolean expectedUnlocked)
-            throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS;
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
-                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
-                    try {
-                        Log.d(TAG, "Answering txn " + txn);
-                        Parcel data = (Parcel) invocation.getArguments()[1];
-                        data.setDataPosition(0);
-                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
-                        int actualUserId = data.readInt();
-                        int actualUnlocked = data.readInt();
-                        Log.d(TAG, "Unmarshalled data: userId= " + actualUserId
-                                + ", unlocked=" + actualUnlocked);
-                        List<String> errors = new ArrayList<>();
-                        assertParcelValue(errors, "userId", expectedUserId, actualUserId);
-                        assertParcelValue(errors, "unlocked",
-                                expectedUnlocked ? 1 : 0, actualUnlocked);
-                        assertNoParcelErrors(errors);
-                        return true;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Exception answering binder call", e);
-                        mBinderCallException = e;
-                        return false;
-                    }
-                });
     }
 
     enum InitialUserInfoAction {
