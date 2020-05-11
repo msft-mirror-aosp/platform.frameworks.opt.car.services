@@ -21,7 +21,6 @@ import static android.car.test.util.UserTestingHelper.newGuestUser;
 import static android.car.test.util.UserTestingHelper.newSecondaryUser;
 import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
@@ -33,7 +32,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
-import static org.mockito.AdditionalAnswers.answerVoid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -556,9 +554,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         // Set number of requested user
         setNumberRequestedUsersProperty(1);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
 
+        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
         mHelper.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -572,9 +569,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         // Set number of requested user
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(1);
-        mockRunAsync();
-        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
 
+        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
         mHelper.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -587,8 +583,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
         mHelper.managePreCreatedUsers();
@@ -603,7 +597,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_GUEST_ID);
 
         mHelper.managePreCreatedUsers();
@@ -618,7 +611,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ false);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
         mHelper.managePreCreatedUsers();
@@ -643,10 +635,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testManagePreCreatedUsersOnBootCompleted() throws Exception {
-        mockRunAsync();
-
         mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-
         verifyManagePreCreatedUsers();
     }
 
@@ -1080,10 +1069,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void setNumberRequestedGuestsProperty(int numberGuest) {
         doReturn(Optional.of(numberGuest)).when(() -> CarProperties.number_pre_created_guests());
-    }
-
-    private void mockRunAsync() {
-        doAnswer(answerVoid(Runnable::run)).when(mHelper).runAsync(any(Runnable.class));
     }
 
     private SyncAnswer mockPreCreateUser(boolean isGuest) {
