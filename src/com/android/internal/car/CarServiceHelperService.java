@@ -309,9 +309,6 @@ public class CarServiceHelperService extends SystemService {
                     shouldNotify = true;
                 }
             }
-            if (shouldNotify) {
-                notifyAllUnlockedUsers();
-            }
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
                     StateType.BOOT_PHASE, phase, /* arg2= */ 0);
@@ -482,7 +479,6 @@ public class CarServiceHelperService extends SystemService {
 
     @VisibleForTesting void handleCarServiceConnection(IBinder iBinder) {
         int lastSwitchedUser;
-        boolean systemBootCompleted;
         ArrayList<Runnable> pendingOperations;
         synchronized (mLock) {
             if (mCarService == iBinder) {
@@ -494,7 +490,6 @@ public class CarServiceHelperService extends SystemService {
             }
             mCarService = iBinder;
             lastSwitchedUser = mLastSwitchedUser;
-            systemBootCompleted = mSystemBootCompleted;
             pendingOperations = mPendingOperations;
             mPendingOperations = null;
         }
@@ -517,13 +512,6 @@ public class CarServiceHelperService extends SystemService {
                 }
             }
             t.traceEnd();
-        }
-
-        if (systemBootCompleted) {
-            notifyAllUnlockedUsers();
-        }
-        if (lastSwitchedUser != UserHandle.USER_NULL) {
-            sendSwitchUserBindercall(lastSwitchedUser);
         }
     }
 
@@ -885,47 +873,12 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void notifyAllUnlockedUsers() {
-        // only care about unlocked users
-        LinkedList<Integer> users = new LinkedList<>();
-        synchronized (mLock) {
-            for (Map.Entry<Integer, Boolean> entry : mUserUnlockedStatus.entrySet()) {
-                if (entry.getValue()) {
-                    users.add(entry.getKey());
-                }
-            }
-        }
-        if (DBG) {
-            Slog.d(TAG, "notifyAllUnlockedUsers:" + users);
-        }
-        for (Integer i : users) {
-            sendSetUserLockStatusBinderCall(i, true);
-        }
-    }
-
     private void sendSetCarServiceHelperBinderCall() {
         Parcel data = Parcel.obtain();
         data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
         data.writeStrongBinder(mHelper.asBinder());
         // void setCarServiceHelper(in IBinder helper)
         sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER);
-    }
-
-    private void sendSetUserLockStatusBinderCall(@UserIdInt int userId, boolean unlocked) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(userId);
-        data.writeInt(unlocked ? 1 : 0);
-        // void setUserLockStatus(in int userId, in int unlocked)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS);
-    }
-
-    private void sendSwitchUserBindercall(@UserIdInt int userId) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(userId);
-        // void onSwitchUser(in int userId)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_ON_SWITCH_USER);
     }
 
     private void sendUserLifecycleEvent(int eventType, @NonNull TargetUser user) {
