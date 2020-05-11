@@ -36,10 +36,6 @@ final class ExternalConstants {
         static final int ICAR_CALL_GET_INITIAL_USER_INFO = 3;
         static final int ICAR_CALL_SET_INITIAL_USER = 4;
 
-        // TODO(145689885) remove once refactored
-        static final int ICAR_CALL_SET_USER_UNLOCK_STATUS = 9;
-        static final int ICAR_CALL_ON_SWITCH_USER = 10;
-
         private ICarConstants() {
             throw new UnsupportedOperationException("contains only static constants");
         }
