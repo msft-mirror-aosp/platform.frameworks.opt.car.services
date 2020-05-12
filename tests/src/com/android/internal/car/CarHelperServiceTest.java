@@ -21,7 +21,6 @@ import static android.car.test.util.UserTestingHelper.newGuestUser;
 import static android.car.test.util.UserTestingHelper.newSecondaryUser;
 import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
 
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
@@ -33,7 +32,6 @@ import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.junit.Assert.fail;
-import static org.mockito.AdditionalAnswers.answerVoid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -384,7 +382,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int targetUserId = 11;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 currentUserId, targetUserId);
-        expectICarOnSwitchUser(targetUserId);
 
         mHelper.onUserSwitching(newTargetUser(currentUserId),
                 newTargetUser(targetUserId));
@@ -408,7 +405,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                 userId);
-        expectICarSetUserLockStatus(userId, true);
 
         mHelper.onUserUnlocking(newTargetUser(userId));
 
@@ -473,7 +469,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING,
                 userId);
-        expectICarSetUserLockStatus(userId, false);
 
         mHelper.onUserStopping(newTargetUser(userId));
 
@@ -496,7 +491,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         int userId = 10;
         expectICarOnUserLifecycleEvent(CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED,
                 userId);
-        expectICarSetUserLockStatus(userId, false);
 
         mHelper.onUserStopped(newTargetUser(userId));
 
@@ -556,9 +550,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         // Set number of requested user
         setNumberRequestedUsersProperty(1);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
 
+        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
         mHelper.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -572,9 +565,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         // Set number of requested user
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(1);
-        mockRunAsync();
-        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
 
+        SyncAnswer syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
         mHelper.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
@@ -587,8 +579,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
         mHelper.managePreCreatedUsers();
@@ -603,7 +593,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ true);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_GUEST_ID);
 
         mHelper.managePreCreatedUsers();
@@ -618,7 +607,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 /* isInitialized= */ false);
         setNumberRequestedUsersProperty(0);
         setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
         SyncAnswer syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
         mHelper.managePreCreatedUsers();
@@ -643,10 +631,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testManagePreCreatedUsersOnBootCompleted() throws Exception {
-        mockRunAsync();
-
         mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-
         verifyManagePreCreatedUsers();
     }
 
@@ -826,58 +811,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     }
                 });
 
-    }
-
-    private void expectICarOnSwitchUser(int expectedUserId) throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_ON_SWITCH_USER;
-
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
-                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
-                    try {
-                        Log.d(TAG, "Answering txn " + txn);
-                        Parcel data = (Parcel) invocation.getArguments()[1];
-                        data.setDataPosition(0);
-                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
-                        int actualUserId = data.readInt();
-                        Log.d(TAG, "Unmarshalled data: userId= " + actualUserId);
-                        List<String> errors = new ArrayList<>();
-                        assertParcelValue(errors, "userId", expectedUserId, actualUserId);
-                        assertNoParcelErrors(errors);
-                        return true;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Exception answering binder call", e);
-                        mBinderCallException = e;
-                        return false;
-                    }
-                });
-    }
-
-    private void expectICarSetUserLockStatus(int expectedUserId, boolean expectedUnlocked)
-            throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION + ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS;
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(),
-                eq(Binder.FLAG_ONEWAY))).thenAnswer((invocation) -> {
-                    try {
-                        Log.d(TAG, "Answering txn " + txn);
-                        Parcel data = (Parcel) invocation.getArguments()[1];
-                        data.setDataPosition(0);
-                        data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
-                        int actualUserId = data.readInt();
-                        int actualUnlocked = data.readInt();
-                        Log.d(TAG, "Unmarshalled data: userId= " + actualUserId
-                                + ", unlocked=" + actualUnlocked);
-                        List<String> errors = new ArrayList<>();
-                        assertParcelValue(errors, "userId", expectedUserId, actualUserId);
-                        assertParcelValue(errors, "unlocked",
-                                expectedUnlocked ? 1 : 0, actualUnlocked);
-                        assertNoParcelErrors(errors);
-                        return true;
-                    } catch (Exception e) {
-                        Log.e(TAG, "Exception answering binder call", e);
-                        mBinderCallException = e;
-                        return false;
-                    }
-                });
     }
 
     enum InitialUserInfoAction {
@@ -1080,10 +1013,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void setNumberRequestedGuestsProperty(int numberGuest) {
         doReturn(Optional.of(numberGuest)).when(() -> CarProperties.number_pre_created_guests());
-    }
-
-    private void mockRunAsync() {
-        doAnswer(answerVoid(Runnable::run)).when(mHelper).runAsync(any(Runnable.class));
     }
 
     private SyncAnswer mockPreCreateUser(boolean isGuest) {
