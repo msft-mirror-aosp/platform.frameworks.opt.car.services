@@ -77,7 +77,6 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
-import com.android.server.SystemServerInitThreadPool;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
@@ -310,9 +309,6 @@ public class CarServiceHelperService extends SystemService {
                     shouldNotify = true;
                 }
             }
-            if (shouldNotify) {
-                notifyAllUnlockedUsers();
-            }
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
                     StateType.BOOT_PHASE, phase, /* arg2= */ 0);
@@ -483,7 +479,6 @@ public class CarServiceHelperService extends SystemService {
 
     @VisibleForTesting void handleCarServiceConnection(IBinder iBinder) {
         int lastSwitchedUser;
-        boolean systemBootCompleted;
         ArrayList<Runnable> pendingOperations;
         synchronized (mLock) {
             if (mCarService == iBinder) {
@@ -495,7 +490,6 @@ public class CarServiceHelperService extends SystemService {
             }
             mCarService = iBinder;
             lastSwitchedUser = mLastSwitchedUser;
-            systemBootCompleted = mSystemBootCompleted;
             pendingOperations = mPendingOperations;
             mPendingOperations = null;
         }
@@ -518,13 +512,6 @@ public class CarServiceHelperService extends SystemService {
                 }
             }
             t.traceEnd();
-        }
-
-        if (systemBootCompleted) {
-            notifyAllUnlockedUsers();
-        }
-        if (lastSwitchedUser != UserHandle.USER_NULL) {
-            sendSwitchUserBindercall(lastSwitchedUser);
         }
     }
 
@@ -725,9 +712,6 @@ public class CarServiceHelperService extends SystemService {
         // List of all pre-created users - it will be used to remove unused ones (when needed)
         SparseBooleanArray existingPrecreatedUsers = new SparseBooleanArray();
 
-        // List of extra pre-created users and guests - they will be removed
-        List<Integer> extraPreCreatedUsers = new ArrayList<>();
-
         for (int i = 0; i < allUsersSize; i++) {
             UserInfo user = allUsers.get(i);
             if (!user.preCreated) continue;
@@ -741,21 +725,14 @@ public class CarServiceHelperService extends SystemService {
             existingPrecreatedUsers.put(user.id, isGuest);
             if (isGuest) {
                 numberExistingGuests++;
-                if (numberExistingGuests > numberRequestedGuests) {
-                    extraPreCreatedUsers.add(user.id);
-                }
             } else {
                 numberExistingUsers++;
-                if (numberExistingUsers > numberRequestedUsers) {
-                    extraPreCreatedUsers.add(user.id);
-                }
             }
         }
         if (DBG) {
             Slog.d(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
                     + " pre-created guests," + numberExistingUsers + " pre-created users, and these"
-                    + " invalid users: " + invalidPreCreatedUsers
-                    + " extra pre-created users: " + extraPreCreatedUsers);
+                    + " invalid users: " + invalidPreCreatedUsers );
         }
 
         int numberGuestsToAdd = numberRequestedGuests - numberExistingGuests;
@@ -780,6 +757,7 @@ public class CarServiceHelperService extends SystemService {
         // submitting just 1 task, for 2 reasons:
         //   1.To minimize it's effect on other system server initialization tasks.
         //   2.The pre-created users will be unlocked in parallel anyways.
+        // TODO(b/152792035): refactor into a separate method so it can be spied on test cases
         runAsync(() -> {
             TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG + "Async",
                     Trace.TRACE_TAG_SYSTEM_SERVER);
@@ -792,14 +770,34 @@ public class CarServiceHelperService extends SystemService {
                 preCreateUsers(t, numberGuestsToAdd, /* isGuest= */ true);
             }
 
-            int totalNumberToRemove = extraPreCreatedUsers.size();
+            int totalNumberToRemove = Math.max(numberUsersToRemove, 0)
+                    + Math.max(numberGuestsToRemove, 0);
             if (DBG) Slog.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
             if (totalNumberToRemove > 0) {
                 int[] usersToRemove = new int[totalNumberToRemove];
-                for (int i = 0; i < totalNumberToRemove; i++) {
-                    usersToRemove[i] = extraPreCreatedUsers.get(i);
+                int j = 0;
+                int numberUsersToRemoveLeft = numberUsersToRemove;
+                int numberGuestsToRemoveLeft = numberGuestsToRemove;
+                // TODO(b/152792035): avoid this loop by checking pre-created users in loop L586
+                // and add users to remove there rather than going through the users again here
+                for (int i = 0; i < existingPrecreatedUsers.size(); i++) {
+                    int userId = existingPrecreatedUsers.keyAt(i);
+                    boolean isGuest = existingPrecreatedUsers.valueAt(i);
+                    if (!isGuest && numberUsersToRemoveLeft > 0) {
+                        if (DBG) Slog.d(TAG, "Marking user" + userId + " for removal");
+                        numberUsersToRemoveLeft--;
+                        usersToRemove[j++] = userId;
+                    }
+                    if (isGuest && numberGuestsToRemoveLeft > 0 ) {
+                        if (DBG) Slog.d(TAG, "Marking guest " + userId + " for removal");
+                        numberGuestsToRemoveLeft--;
+                        usersToRemove[j++] = userId;
+                    }
                 }
-                removePreCreatedUsers(usersToRemove);
+                for (int userId : usersToRemove) {
+                    Slog.i(TAG,  "removing pre-created user with id " + userId);
+                    mUserManager.removeUser(userId);
+                }
             }
 
             t.traceEnd();
@@ -833,7 +831,8 @@ public class CarServiceHelperService extends SystemService {
 
     @VisibleForTesting
     void runAsync(Runnable r) {
-        SystemServerInitThreadPool.submit(r, "CarServiceHelperManagePreCreatedUsers");
+        // TODO(152792035): refactor to use SystemServerInitThreadPool or other mechanism
+        new Thread(r, "CarServiceHelperManagePreCreatedUsers").start();
     }
 
     @Nullable
@@ -857,13 +856,6 @@ public class CarServiceHelperService extends SystemService {
         return user;
     }
 
-    private void removePreCreatedUsers(int[] usersToRemove) {
-        for (int userId : usersToRemove) {
-            Slog.i(TAG,  "removing pre-created user with id " + userId);
-            mUserManager.removeUser(userId);
-        }
-    }
-
     /**
      * Logs proper message when user pre-creation fails (most likely because there are too many).
      */
@@ -881,47 +873,12 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void notifyAllUnlockedUsers() {
-        // only care about unlocked users
-        LinkedList<Integer> users = new LinkedList<>();
-        synchronized (mLock) {
-            for (Map.Entry<Integer, Boolean> entry : mUserUnlockedStatus.entrySet()) {
-                if (entry.getValue()) {
-                    users.add(entry.getKey());
-                }
-            }
-        }
-        if (DBG) {
-            Slog.d(TAG, "notifyAllUnlockedUsers:" + users);
-        }
-        for (Integer i : users) {
-            sendSetUserLockStatusBinderCall(i, true);
-        }
-    }
-
     private void sendSetCarServiceHelperBinderCall() {
         Parcel data = Parcel.obtain();
         data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
         data.writeStrongBinder(mHelper.asBinder());
         // void setCarServiceHelper(in IBinder helper)
         sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER);
-    }
-
-    private void sendSetUserLockStatusBinderCall(@UserIdInt int userId, boolean unlocked) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(userId);
-        data.writeInt(unlocked ? 1 : 0);
-        // void setUserLockStatus(in int userId, in int unlocked)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_USER_UNLOCK_STATUS);
-    }
-
-    private void sendSwitchUserBindercall(@UserIdInt int userId) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(userId);
-        // void onSwitchUser(in int userId)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_ON_SWITCH_USER);
     }
 
     private void sendUserLifecycleEvent(int eventType, @NonNull TargetUser user) {
