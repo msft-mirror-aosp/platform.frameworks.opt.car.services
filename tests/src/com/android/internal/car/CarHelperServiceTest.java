@@ -667,7 +667,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
      * not using HAL.
      */
     private void verifyDefaultBootBehavior() throws Exception {
-        verify(mInitialUserSetter).executeDefaultBehavior(/* replaceGuest= */ false);
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_DEFAULT_BEHAVIOR;
+        }));
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -691,15 +693,24 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void verifyUserCreatedByHal() throws Exception {
-        verify(mInitialUserSetter).createUser(HAL_USER_NAME, HAL_USER_FLAGS);
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_CREATE
+                    && info.newUserName == HAL_USER_NAME
+                    && info.newUserFlags == HAL_USER_FLAGS;
+        }));
     }
 
     private void verifyUserSwitchedByHal() {
-        verify(mInitialUserSetter).switchUser(HAL_USER_ID, false);
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_SWITCH
+                    && info.switchUserId == HAL_USER_ID;
+        }));
     }
 
     private void verifyUserNotSwitchedByHal() {
-        verify(mInitialUserSetter, never()).switchUser(anyInt(), anyBoolean());
+        verify(mInitialUserSetter, never()).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_SWITCH;
+        }));
     }
 
     private void verifyBindService () throws Exception {
