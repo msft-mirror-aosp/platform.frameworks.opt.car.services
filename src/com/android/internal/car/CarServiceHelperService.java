@@ -532,7 +532,7 @@ public class CarServiceHelperService extends SystemService {
             Slog.i(TAG, "Delegating initial switching to HAL");
             setupAndStartUsersUsingHal();
         } else {
-            setupAndStartUsersDirecly(t);
+            setupAndStartUsersDirectly(t, /* userLocales= */ null);
         }
         t.traceEnd();
     }
@@ -591,22 +591,28 @@ public class CarServiceHelperService extends SystemService {
                 int action = resultData.getInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
                         InitialUserInfoResponseAction.DEFAULT);
 
+                String userLocales = resultData
+                        .getString(CarUserServiceConstants.BUNDLE_USER_LOCALES);
+                if (userLocales != null) {
+                    Slog.i(TAG, "Changing user locales to " + userLocales);
+                }
+
                 switch (action) {
                     case InitialUserInfoResponseAction.DEFAULT:
                         EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_DEFAULT_BEHAVIOR,
-                                /* fallback= */ 0);
+                                /* fallback= */ 0, userLocales);
                         if (DBG) Slog.d(TAG, "User HAL returned DEFAULT behavior");
-                        setupAndStartUsersDirectly();
+                        setupAndStartUsersDirectly(newTimingsTraceAndSlog(), userLocales);
                         return;
                     case InitialUserInfoResponseAction.SWITCH:
                         int userId = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_ID);
-                        startUserByHalRequest(userId);
+                        startUserByHalRequest(userId, userLocales);
                         return;
                     case InitialUserInfoResponseAction.CREATE:
                         String name = resultData
                                 .getString(CarUserServiceConstants.BUNDLE_USER_NAME);
                         int flags = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_FLAGS);
-                        createUserByHalRequest(name, flags);
+                        createUserByHalRequest(name, userLocales, flags);
                         return;
                     default:
                         Slog.w(TAG, "Invalid InitialUserInfoResponseAction action: " + action);
@@ -632,19 +638,20 @@ public class CarServiceHelperService extends SystemService {
         return InitialUserInfoRequestType.COLD_BOOT;
     }
 
-    private void startUserByHalRequest(@UserIdInt int userId) {
+    private void startUserByHalRequest(@UserIdInt int userId, @Nullable String userLocales) {
         if (userId <= 0) {
             Slog.w(TAG, "invalid (or missing) user id sent by HAL: " + userId);
             fallbackToDefaultInitialUserBehavior();
             return;
         }
 
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_START_USER, userId);
+        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_START_USER, userId, userLocales);
         if (DBG) Slog.d(TAG, "Starting user " + userId + " as requested by HAL");
 
         // It doesn't need to replace guest, as the switch would fail anyways if the requested user
         // was a guest because it wouldn't exist.
         mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_SWITCH)
+                .setUserLocales(userLocales)
                 .setSwitchUserId(userId).build());
     }
 
@@ -653,13 +660,16 @@ public class CarServiceHelperService extends SystemService {
                 .setSupportsOverrideUserIdProperty(!CarProperties.user_hal_enabled().orElse(false));
     }
 
-    private void createUserByHalRequest(@Nullable String name, int halFlags) {
-        String friendlyName = "user with name '" + safeName(name) + "' and flags "
-                + UserHalHelper.userFlagsToString(halFlags);
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_CREATE_USER, halFlags, safeName(name));
+    private void createUserByHalRequest(@Nullable String name, @Nullable String userLocales,
+            int halFlags) {
+        String friendlyName = "user with name '" + safeName(name) + "', locales " + userLocales
+                + ", and flags " + UserHalHelper.userFlagsToString(halFlags);
+        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_CREATE_USER, halFlags, safeName(name),
+                userLocales);
         if (DBG) Slog.d(TAG, "HAL request creation of " + friendlyName);
 
         mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_CREATE)
+                .setUserLocales(userLocales)
                 .setNewUserName(name)
                 .setNewUserFlags(halFlags).build());
 
@@ -672,10 +682,11 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void setupAndStartUsersDirectly() {
-        setupAndStartUsersDirecly(newTimingsTraceAndSlog());
+        setupAndStartUsersDirectly(newTimingsTraceAndSlog(), /* userLocales= */ null);
     }
 
-    private void setupAndStartUsersDirecly(@NonNull TimingsTraceAndSlog t) {
+    private void setupAndStartUsersDirectly(@NonNull TimingsTraceAndSlog t,
+            @Nullable String userLocales) {
         synchronized (mLock) {
             if (mInitialized) {
                 Slog.wtf(TAG, "Already initialized", new Exception());
@@ -685,6 +696,7 @@ public class CarServiceHelperService extends SystemService {
         }
 
         mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
+                .setUserLocales(userLocales)
                 .build());
     }
 
