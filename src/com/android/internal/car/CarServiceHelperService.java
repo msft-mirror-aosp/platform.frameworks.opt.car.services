@@ -36,6 +36,7 @@ import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
 import android.app.admin.DevicePolicyManager;
 import android.car.userlib.CommonConstants.CarUserServiceConstants;
+import android.car.userlib.InitialUserSetter.InitialUserInfoType;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.userlib.HalCallback;
 import android.car.userlib.InitialUserSetter;
@@ -279,9 +280,7 @@ public class CarServiceHelperService extends SystemService {
         }
         if (initialUserSetter == null) {
             // Called from main constructor, which cannot pass a lambda referencing itself
-            mInitialUserSetter = new InitialUserSetter(context,
-                    (u) -> setInitialUser(u),
-                    !CarProperties.user_hal_enabled().orElse(false));
+            mInitialUserSetter = new InitialUserSetter(context, (u) -> setInitialUser(u));
         } else {
             mInitialUserSetter = initialUserSetter;
         }
@@ -645,7 +644,13 @@ public class CarServiceHelperService extends SystemService {
 
         // It doesn't need to replace guest, as the switch would fail anyways if the requested user
         // was a guest because it wouldn't exist.
-        mInitialUserSetter.switchUser(userId, /* replaceGuest= */ false);
+        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_SWITCH)
+                .setSwitchUserId(userId).build());
+    }
+
+    private InitialUserSetter.Builder newInitialUserInfoBuilder(@InitialUserInfoType int type) {
+        return new InitialUserSetter.Builder(type)
+                .setSupportsOverrideUserIdProperty(!CarProperties.user_hal_enabled().orElse(false));
     }
 
     private void createUserByHalRequest(@Nullable String name, int halFlags) {
@@ -654,7 +659,10 @@ public class CarServiceHelperService extends SystemService {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_CREATE_USER, halFlags, safeName(name));
         if (DBG) Slog.d(TAG, "HAL request creation of " + friendlyName);
 
-        mInitialUserSetter.createUser(name, halFlags);
+        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_CREATE)
+                .setNewUserName(name)
+                .setNewUserFlags(halFlags).build());
+
     }
 
     private void fallbackToDefaultInitialUserBehavior() {
@@ -676,7 +684,8 @@ public class CarServiceHelperService extends SystemService {
             mInitialized = true;
         }
 
-        mInitialUserSetter.executeDefaultBehavior(/* replaceGuest= */ false);
+        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
+                .build());
     }
 
     @VisibleForTesting
