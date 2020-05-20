@@ -125,6 +125,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private static final int HAL_USER_ID = 42;
     private static final int HAL_USER_FLAGS = 108;
 
+    private static final String USER_LOCALES = "LOL";
+
     private static final int HAL_TIMEOUT_MS = 500;
 
     private static final int ADDITIONAL_TIME_MS = 200;
@@ -133,6 +135,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private static final long POST_HAL_NOT_REPLYING_TIMEOUT_MS = HAL_NOT_REPLYING_TIMEOUT_MS
             + ADDITIONAL_TIME_MS;
+
 
     // Spy used in tests that need to verify folloing method:
     // managePreCreatedUsers, postAsyncPreCreatedUser, preCreateUsers
@@ -245,6 +248,21 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void testInitialInfo_halReturnedDefault_withLocale() throws Exception {
+        bindMockICar();
+
+        expectICarGetInitialUserInfo(InitialUserInfoAction.DEFAULT_WITH_LOCALE);
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
+
+        verifyDefaultBootBehaviorWithLocale();
+    }
+
+    @Test
     public void testInitialInfo_halServiceNeverReturned() throws Exception {
         bindMockICar();
 
@@ -323,6 +341,20 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void testInitialInfo_halReturnedSwitch_ok_withLocale() throws Exception {
+        bindMockICar();
+
+        expectICarGetInitialUserInfo(InitialUserInfoAction.SWITCH_OK_WITH_LOCALE);
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
+
+        verifyUserSwitchedByHalWithLocale();
+    }
+
+    @Test
     public void testInitialInfo_halReturnedSwitch_switchMissingUserId() throws Exception {
         bindMockICar();
 
@@ -351,6 +383,22 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         verifyUserCreatedByHal();
+    }
+
+    @Test
+    public void testInitialInfo_halReturnedCreateOk_withLocale() throws Exception {
+        bindMockICar();
+
+        expectICarGetInitialUserInfo(
+                (r) -> sendCreateAction(r, HAL_USER_NAME, HAL_USER_FLAGS, USER_LOCALES));
+
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        assertNoICarCallExceptions();
+        verifyICarGetInitialUserInfoCalled();
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
+
+        verifyUserCreatedByHalWithLocale();
     }
 
     @Test
@@ -668,7 +716,14 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
      */
     private void verifyDefaultBootBehavior() throws Exception {
         verify(mInitialUserSetter).set(argThat((info) -> {
-            return info.type == InitialUserSetter.TYPE_DEFAULT_BEHAVIOR;
+            return info.type == InitialUserSetter.TYPE_DEFAULT_BEHAVIOR && info.userLocales == null;
+        }));
+    }
+
+    private void verifyDefaultBootBehaviorWithLocale() {
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_DEFAULT_BEHAVIOR
+                    && USER_LOCALES.equals(info.userLocales);
         }));
     }
 
@@ -696,14 +751,33 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         verify(mInitialUserSetter).set(argThat((info) -> {
             return info.type == InitialUserSetter.TYPE_CREATE
                     && info.newUserName == HAL_USER_NAME
-                    && info.newUserFlags == HAL_USER_FLAGS;
+                    && info.newUserFlags == HAL_USER_FLAGS
+                    && info.userLocales == null;
+        }));
+    }
+
+    private void verifyUserCreatedByHalWithLocale() throws Exception {
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_CREATE
+                    && info.newUserName == HAL_USER_NAME
+                    && info.newUserFlags == HAL_USER_FLAGS
+                    && info.userLocales == USER_LOCALES;
         }));
     }
 
     private void verifyUserSwitchedByHal() {
         verify(mInitialUserSetter).set(argThat((info) -> {
             return info.type == InitialUserSetter.TYPE_SWITCH
-                    && info.switchUserId == HAL_USER_ID;
+                    && info.switchUserId == HAL_USER_ID
+                    && info.userLocales == null;
+        }));
+    }
+
+    private void verifyUserSwitchedByHalWithLocale() {
+        verify(mInitialUserSetter).set(argThat((info) -> {
+            return info.type == InitialUserSetter.TYPE_SWITCH
+                    && info.switchUserId == HAL_USER_ID
+                    && info.userLocales == USER_LOCALES;
         }));
     }
 
@@ -837,11 +911,13 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     enum InitialUserInfoAction {
         DEFAULT,
+        DEFAULT_WITH_LOCALE,
         DO_NOT_REPLY,
         DELAYED_REPLY,
         NON_OK_RESULT_CODE,
         NULL_BUNDLE,
         SWITCH_OK,
+        SWITCH_OK_WITH_LOCALE,
         SWITCH_MISSING_USER_ID
     }
 
@@ -850,6 +926,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
             switch (action) {
                 case DEFAULT:
                     sendDefaultAction(receiver);
+                    break;
+                case DEFAULT_WITH_LOCALE:
+                    sendDefaultAction(receiver, USER_LOCALES);
                     break;
                 case DO_NOT_REPLY:
                     Log.d(TAG, "NOT replying to bind call");
@@ -867,11 +946,14 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     receiver.send(HalCallback.STATUS_OK, null);
                     break;
                 case SWITCH_OK:
-                    sendValidSwitchAction(receiver);
+                    sendValidSwitchAction(receiver, /* userLocales= */ null);
+                    break;
+                case SWITCH_OK_WITH_LOCALE:
+                    sendValidSwitchAction(receiver, USER_LOCALES);
                     break;
                 case SWITCH_MISSING_USER_ID:
                     Log.d(TAG, "sending Switch without user Id");
-                    sendSwitchAction(receiver, null);
+                    sendSwitchAction(receiver, /* id= */ null, /* userLocales= */ null);
                     break;
                default:
                     throw new IllegalArgumentException("invalid action: " + action);
@@ -953,34 +1035,46 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void sendDefaultAction(IResultReceiver receiver) throws Exception {
+        sendDefaultAction(receiver, /* userLocales= */ null);
+    }
+
+    private void sendDefaultAction(IResultReceiver receiver, String userLocales) throws Exception {
         Log.d(TAG, "Sending DEFAULT action to receiver " + receiver);
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
                 InitialUserInfoResponseAction.DEFAULT);
+        if (userLocales != null) {
+            data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
+        }
         receiver.send(HalCallback.STATUS_OK, data);
     }
 
-    private void sendValidSwitchAction(IResultReceiver receiver) throws Exception {
+    private void sendValidSwitchAction(IResultReceiver receiver, String userLocales)
+            throws Exception {
         Log.d(TAG, "Sending SWITCH (" + HAL_USER_ID + ") action to receiver " + receiver);
-        sendSwitchAction(receiver, HAL_USER_ID);
+        sendSwitchAction(receiver, HAL_USER_ID, userLocales);
     }
 
-    private void sendSwitchAction(IResultReceiver receiver, Integer id) throws Exception {
+    private void sendSwitchAction(IResultReceiver receiver, Integer id, String userLocales)
+            throws Exception {
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
                 InitialUserInfoResponseAction.SWITCH);
         if (id != null) {
             data.putInt(CarUserServiceConstants.BUNDLE_USER_ID, id);
         }
+        if (userLocales != null) {
+            data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
+        }
         receiver.send(HalCallback.STATUS_OK, data);
     }
 
     private void sendCreateDefaultHalUserAction(IResultReceiver receiver) throws Exception {
-        sendCreateAction(receiver, HAL_USER_NAME, HAL_USER_FLAGS);
+        sendCreateAction(receiver, HAL_USER_NAME, HAL_USER_FLAGS, /* userLocales= */ null);
     }
 
-    private void sendCreateAction(IResultReceiver receiver, String name, Integer flags)
-            throws Exception {
+    private void sendCreateAction(IResultReceiver receiver, String name, Integer flags,
+            String userLocales) throws Exception {
         Bundle data = new Bundle();
         data.putInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
                 InitialUserInfoResponseAction.CREATE);
@@ -989,6 +1083,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         }
         if (flags != null) {
             data.putInt(CarUserServiceConstants.BUNDLE_USER_FLAGS, flags);
+        }
+        if (userLocales != null) {
+            data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
         }
         receiver.send(HalCallback.STATUS_OK, data);
     }
