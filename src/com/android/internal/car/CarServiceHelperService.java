@@ -16,30 +16,28 @@
 
 package com.android.internal.car;
 
-import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
-
 import static android.car.userlib.UserHelper.safeName;
 
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.automotive.watchdog.ICarWatchdogClient;
+import android.app.admin.DevicePolicyManager;
 import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
-import android.app.admin.DevicePolicyManager;
-import android.car.userlib.CommonConstants.CarUserServiceConstants;
-import android.car.userlib.InitialUserSetter.InitialUserInfoType;
 import android.car.userlib.CarUserManagerHelper;
+import android.car.userlib.CommonConstants.CarUserServiceConstants;
 import android.car.userlib.HalCallback;
 import android.car.userlib.InitialUserSetter;
+import android.car.userlib.InitialUserSetter.InitialUserInfoType;
 import android.car.userlib.UserHalHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
@@ -49,7 +47,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
-import android.graphics.Bitmap;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
 import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.hidl.manager.V1_0.IServiceManager;
@@ -77,9 +74,8 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.os.IResultReceiver;
-import com.android.server.SystemService;
 import com.android.server.SystemServerInitThreadPool;
-import com.android.server.SystemService.TargetUser;
+import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.utils.TimingsTraceAndSlog;
@@ -97,9 +93,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
-import java.util.LinkedList;
 import java.util.List;
-import java.util.Map;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
@@ -302,12 +296,8 @@ public class CarServiceHelperService extends SystemService {
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
             managePreCreatedUsers();
-            boolean shouldNotify = false;
             synchronized (mLock) {
                 mSystemBootCompleted = true;
-                if (mCarService != null) {
-                    shouldNotify = true;
-                }
             }
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
