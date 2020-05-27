@@ -98,8 +98,8 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 /**
- * System service side companion service for CarService.
- * Starts car service and provide necessary API for CarService. Only for car product.
+ * System service side companion service for CarService. Starts car service and provide necessary
+ * API for CarService. Only for car product.
  */
 public class CarServiceHelperService extends SystemService {
     // Place holder for user name of the first user created.
@@ -205,9 +205,9 @@ public class CarServiceHelperService extends SystemService {
     private final BroadcastReceiver mShutdownEventReceiver = new BroadcastReceiver() {
         @Override
         public void onReceive(Context context, Intent intent) {
-             // Skip immediately if intent is not relevant to device shutdown.
-             // FLAG_RECEIVER_FOREGROUND is checked to ignore the intent from UserController when
-             // a user is stopped.
+            // Skip immediately if intent is not relevant to device shutdown.
+            // FLAG_RECEIVER_FOREGROUND is checked to ignore the intent from UserController when
+            // a user is stopped.
             if ((!intent.getAction().equals(Intent.ACTION_REBOOT)
                     && !intent.getAction().equals(Intent.ACTION_SHUTDOWN))
                     || (intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
@@ -235,7 +235,7 @@ public class CarServiceHelperService extends SystemService {
                 new CarWatchdogDaemonHelper(TAG),
                 CarProperties.user_hal_enabled().orElse(false),
                 CarProperties.user_hal_timeout().orElse(5_000)
-                );
+        );
     }
 
     @VisibleForTesting
@@ -301,7 +301,7 @@ public class CarServiceHelperService extends SystemService {
             }
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
-                    StateType.BOOT_PHASE, phase, /* arg2= */ 0);
+                        StateType.BOOT_PHASE, phase, /* arg2= */ 0);
             } catch (RemoteException | RuntimeException e) {
                 Slog.w(TAG, "Failed to notify boot phase change: " + e);
             }
@@ -388,7 +388,7 @@ public class CarServiceHelperService extends SystemService {
         if (isPreCreated(to, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_SWITCHING,
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
-                        to.getUserIdentifier());
+                to.getUserIdentifier());
         if (DBG) Slog.d(TAG, "onUserSwitching(" + from + ">>" + to + ")");
 
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING, from, to);
@@ -467,7 +467,8 @@ public class CarServiceHelperService extends SystemService {
         mHalResponseTime += (int) SystemClock.uptimeMillis();
     }
 
-    @VisibleForTesting void handleCarServiceConnection(IBinder iBinder) {
+    @VisibleForTesting
+    void handleCarServiceConnection(IBinder iBinder) {
         int lastSwitchedUser;
         ArrayList<Runnable> pendingOperations;
         synchronized (mLock) {
@@ -697,8 +698,10 @@ public class CarServiceHelperService extends SystemService {
         int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
         EventLog.writeEvent(EventLogTags.CAR_HELPER_PRE_CREATION_REQUESTED, numberRequestedUsers,
                 numberRequestedGuests);
-        if (DBG) Slog.d(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
-                + " guests and " + numberRequestedUsers + " users");
+        if (DBG) {
+            Slog.d(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
+                    + " guests and " + numberRequestedUsers + " users");
+        }
 
         if (numberRequestedGuests < 0 || numberRequestedUsers < 0) {
             Slog.w(TAG, "preCreateUsers(): invalid values provided by OEM; "
@@ -712,7 +715,7 @@ public class CarServiceHelperService extends SystemService {
                 /* excludeDying= */ true, /* excludePreCreated= */ false);
 
         int allUsersSize = allUsers.size();
-        if (DBG) Slog.d(TAG, "preCreateUsers: total users size is "  + allUsersSize);
+        if (DBG) Slog.d(TAG, "preCreateUsers: total users size is " + allUsersSize);
 
         int numberExistingGuests = 0;
         int numberExistingUsers = 0;
@@ -837,7 +840,7 @@ public class CarServiceHelperService extends SystemService {
 
     @Nullable
     public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
-        String traceMsg =  "pre-create" + (isGuest ? "-guest" : "-user");
+        String traceMsg = "pre-create" + (isGuest ? "-guest" : "-user");
         t.traceBegin(traceMsg);
         // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
         String userType =
@@ -858,7 +861,7 @@ public class CarServiceHelperService extends SystemService {
 
     private void removePreCreatedUsers(int[] usersToRemove) {
         for (int userId : usersToRemove) {
-            Slog.i(TAG,  "removing pre-created user with id " + userId);
+            Slog.i(TAG, "removing pre-created user with id " + userId);
             mUserManager.removeUser(userId);
         }
     }
@@ -1140,6 +1143,13 @@ public class CarServiceHelperService extends SystemService {
         @Override
         public void setPassengerDisplays(int[] displayIdsForPassenger) {
             mCarLaunchParamsModifier.setPassengerDisplays(displayIdsForPassenger);
+        }
+
+        @Override
+        public void setSourcePreferredComponents(boolean enableSourcePreferred,
+                @Nullable List<ComponentName> sourcePreferredComponents) {
+            mCarLaunchParamsModifier.setSourcePreferredComponents(
+                    enableSourcePreferred, sourcePreferredComponents);
         }
     }
 
