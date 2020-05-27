@@ -16,6 +16,8 @@
 
 package com.android.server.wm;
 
+import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentation;
+
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
@@ -24,16 +26,26 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.Mockito.mock;
 
+import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
+import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
+import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
 import android.os.UserHandle;
 import android.view.Display;
+import android.view.SurfaceControl;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+
+import com.android.server.AttributeCache;
+import com.android.server.LocalServices;
+import com.android.server.display.color.ColorDisplayService;
 
 import org.junit.After;
 import org.junit.Before;
@@ -43,8 +55,12 @@ import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
+import java.util.Arrays;
+
 @RunWith(AndroidJUnit4.class)
 public class CarLaunchParamsModifierTest {
+    private static final int PASSENGER_DISPLAY_ID_10 = 10;
+    private static final int PASSENGER_DISPLAY_ID_11 = 11;
 
     private MockitoSession mMockingSession;
 
@@ -58,6 +74,12 @@ public class CarLaunchParamsModifierTest {
     private ActivityTaskManagerService mActivityTaskManagerService;
     @Mock
     private ActivityStackSupervisor mActivityStackSupervisor;
+    @Mock
+    private RecentTasks mRecentTasks;
+    @Mock
+    private WindowManagerService mWindowManagerService;
+    @Mock
+    private ColorDisplayService.ColorDisplayServiceInternal mColorDisplayServiceInternal;
     @Mock
     private RootWindowContainer mRootWindowContainer;
     @Mock
@@ -125,9 +147,18 @@ public class CarLaunchParamsModifierTest {
         when(mActivityStackSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
         mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
+        mActivityTaskManagerService.mWindowManager = mWindowManagerService;
+        when(mActivityTaskManagerService.getRecentTasks()).thenReturn(mRecentTasks);
+        mWindowManagerService.mTransactionFactory = () -> new SurfaceControl.Transaction();
+        AttributeCache.init(getInstrumentation().getTargetContext());
+        LocalServices.addService(ColorDisplayService.ColorDisplayServiceInternal.class,
+                mColorDisplayServiceInternal);
+        when(mActivityOptions.getLaunchDisplayId()).thenReturn(Display.INVALID_DISPLAY);
         mockDisplay(mDisplay0ForDriver, mDisplayArea0ForDriver, 0, 0, 0);
-        mockDisplay(mDisplay10ForPassenger, mDisplayArea10ForPassenger, 10, 0, 0);
-        mockDisplay(mDisplay11ForPassenger, mDisplayArea11ForPassenger, 11, 0, 0);
+        mockDisplay(mDisplay10ForPassenger, mDisplayArea10ForPassenger, PASSENGER_DISPLAY_ID_10,
+                /* flags */ 0, /* type */ 0);
+        mockDisplay(mDisplay11ForPassenger, mDisplayArea11ForPassenger, PASSENGER_DISPLAY_ID_11,
+                /* flags */ 0, /* type */ 0);
         mockDisplay(mDisplay1Private, mDisplayArea1Private, 1, Display.FLAG_PRIVATE, 0);
 
         mModifier = new CarLaunchParamsModifier(mContext);
@@ -136,19 +167,20 @@ public class CarLaunchParamsModifierTest {
 
     @After
     public void tearDown() {
+        LocalServices.removeServiceForTest(ColorDisplayService.ColorDisplayServiceInternal.class);
         mMockingSession.finishMocking();
     }
 
-    private void assertDisplayIsAllowed(int userId, Display display) {
+    private void assertDisplayIsAllowed(@UserIdInt int userId, Display display) {
         mTask.mUserId = userId;
         mCurrentParams.mPreferredTaskDisplayArea = mModifier
                 .getDefaultTaskDisplayAreaOnDisplay(display.getDisplayId());
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
-                isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
+                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams))
+                .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
     }
 
-    private void assertDisplayIsReassigned(int userId, Display displayRequested,
+    private void assertDisplayIsReassigned(@UserIdInt int userId, Display displayRequested,
             Display displayAssigned) {
         assertThat(displayRequested.getDisplayId()).isNotEqualTo(displayAssigned.getDisplayId());
         mTask.mUserId = userId;
@@ -158,9 +190,44 @@ public class CarLaunchParamsModifierTest {
                 .getDefaultTaskDisplayAreaOnDisplay(displayAssigned.getDisplayId());
         mCurrentParams.mPreferredTaskDisplayArea = requestedTaskDisplayArea;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams)).
-                isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
+                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams))
+                .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(assignedTaskDisplayArea);
+    }
+
+    private void assertDisplayIsAssigned(
+            @UserIdInt int userId, TaskDisplayArea expectedDisplayArea) {
+        mTask.mUserId = userId;
+        mCurrentParams.mPreferredTaskDisplayArea = null;
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
+                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams))
+                .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
+        assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(expectedDisplayArea);
+    }
+
+    private void assertNoDisplayIsAssigned(@UserIdInt int userId) {
+        mTask.mUserId = userId;
+        mCurrentParams.mPreferredTaskDisplayArea = null;
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
+                mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams))
+                .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
+        assertThat(mOutParams.mPreferredTaskDisplayArea).isNull();
+    }
+
+    private ActivityRecord buildActivityRecord(String packageName, String className) {
+        ActivityInfo info = new ActivityInfo();
+        info.packageName = packageName;
+        info.name = className;
+        info.applicationInfo = new ApplicationInfo();
+        info.applicationInfo.packageName = packageName;
+        Intent intent = new Intent();
+        intent.setClassName(packageName, className);
+        return new ActivityRecord(mActivityTaskManagerService, /* caller */null,
+                /* launchedFromPid */ 0, /* launchedFromUid */ 0, /* launchedFromPackage */ null,
+                /* launchedFromFeature */ null, intent, /* resolvedType */ null, info,
+                new Configuration(), /* resultTo */ null, /* resultWho */ null, /* reqCode */ 0,
+                /*componentSpecified*/ false, /* rootVoiceInteraction */ false,
+                mActivityStackSupervisor, /* options */ null, /* sourceRecord */ null);
     }
 
     @Test
@@ -369,5 +436,60 @@ public class CarLaunchParamsModifierTest {
         assertDisplayIsReassigned(passenger, mDisplay0ForDriver, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passenger, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passenger, mDisplay11ForPassenger);
+    }
+
+    @Test
+    public void testPreferSourceForDriver() {
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
+
+        // When no sourcePreferredComponents is set, it doesn't set the display for system user.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mModifier.setSourcePreferredComponents(true, null);
+        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
+    }
+
+    @Test
+    public void testPreferSourceForPassenger() {
+        mModifier.setPassengerDisplays(new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        int passengerUserId = 100;
+        mModifier.setDisplayWhitelistForUser(passengerUserId,
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea11ForPassenger);
+
+        // When no sourcePreferredComponents is set, it returns the default passenger display.
+        assertDisplayIsAssigned(passengerUserId, mDisplayArea10ForPassenger);
+
+        mModifier.setSourcePreferredComponents(true, null);
+        assertDisplayIsAssigned(passengerUserId, mDisplayArea11ForPassenger);
+    }
+
+    @Test
+    public void testPreferSourceDoNotOverrideActivityOptions() {
+        when(mActivityOptions.getLaunchDisplayId()).thenReturn(PASSENGER_DISPLAY_ID_10);
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
+
+        mModifier.setSourcePreferredComponents(true, null);
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testPreferSourceForSpecifiedActivity() {
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
+        mActivityRecordActivity = buildActivityRecord("testPackage", "testActivity");
+        mModifier.setSourcePreferredComponents(true,
+                Arrays.asList(new ComponentName("testPackage", "testActivity")));
+
+        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
+    }
+
+    @Test
+    public void testPreferSourceDoNotAssignDisplayForNonSpecifiedActivity() {
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
+        mActivityRecordActivity = buildActivityRecord("dummyPackage", "dummyActivity");
+        mModifier.setSourcePreferredComponents(true,
+                Arrays.asList(new ComponentName("testPackage", "testActivity")));
+
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
     }
 }
