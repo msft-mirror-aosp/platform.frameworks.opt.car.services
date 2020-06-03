@@ -323,8 +323,6 @@ public class CarServiceHelperService extends SystemService {
                     return;
                 }
             }
-            // System user started and unlocked
-            handleUserLockStatusChange(UserHandle.USER_SYSTEM, true);
         } catch (RemoteException e) {
             // should not happen for local call.
             Slog.wtf("RemoteException from AMS", e);
