@@ -420,7 +420,8 @@ public class CarServiceHelperService extends SystemService {
     private boolean isPreCreated(@NonNull TargetUser user, int eventType) {
         UserInfo userInfo = user.getUserInfo();
         if (userInfo == null) {
-            Slog.wtf(TAG, "no UserInfo on " + user + " on eventType " + eventType);
+            // Happens in some race conditions on stop, where only the UserHandle is available.
+            Slog.w(TAG, "no UserInfo on " + user + " on eventType " + eventType);
             return false;
         }
         if (!userInfo.preCreated) return false;
