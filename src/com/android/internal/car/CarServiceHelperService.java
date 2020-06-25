@@ -76,7 +76,6 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.os.IResultReceiver;
-import com.android.server.SystemServerInitThreadPool;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
@@ -899,7 +898,19 @@ public class CarServiceHelperService extends SystemService {
 
     @VisibleForTesting
     void runAsync(Runnable r) {
-        SystemServerInitThreadPool.submit(r, "CarServiceHelperManagePreCreatedUsers");
+        // We cannot use SystemServerInitThreadPool because user pre-creation can take too long,
+        // which would crash the SystemServer on SystemServerInitThreadPool.shutdown();
+        String threadName = TAG + ".AsyncTask";
+        Slog.i(TAG, "Starting thread " + threadName);
+        new Thread(() -> {
+            try {
+                r.run();
+                Slog.i(TAG, "Finishing thread " + threadName);
+            } catch (RuntimeException e) {
+                Slog.e(TAG, "runAsync() failed", e);
+                throw e;
+            }
+        }, threadName).start();
     }
 
     @Nullable
