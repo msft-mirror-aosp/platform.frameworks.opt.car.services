@@ -574,7 +574,7 @@ public class CarServiceHelperService extends SystemService {
 
         @Override
         public void setDisplayAllowlistForUser(@UserIdInt int userId, int[] displayIds) {
-            mCarLaunchParamsModifier.setDisplayAllowlistForUser(userId, displayIds);
+            mCarLaunchParamsModifier.setDisplayAllowListForUser(userId, displayIds);
         }
 
         @Override
