@@ -54,12 +54,11 @@ import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
+import android.os.HandlerThread;
 import android.os.IBinder;
-import android.os.Looper;
 import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
@@ -159,8 +158,8 @@ public class CarServiceHelperService extends SystemService {
     private final boolean mHalEnabled;
     private final int mHalTimeoutMs;
 
-    // Handler is currently only used for handleHalTimedout(), which is removed once received.
-    private final Handler mHandler = new Handler(Looper.getMainLooper());
+    private final Handler mHandler;
+    private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
 
     private final ProcessTerminator mProcessTerminator = new ProcessTerminator();
     private final CarServiceConnectedCallback mCarServiceConnectedCallback =
@@ -265,6 +264,8 @@ public class CarServiceHelperService extends SystemService {
             int halTimeoutMs) {
         super(context);
         mContext = context;
+        mHandlerThread.start();
+        mHandler = new Handler(mHandlerThread.getLooper());
         mCarUserManagerHelper = userManagerHelper;
         mUserManager = userManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
@@ -304,9 +305,7 @@ public class CarServiceHelperService extends SystemService {
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
-            checkForCarServiceConnection(t);
             setupAndStartUsers(t);
-            checkForCarServiceConnection(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
@@ -337,7 +336,7 @@ public class CarServiceHelperService extends SystemService {
         intent.setPackage("com.android.car");
         intent.setAction(ICarConstants.CAR_SERVICE_INTERFACE);
         if (!mContext.bindServiceAsUser(intent, mCarServiceConnection, Context.BIND_AUTO_CREATE,
-                UserHandle.SYSTEM)) {
+                mHandler, UserHandle.SYSTEM)) {
             Slog.wtf(TAG, "cannot start car service");
         }
         loadNativeLibrary();
@@ -451,26 +450,6 @@ public class CarServiceHelperService extends SystemService {
             mPendingOperations = new ArrayList<>(NUMBER_PENDING_OPERATIONS);
         }
         mPendingOperations.add(operation);
-    }
-
-    // Sometimes car service onConnected call is delayed a lot. car service binder can be
-    // found from ServiceManager directly. So do some polling during boot-up to connect to
-    // car service ASAP.
-    private void checkForCarServiceConnection(@NonNull TimingsTraceAndSlog t) {
-        synchronized (mLock) {
-            if (mCarServiceBinder != null) {
-                return;
-            }
-        }
-        t.traceBegin("checkForCarServiceConnection");
-        IBinder iBinder = ServiceManager.checkService("car_service");
-        if (iBinder != null) {
-            if (DBG) {
-                Slog.d(TAG, "Car service found through ServiceManager:" + iBinder);
-            }
-            handleCarServiceConnection(iBinder);
-        }
-        t.traceEnd();
     }
 
     @VisibleForTesting
