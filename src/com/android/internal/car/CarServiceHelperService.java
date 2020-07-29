@@ -123,6 +123,10 @@ public class CarServiceHelperService extends SystemService {
     private static final int WHAT_POST_PROCESS_DUMPING = 2;
     // Message ID representing process killing.
     private static final int WHAT_PROCESS_KILL = 3;
+    // Message ID representing service unresponsiveness.
+    private static final int WHAT_SERVICE_UNRESPONSIVE = 4;
+
+    private static final long CAR_SERVICE_BINDER_CALL_TIMEOUT = 15_000;
 
     private static final long LIFECYCLE_TIMESTAMP_IGNORE = 0;
 
@@ -137,7 +141,9 @@ public class CarServiceHelperService extends SystemService {
     private final Context mContext;
     private final Object mLock = new Object();
     @GuardedBy("mLock")
-    private IBinder mCarService;
+    private IBinder mCarServiceBinder;
+    @GuardedBy("mLock")
+    private ICarSystemServerClient mCarService;
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
 
@@ -157,6 +163,8 @@ public class CarServiceHelperService extends SystemService {
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
     private final ProcessTerminator mProcessTerminator = new ProcessTerminator();
+    private final CarServiceConnectedCallback mCarServiceConnectedCallback =
+            new CarServiceConnectedCallback();
 
     @GuardedBy("mLock")
     private boolean mInitialized;
@@ -450,7 +458,7 @@ public class CarServiceHelperService extends SystemService {
     // car service ASAP.
     private void checkForCarServiceConnection(@NonNull TimingsTraceAndSlog t) {
         synchronized (mLock) {
-            if (mCarService != null) {
+            if (mCarServiceBinder != null) {
                 return;
             }
         }
@@ -482,70 +490,21 @@ public class CarServiceHelperService extends SystemService {
 
     @VisibleForTesting
     void handleCarServiceConnection(IBinder iBinder) {
-        boolean carServiceHasCrashed;
-        int lastSwitchedUser;
-        ArrayList<Runnable> pendingOperations;
-        SparseIntArray lastUserLifecycle = null;
         synchronized (mLock) {
-            if (mCarService == iBinder) {
+            if (mCarServiceBinder == iBinder) {
                 return; // already connected.
             }
-            Slog.i(TAG, "car service binder changed, was:" + mCarService + " new:" + iBinder);
-            mCarService = iBinder;
-            carServiceHasCrashed = mCarServiceHasCrashed;
-            mCarServiceHasCrashed = false;
-            lastSwitchedUser = mLastSwitchedUser;
-            pendingOperations = mPendingOperations;
-            mPendingOperations = null;
-            if (carServiceHasCrashed) {
-                lastUserLifecycle = mLastUserLifecycle.clone();
-            }
+            Slog.i(TAG, "car service binder changed, was:" + mCarServiceBinder + " new:" + iBinder);
+            mCarServiceBinder = iBinder;
+            Slog.i(TAG, "**CarService connected**");
         }
-        int numberOperations = pendingOperations == null ? 0 : pendingOperations.size();
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_SVC_CONNECTED, numberOperations);
 
-        Slog.i(TAG, "**CarService connected**");
+        sendSetSystemServerConnectionsCall();
 
-        sendSetCarServiceHelperBinderCall();
-        if (carServiceHasCrashed) {
-            int numUsers = lastUserLifecycle.size();
-            TimingsTraceAndSlog t = newTimingsTraceAndSlog();
-            t.traceBegin("send-uses-after-reconnect-" + numUsers);
-            // Send user0 events first
-            int user0Lifecycle = lastUserLifecycle.get(UserHandle.USER_SYSTEM,
-                    USER_LIFECYCLE_EVENT_TYPE_STARTING);
-            lastUserLifecycle.delete(UserHandle.USER_SYSTEM);
-            boolean user0IsCurrent = lastSwitchedUser == UserHandle.USER_SYSTEM;
-            sendAllLifecyleToUser(UserHandle.USER_SYSTEM, user0Lifecycle, user0IsCurrent);
-            // Send current user events next
-            if (!user0IsCurrent) {
-                int currentUserLifecycle = lastUserLifecycle.get(lastSwitchedUser,
-                        USER_LIFECYCLE_EVENT_TYPE_STARTING);
-                lastUserLifecycle.delete(lastSwitchedUser);
-                sendAllLifecyleToUser(lastSwitchedUser, currentUserLifecycle,
-                        /* isCurrentUser= */ true);
-            }
-            // Send all other users' events
-            for (int i = 0; i < lastUserLifecycle.size(); i++) {
-                int userId = lastUserLifecycle.keyAt(i);
-                int lifecycle = lastUserLifecycle.valueAt(i);
-                sendAllLifecyleToUser(userId, lifecycle, /* isCurrentUser= */ false);
-            }
-            t.traceEnd();
-        } else if (pendingOperations != null) {
-            if (DBG) Slog.d(TAG, "Running " + numberOperations + " pending operations");
-            TimingsTraceAndSlog t = newTimingsTraceAndSlog();
-            t.traceBegin("send-pending-ops-" + numberOperations);
-            for (int i = 0; i < numberOperations; i++) {
-                Runnable operation = pendingOperations.get(i);
-                try {
-                    operation.run();
-                } catch (RuntimeException e) {
-                    Slog.w(TAG, "exception running operation #" + i + ": " + e);
-                }
-            }
-            t.traceEnd();
-        }
+        mHandler.removeMessages(WHAT_SERVICE_UNRESPONSIVE);
+        mHandler.sendMessageDelayed(
+                obtainMessage(CarServiceHelperService::handleCarServiceUnresponsive, this)
+                        .setWhat(WHAT_SERVICE_UNRESPONSIVE), CAR_SERVICE_BINDER_CALL_TIMEOUT);
     }
 
     private void sendAllLifecyleToUser(@UserIdInt int userId, int lifecycle,
@@ -601,6 +560,15 @@ public class CarServiceHelperService extends SystemService {
 
         Slog.w(TAG, "HAL didn't respond in " + mHalTimeoutMs + "ms; using default behavior");
         setupAndStartUsersDirectly();
+    }
+
+    private void handleCarServiceUnresponsive() {
+        // This should not happen. Calling this method means ICarSystemServerClient binder is not
+        // returned after service connection. and CarService has not connected in the given time.
+        Slog.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: " + "CarService unresponsive.");
+        Slog.w(TAG, "*** GOODBYE!");
+        Process.killProcess(Process.myPid());
+        System.exit(10);
     }
 
     private void setupAndStartUsersUsingHal() {
@@ -961,12 +929,31 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void sendSetCarServiceHelperBinderCall() {
+    private void sendSetSystemServerConnectionsCall() {
         Parcel data = Parcel.obtain();
         data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
         data.writeStrongBinder(mHelper.asBinder());
-        // void setCarServiceHelper(in IBinder helper)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_CAR_SERVICE_HELPER);
+        data.writeStrongBinder(mCarServiceConnectedCallback.asBinder());
+        IBinder binder;
+        synchronized (mLock) {
+            binder = mCarServiceBinder;
+        }
+        int code = IBinder.FIRST_CALL_TRANSACTION;
+        try {
+            if (VERBOSE) Slog.v(TAG, "calling one-way binder transaction with code " + code);
+            // oneway void setSystemServerConnections(in IBinder helper, in IBinder receiver) = 0;
+            binder.transact(code, data, null, Binder.FLAG_ONEWAY);
+            if (VERBOSE) Slog.v(TAG, "finished one-way binder transaction with code " + code);
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        } catch (RuntimeException e) {
+            Slog.wtf(TAG, "Exception calling binder transaction (real code: "
+                    + code + ")", e);
+            throw e;
+        } finally {
+            data.recycle();
+        }
     }
 
     private void sendUserLifecycleEvent(int eventType, @NonNull TargetUser user) {
@@ -1006,14 +993,16 @@ public class CarServiceHelperService extends SystemService {
 
     private void sendUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
             @UserIdInt int toId) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(eventType);
-        data.writeLong(timestamp);
-        data.writeInt(fromId);
-        data.writeInt(toId);
-        // void onUserLifecycleEvent(int eventType, long timestamp, int from, int to)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_ON_USER_LIFECYCLE);
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.onUserLifecycleEvent(eventType, timestamp, fromId, toId);
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        }
     }
 
     private void sendOrQueueGetInitialUserInfo(int requestType, @NonNull IResultReceiver receiver) {
@@ -1028,13 +1017,16 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void sendGetInitialUserInfo(int requestType, @NonNull IResultReceiver receiver) {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(requestType);
-        data.writeInt(mHalTimeoutMs);
-        data.writeStrongBinder(receiver.asBinder());
-        // void getInitialUserInfo(int requestType, int timeoutMs, in IResultReceiver receiver)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_GET_INITIAL_USER_INFO);
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.getInitialUserInfo(requestType, mHalTimeoutMs, receiver.asBinder());
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        }
     }
 
     @VisibleForTesting
@@ -1050,52 +1042,30 @@ public class CarServiceHelperService extends SystemService {
     }
 
     private void sendSetInitialUser(@Nullable UserInfo user) {
-        if (DBG) Slog.d(TAG, "sendSetInitialUser(): " + user);
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(user != null ? user.id : UserHandle.USER_NULL);
-        // void setInitialUser(int userId)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_SET_INITIAL_USER);
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.setInitialUser(user != null ? user.id : UserHandle.USER_NULL);
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        }
     }
 
     private void sendFirstUserUnlocked(@NonNull TargetUser user) {
         long now = System.currentTimeMillis();
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
-        data.writeInt(user.getUserIdentifier());
-        data.writeLong(now);
-        data.writeLong(mFirstUnlockedUserDuration);
-        data.writeInt(mHalResponseTime);
-        // void onFirstUserUnlocked(int userId, long timestamp, long duration, int halResponseTime)
-        sendBinderCallToCarService(data, ICarConstants.ICAR_CALL_FIRST_USER_UNLOCKED);
-    }
-
-    private void sendBinderCallToCarService(Parcel data, int callNumber) {
-        // Cannot depend on ICar which is defined in CarService, so handle binder call directly
-        // instead.
-        IBinder carService;
+        ICarSystemServerClient carService;
         synchronized (mLock) {
             carService = mCarService;
         }
-        if (carService == null) {
-            Slog.w(TAG, "Not calling txn " + callNumber + " because service is not bound yet",
-                    new Exception());
-            return;
-        }
-        int code = IBinder.FIRST_CALL_TRANSACTION + callNumber;
         try {
-            if (VERBOSE) Slog.v(TAG, "calling one-way binder transaction with code " + code);
-            carService.transact(code, data, null, Binder.FLAG_ONEWAY);
-            if (VERBOSE) Slog.v(TAG, "finished one-way binder transaction with code " + code);
+            carService.onFirstUserUnlocked(user.getUserIdentifier(), now,
+                    mFirstUnlockedUserDuration, mHalResponseTime);
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
-        } catch (RuntimeException e) {
-            Slog.wtf(TAG, "Exception calling binder transaction " + callNumber + " (real code: "
-                    + code + ")", e);
-            throw e;
-        } finally {
-            data.recycle();
         }
     }
 
@@ -1158,6 +1128,8 @@ public class CarServiceHelperService extends SystemService {
         // everything if enabled by the property.
         boolean restartOnServiceCrash = SystemProperties.getBoolean(PROP_RESTART_RUNTIME, false);
 
+        mHandler.removeMessages(WHAT_SERVICE_UNRESPONSIVE);
+
         dumpServiceStacks();
         if (restartOnServiceCrash) {
             Slog.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: " + "CarService crash");
@@ -1169,6 +1141,7 @@ public class CarServiceHelperService extends SystemService {
         }
         synchronized (mLock) {
             mCarServiceHasCrashed = true;
+            mCarService = null;
         }
     }
 
@@ -1352,6 +1325,81 @@ public class CarServiceHelperService extends SystemService {
             // Zygote's target exe is also /system/bin/app_process32 or /system/bin/app_process64.
             // But, we can be very sure that Zygote will not be the client of car watchdog daemon.
             return target == "/system/bin/app_process32" || target == "/system/bin/app_process64";
+        }
+    }
+
+    private final class CarServiceConnectedCallback extends IResultReceiver.Stub {
+        @Override
+        public void send(int resultCode, Bundle resultData) {
+            mHandler.removeMessages(WHAT_SERVICE_UNRESPONSIVE);
+
+            IBinder binder;
+            if (resultData == null || (binder =
+                    resultData.getBinder(ICarConstants.ICAR_SYSTEM_SERVER_CLIENT)) == null) {
+                Slog.wtf(TAG, "setSystemServerConnections return NULL Binder.");
+                handleCarServiceUnresponsive();
+                return;
+            }
+
+            boolean carServiceHasCrashed;
+            int lastSwitchedUser;
+            ArrayList<Runnable> pendingOperations;
+            SparseIntArray lastUserLifecycle = null;
+            synchronized (mLock) {
+                mCarService = ICarSystemServerClient.Stub.asInterface(binder);
+                carServiceHasCrashed = mCarServiceHasCrashed;
+                mCarServiceHasCrashed = false;
+                lastSwitchedUser = mLastSwitchedUser;
+                pendingOperations = mPendingOperations;
+                mPendingOperations = null;
+                if (carServiceHasCrashed) {
+                    lastUserLifecycle = mLastUserLifecycle.clone();
+                }
+            }
+            int numberOperations = pendingOperations == null ? 0 : pendingOperations.size();
+            EventLog.writeEvent(EventLogTags.CAR_HELPER_SVC_CONNECTED, numberOperations);
+
+            Slog.i(TAG, "ICarSystemServerClient binder received.");
+
+            if (carServiceHasCrashed) {
+                int numUsers = lastUserLifecycle.size();
+                TimingsTraceAndSlog t = newTimingsTraceAndSlog();
+                t.traceBegin("send-uses-after-reconnect-" + numUsers);
+                // Send user0 events first
+                int user0Lifecycle = lastUserLifecycle.get(UserHandle.USER_SYSTEM,
+                        USER_LIFECYCLE_EVENT_TYPE_STARTING);
+                lastUserLifecycle.delete(UserHandle.USER_SYSTEM);
+                boolean user0IsCurrent = lastSwitchedUser == UserHandle.USER_SYSTEM;
+                sendAllLifecyleToUser(UserHandle.USER_SYSTEM, user0Lifecycle, user0IsCurrent);
+                // Send current user events next
+                if (!user0IsCurrent) {
+                    int currentUserLifecycle = lastUserLifecycle.get(lastSwitchedUser,
+                            USER_LIFECYCLE_EVENT_TYPE_STARTING);
+                    lastUserLifecycle.delete(lastSwitchedUser);
+                    sendAllLifecyleToUser(lastSwitchedUser, currentUserLifecycle,
+                            /* isCurrentUser= */ true);
+                }
+                // Send all other users' events
+                for (int i = 0; i < lastUserLifecycle.size(); i++) {
+                    int userId = lastUserLifecycle.keyAt(i);
+                    int lifecycle = lastUserLifecycle.valueAt(i);
+                    sendAllLifecyleToUser(userId, lifecycle, /* isCurrentUser= */ false);
+                }
+                t.traceEnd();
+            } else if (pendingOperations != null) {
+                if (DBG) Slog.d(TAG, "Running " + numberOperations + " pending operations");
+                TimingsTraceAndSlog t = newTimingsTraceAndSlog();
+                t.traceBegin("send-pending-ops-" + numberOperations);
+                for (int i = 0; i < numberOperations; i++) {
+                    Runnable operation = pendingOperations.get(i);
+                    try {
+                        operation.run();
+                    } catch (RuntimeException e) {
+                        Slog.w(TAG, "exception running operation #" + i + ": " + e);
+                    }
+                }
+                t.traceEnd();
+            }
         }
     }
 }
