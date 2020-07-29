@@ -6,6 +6,7 @@ java_library {
     srcs: [
         "src/**/*.java",
         "src/com/android/internal/car/ICarServiceHelper.aidl",
+        "src/com/android/internal/car/ICarSystemServerClient.aidl",
     ],
     static_libs: [
         "android.hardware.automotive.vehicle-V2.0-java",
