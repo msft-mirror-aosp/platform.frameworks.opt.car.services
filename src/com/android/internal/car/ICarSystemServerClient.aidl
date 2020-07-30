@@ -42,22 +42,9 @@ interface ICarSystemServerClient {
      */
     oneway void onFirstUserUnlocked(int userId, long timestampMs, long duration,
             int halResponseTime);
-
+  
     /**
-     * Notify User HAL to get the initial user info.
-     *
-     * @param requestType - as defined by InitialUserInfoRequestType.
-     * @param timeoutMs - how long to wait for HAL's response.
-     * @param receiver - a com.android.internal.os.IResultReceiver callback.
+     * Notify to init boot user.
      */
-    oneway void getInitialUserInfo(int requestType, int timeoutMs, in IBinder receiver);
-
-    /**
-     * Notify the initial user after boot.
-     *
-     * @param userId - the id of the initial user
-     */
-    // TODO(b/149797595): should pass UserInfo instead, but for some reason passing the whole
-    // UserInfo through a raw binder transaction on CarServiceHelper is not working.
-    oneway void setInitialUser(int userId);
+    oneway void initBootUser();
 }
