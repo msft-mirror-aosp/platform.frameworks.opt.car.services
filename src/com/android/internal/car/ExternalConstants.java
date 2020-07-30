@@ -27,14 +27,8 @@ final class ExternalConstants {
     // TODO(b/149797595): remove once ICar.aidl is split in 2
     static final class ICarConstants {
         static final String CAR_SERVICE_INTERFACE = "android.car.ICar";
-
-        // These numbers should match with binder call order of
-        // packages/services/Car/car-lib/src/android/car/ICar.aidl
-        static final int ICAR_CALL_SET_CAR_SERVICE_HELPER = 0;
-        static final int ICAR_CALL_ON_USER_LIFECYCLE = 1;
-        static final int ICAR_CALL_FIRST_USER_UNLOCKED = 2;
-        static final int ICAR_CALL_GET_INITIAL_USER_INFO = 3;
-        static final int ICAR_CALL_SET_INITIAL_USER = 4;
+        // TODO(b/162240867): Move this constant at a common place.
+        static final String ICAR_SYSTEM_SERVER_CLIENT = "ICarSystemServerClient";
 
         private ICarConstants() {
             throw new UnsupportedOperationException("contains only static constants");
