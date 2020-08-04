@@ -28,9 +28,9 @@ interface ICarServiceHelper {
     int forceSuspend(int timeoutMs);
     /**
     * Check
-    * {@link com.android.server.wm.CarLaunchParamsModifier#setDisplayWhitelistForUser(int, int[]).
+    * {@link com.android.server.wm.CarLaunchParamsModifier#setDisplayAllowlistForUser(int, int[]).
     */
-    void setDisplayWhitelistForUser(in int userId, in int[] displayIds);
+    void setDisplayAllowlistForUser(in int userId, in int[] displayIds);
 
     /**
      * Check

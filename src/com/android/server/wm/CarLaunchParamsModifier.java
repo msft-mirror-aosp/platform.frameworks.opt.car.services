@@ -168,7 +168,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         }
     }
 
-    private void removeUserFromWhitelistsLocked(int userId) {
+    private void removeUserFromAllowlistsLocked(int userId) {
         for (int i = mDisplayToProfileUserMapping.size() - 1; i >= 0; i--) {
             if (mDisplayToProfileUserMapping.valueAt(i) == userId) {
                 mDisplayToProfileUserMapping.removeAt(i);
@@ -182,27 +182,27 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         // Note that the current user is never stopped. It always takes switching into
         // non-current user before stopping the user.
         synchronized (mLock) {
-            removeUserFromWhitelistsLocked(stoppedUser);
+            removeUserFromAllowlistsLocked(stoppedUser);
         }
     }
 
     /**
-     * Sets display whiltelist for the userId. For passenger user, activity will be always launched
-     * to a display in the whitelist. If requested display is not in the whitelist, the 1st display
-     * in the whitelist will be selected as target display.
+     * Sets display allowlist for the userId. For passenger user, activity will be always launched
+     * to a display in the allowlist. If requested display is not in the allowlist, the 1st display
+     * in the allowlist will be selected as target display.
      *
-     * <p>The whitelist is kept only for profile user. Assigning the current user unassigns users
+     * <p>The allowlist is kept only for profile user. Assigning the current user unassigns users
      * for the given displays.
      */
-    public void setDisplayWhitelistForUser(int userId, int[] displayIds) {
+    public void setDisplayAllowlistForUser(int userId, int[] displayIds) {
         if (DBG) {
-            Slog.d(TAG, "setDisplayWhitelistForUser userId:" + userId
+            Slog.d(TAG, "setDisplayAllowlistForUser userId:" + userId
                     + " displays:" + displayIds);
         }
         synchronized (mLock) {
             for (int displayId : displayIds) {
                 if (!mPassengerDisplays.contains(displayId)) {
-                    Slog.w(TAG, "setDisplayWhitelistForUser called with display:" + displayId
+                    Slog.w(TAG, "setDisplayAllowlistForUser called with display:" + displayId
                             + " not in passenger display list:" + mPassengerDisplays);
                     continue;
                 }
@@ -220,7 +220,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             if (displayIds.length > 0) {
                 mDefaultDisplayForProfileUser.put(userId, displayIds[0]);
             } else {
-                removeUserFromWhitelistsLocked(userId);
+                removeUserFromAllowlistsLocked(userId);
             }
         }
     }
