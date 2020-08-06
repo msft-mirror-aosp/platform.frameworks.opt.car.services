@@ -1183,8 +1183,8 @@ public class CarServiceHelperService extends SystemService {
         }
 
         @Override
-        public void setDisplayWhitelistForUser(@UserIdInt int userId, int[] displayIds) {
-            mCarLaunchParamsModifier.setDisplayWhitelistForUser(userId, displayIds);
+        public void setDisplayAllowlistForUser(@UserIdInt int userId, int[] displayIds) {
+            mCarLaunchParamsModifier.setDisplayAllowlistForUser(userId, displayIds);
         }
 
         @Override
