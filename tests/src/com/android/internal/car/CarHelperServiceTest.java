@@ -117,8 +117,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
             + ADDITIONAL_TIME_MS;
 
 
-    // Spy used in tests that need to verify folloing method:
+    // Spy used in tests that need to verify following method:
     // managePreCreatedUsers, postAsyncPreCreatedUser, preCreateUsers
+    private CarServiceHelperService mHelperSpy;
     private CarServiceHelperService mHelper;
     private FakeICarSystemServerClient mCarService;
 
@@ -158,7 +159,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Before
     public void setUpMocks() {
-        mHelper = spy(new CarServiceHelperService(
+        mHelper = new CarServiceHelperService(
                 mMockContext,
                 mUserManagerHelper,
                 mInitialUserSetter,
@@ -166,7 +167,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
                 /* halEnabled= */ true,
-                HAL_TIMEOUT_MS));
+                HAL_TIMEOUT_MS);
+        mHelperSpy = spy(mHelper);
         mCarService = new FakeICarSystemServerClient();
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
     }
@@ -177,7 +179,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockBindService();
         mockLoadLibrary();
 
-        mHelper.onStart();
+        mHelperSpy.onStart();
 
         verifyBindService();
     }
@@ -187,9 +189,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockHandleCarServiceCrash();
         mockCarServiceException();
 
-        mHelper.handleCarServiceConnection(mICarBinder);
+        mHelperSpy.handleCarServiceConnection(mICarBinder);
 
-        verify(mHelper).handleCarServiceCrash();
+        verify(mHelperSpy).handleCarServiceCrash();
     }
 
     /**
@@ -226,9 +228,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyDefaultBootBehavior();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -241,9 +242,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyDefaultBootBehaviorWithLocale();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -273,11 +273,11 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
 
         sleep("to make sure not called again", POST_HAL_NOT_REPLYING_TIMEOUT_MS);
 
         verifyDefaultBootBehavior();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -290,9 +290,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyDefaultBootBehavior();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -305,9 +304,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyDefaultBootBehavior();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -319,9 +317,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyUserSwitchedByHal();
+        verifyHalResponseTime();
+
     }
 
     @Test
@@ -333,9 +331,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyUserSwitchedByHalWithLocale();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -348,10 +345,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyUserNotSwitchedByHal();
         verifyDefaultBootBehavior();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -364,9 +360,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyUserCreatedByHal();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -380,9 +375,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarGetInitialUserInfoCalled();
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-
         verifyUserCreatedByHalWithLocale();
+        verifyHalResponseTime();
     }
 
     @Test
@@ -593,7 +587,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockRunAsync();
         SyncAnswer<UserInfo> syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
         verifyUserCreated(/* isGuest= */ false);
@@ -609,7 +603,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockRunAsync();
         SyncAnswer<UserInfo> syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
         syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
 
         verifyUserCreated(/* isGuest= */ true);
@@ -625,7 +619,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         SyncAnswer<Boolean> syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
         syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
 
         verifyUserRemoved(user);
@@ -640,7 +634,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockRunAsync();
         SyncAnswer<Boolean>  syncRemoveStatus = mockRemoveUser(PRE_CREATED_GUEST_ID);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
         syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
 
         verifyUserRemoved(user);
@@ -655,7 +649,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockRunAsync();
         SyncAnswer<Boolean>  syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
         syncRemoveStatus.await(ADDITIONAL_TIME_MS);
 
         verifyUserRemoved(user);
@@ -669,7 +663,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mockPreCreateUser(/* isGuest= */ false);
         mockRemoveUser(PRE_CREATED_USER_ID);
 
-        mHelper.managePreCreatedUsers();
+        mHelperSpy.managePreCreatedUsers();
 
         verifyPostPreCreatedUserSkipped();
     }
@@ -678,7 +672,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     public void testManagePreCreatedUsersOnBootCompleted() throws Exception {
         mockRunAsync();
 
-        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        mHelperSpy.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verifyManagePreCreatedUsers();
     }
@@ -687,7 +681,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     public void testPreCreateUserExceptionLogged() throws Exception {
         mockPreCreateUserException();
         TimingsTraceAndSlog trace = new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
-        mHelper.preCreateUsers(trace, false);
+        mHelperSpy.preCreateUsers(trace, false);
 
         verifyPostPreCreatedUserException();
         assertThat(trace.getUnfinishedTracesForDebug()).isEmpty();
@@ -695,7 +689,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void setHalResponseTime() {
         mHelper.setInitialHalResponseTime();
-        SystemClock.sleep(1); // must sleep at least 1ms so it's not 0
+        sleepForHalResponseTimePurposes();
         mHelper.setFinalHalResponseTime();
     }
 
@@ -714,6 +708,10 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
             return info.type == InitialUserSetter.TYPE_DEFAULT_BEHAVIOR
                     && USER_LOCALES.equals(info.userLocales);
         }));
+    }
+
+    private void verifyHalResponseTime() {
+        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -779,7 +777,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private void verifyBindService () throws Exception {
         verify(mMockContext).bindServiceAsUser(
                 argThat(intent -> intent.getAction().equals(ICarConstants.CAR_SERVICE_INTERFACE)),
-                any(), eq(Context.BIND_AUTO_CREATE), eq(UserHandle.SYSTEM));
+                any(), eq(Context.BIND_AUTO_CREATE), any(), eq(UserHandle.SYSTEM));
     }
 
     private void mockRegisterReceiver() {
@@ -789,12 +787,12 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void mockBindService() {
         when(mMockContext.bindServiceAsUser(any(), any(),
-                eq(Context.BIND_AUTO_CREATE), eq(UserHandle.SYSTEM)))
+                eq(Context.BIND_AUTO_CREATE), any(), eq(UserHandle.SYSTEM)))
                 .thenReturn(true);
     }
 
     private void mockLoadLibrary() {
-        doNothing().when(mHelper).loadNativeLibrary();
+        doNothing().when(mHelperSpy).loadNativeLibrary();
     }
 
     private void mockCarServiceException() throws Exception {
@@ -803,7 +801,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void mockHandleCarServiceCrash() throws Exception {
-        doNothing().when(mHelper).handleCarServiceCrash();
+        doNothing().when(mHelperSpy).handleCarServiceCrash();
     }
 
     private void expectSetSystemServerConnections() throws Exception {
@@ -855,6 +853,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     break;
                 case NON_OK_RESULT_CODE:
                     Log.d(TAG, "sending bad result code");
+                    sleepForHalResponseTimePurposes();
                     receiver.send(-1, null);
                     break;
                 case NULL_BUNDLE:
@@ -918,6 +917,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         if (userLocales != null) {
             data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
         }
+        sleepForHalResponseTimePurposes();
         receiver.send(HalCallback.STATUS_OK, data);
     }
 
@@ -938,6 +938,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         if (userLocales != null) {
             data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
         }
+        sleepForHalResponseTimePurposes();
         receiver.send(HalCallback.STATUS_OK, data);
     }
 
@@ -959,13 +960,18 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         if (userLocales != null) {
             data.putString(CarUserServiceConstants.BUNDLE_USER_LOCALES, userLocales);
         }
+        sleepForHalResponseTimePurposes();
         receiver.send(HalCallback.STATUS_OK, data);
+    }
+
+    private void sleepForHalResponseTimePurposes() {
+        sleep("so HAL response time is not 0", 1);
     }
 
     private void sleep(String reason, long napTimeMs) {
         Log.d(TAG, "Sleeping for " + napTimeMs + "ms: " + reason);
         SystemClock.sleep(napTimeMs);
-        Log.d(TAG, "Woke up (from '"  + reason + "')");
+        Log.d(TAG, "Woke up");
     }
 
     private void verifyICarOnUserLifecycleEventCalled(int eventType, long minTimestamp,
@@ -1012,7 +1018,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void mockRunAsync() {
-        doAnswer(answerVoid(Runnable::run)).when(mHelper).runAsync(any(Runnable.class));
+        doAnswer(answerVoid(Runnable::run)).when(mHelperSpy).runAsync(any(Runnable.class));
     }
 
     private SyncAnswer<UserInfo> mockPreCreateUser(boolean isGuest) {
@@ -1050,15 +1056,15 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void verifyPostPreCreatedUserSkipped() throws Exception {
-        verify(mHelper, never()).runAsync(any());
+        verify(mHelperSpy, never()).runAsync(any());
     }
 
     private void verifyPostPreCreatedUserException() throws Exception {
-        verify(mHelper).logPrecreationFailure(anyString(), any());
+        verify(mHelperSpy).logPrecreationFailure(anyString(), any());
     }
 
     private void verifyManagePreCreatedUsers() throws Exception {
-        verify(mHelper).managePreCreatedUsers();
+        verify(mHelperSpy).managePreCreatedUsers();
     }
 
     /**
