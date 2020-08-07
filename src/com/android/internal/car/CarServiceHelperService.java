@@ -16,8 +16,6 @@
 
 package com.android.internal.car;
 
-import static android.car.userlib.UserHelper.safeName;
-
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -34,11 +32,6 @@ import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
 import android.car.userlib.CarUserManagerHelper;
-import android.car.userlib.CommonConstants.CarUserServiceConstants;
-import android.car.userlib.HalCallback;
-import android.car.userlib.InitialUserSetter;
-import android.car.userlib.InitialUserSetter.InitialUserInfoType;
-import android.car.userlib.UserHalHelper;
 import android.car.userlib.UserHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
@@ -48,8 +41,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
 import android.content.pm.UserInfo;
-import android.hardware.automotive.vehicle.V2_0.InitialUserInfoRequestType;
-import android.hardware.automotive.vehicle.V2_0.InitialUserInfoResponseAction;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.Bundle;
@@ -151,7 +142,6 @@ public class CarServiceHelperService extends SystemService {
     private final SparseIntArray mLastUserLifecycle = new SparseIntArray();
 
     private final CarUserManagerHelper mCarUserManagerHelper;
-    private final InitialUserSetter mInitialUserSetter;
     private final UserManager mUserManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
@@ -164,9 +154,6 @@ public class CarServiceHelperService extends SystemService {
     private final ProcessTerminator mProcessTerminator = new ProcessTerminator();
     private final CarServiceConnectedCallback mCarServiceConnectedCallback =
             new CarServiceConnectedCallback();
-
-    @GuardedBy("mLock")
-    private boolean mInitialized;
 
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
@@ -243,7 +230,6 @@ public class CarServiceHelperService extends SystemService {
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarUserManagerHelper(context),
-                /* initialUserSetter= */ null,
                 UserManager.get(context),
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
@@ -256,7 +242,6 @@ public class CarServiceHelperService extends SystemService {
     CarServiceHelperService(
             Context context,
             CarUserManagerHelper userManagerHelper,
-            InitialUserSetter initialUserSetter,
             UserManager userManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
@@ -287,12 +272,6 @@ public class CarServiceHelperService extends SystemService {
             mHalEnabled = false;
             mHalTimeoutMs = -1;
             Slog.i(TAG, "Not using User HAL");
-        }
-        if (initialUserSetter == null) {
-            // Called from main constructor, which cannot pass a lambda referencing itself
-            mInitialUserSetter = new InitialUserSetter(context, (u) -> setInitialUser(u));
-        } else {
-            mInitialUserSetter = initialUserSetter;
         }
     }
 
@@ -523,22 +502,33 @@ public class CarServiceHelperService extends SystemService {
             return;
         }
         t.traceBegin("setupAndStartUsers");
-        if (mHalEnabled) {
-            Slog.i(TAG, "Delegating initial switching to HAL");
-            setupAndStartUsersUsingHal();
-        } else {
-            setupAndStartUsersDirectly(t, /* userLocales= */ null);
-        }
+        initBootUser();
         t.traceEnd();
     }
 
-    private void handleHalTimedout() {
+    @VisibleForTesting
+    void initBootUser() {
         synchronized (mLock) {
-            if (mInitialized) return;
+            if (mCarService == null) {
+                if (DBG) Slog.d(TAG, "Queuing startInitialUser() call");
+                queueOperationLocked(() -> sendInitBootUser());
+                return;
+            }
         }
+        sendInitBootUser();
+    }
 
-        Slog.w(TAG, "HAL didn't respond in " + mHalTimeoutMs + "ms; using default behavior");
-        setupAndStartUsersDirectly();
+    private void sendInitBootUser() {
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.initBootUser();
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        }
     }
 
     private void handleCarServiceUnresponsive() {
@@ -548,160 +538,6 @@ public class CarServiceHelperService extends SystemService {
         Slog.w(TAG, "*** GOODBYE!");
         Process.killProcess(Process.myPid());
         System.exit(10);
-    }
-
-    private void setupAndStartUsersUsingHal() {
-        mHandler.sendMessageDelayed(obtainMessage(CarServiceHelperService::handleHalTimedout, this)
-                .setWhat(WHAT_HAL_TIMEOUT), mHalTimeoutMs);
-
-        // TODO(b/150413515): get rid of receiver once returned?
-        IResultReceiver receiver = new IResultReceiver.Stub() {
-            @Override
-            public void send(int resultCode, Bundle resultData) {
-                EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_RESPONSE, resultCode);
-
-                setFinalHalResponseTime();
-                if (DBG) {
-                    Slog.d(TAG, "Got result from HAL (" +
-                            UserHalHelper.halCallbackStatusToString(resultCode) + ") in "
-                            + TimeUtils.formatDuration(mHalResponseTime));
-                }
-
-                mHandler.removeMessages(WHAT_HAL_TIMEOUT);
-                // TODO(b/150222501): log how long it took to receive the response
-                // TODO(b/150413515): print resultData as well on 2 logging calls below
-                synchronized (mLock) {
-                    if (mInitialized) {
-                        Slog.w(TAG, "Result from HAL came too late, ignoring: "
-                                + UserHalHelper.halCallbackStatusToString(resultCode));
-                        return;
-                    }
-                }
-
-                if (resultCode != HalCallback.STATUS_OK) {
-                    Slog.w(TAG, "Service returned non-ok status ("
-                            + UserHalHelper.halCallbackStatusToString(resultCode)
-                            + "); using default behavior");
-                    fallbackToDefaultInitialUserBehavior();
-                    return;
-                }
-
-                if (resultData == null) {
-                    Slog.w(TAG, "Service returned null bundle");
-                    fallbackToDefaultInitialUserBehavior();
-                    return;
-                }
-
-                int action = resultData.getInt(CarUserServiceConstants.BUNDLE_INITIAL_INFO_ACTION,
-                        InitialUserInfoResponseAction.DEFAULT);
-
-                String userLocales = resultData
-                        .getString(CarUserServiceConstants.BUNDLE_USER_LOCALES);
-                if (userLocales != null) {
-                    Slog.i(TAG, "Changing user locales to " + userLocales);
-                }
-
-                switch (action) {
-                    case InitialUserInfoResponseAction.DEFAULT:
-                        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_DEFAULT_BEHAVIOR,
-                                /* fallback= */ 0, userLocales);
-                        if (DBG) Slog.d(TAG, "User HAL returned DEFAULT behavior");
-                        setupAndStartUsersDirectly(newTimingsTraceAndSlog(), userLocales);
-                        return;
-                    case InitialUserInfoResponseAction.SWITCH:
-                        int userId = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_ID);
-                        startUserByHalRequest(userId, userLocales);
-                        return;
-                    case InitialUserInfoResponseAction.CREATE:
-                        String name = resultData
-                                .getString(CarUserServiceConstants.BUNDLE_USER_NAME);
-                        int flags = resultData.getInt(CarUserServiceConstants.BUNDLE_USER_FLAGS);
-                        createUserByHalRequest(name, userLocales, flags);
-                        return;
-                    default:
-                        Slog.w(TAG, "Invalid InitialUserInfoResponseAction action: " + action);
-                }
-                fallbackToDefaultInitialUserBehavior();
-            }
-        };
-        int initialUserInfoRequestType = getInitialUserInfoRequestType();
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_REQUEST, initialUserInfoRequestType);
-
-        setInitialHalResponseTime();
-        sendOrQueueGetInitialUserInfo(initialUserInfoRequestType, receiver);
-    }
-
-    @VisibleForTesting
-    int getInitialUserInfoRequestType() {
-        if (!mCarUserManagerHelper.hasInitialUser()) {
-            return InitialUserInfoRequestType.FIRST_BOOT;
-        }
-        if (mContext.getPackageManager().isDeviceUpgrading()) {
-            return InitialUserInfoRequestType.FIRST_BOOT_AFTER_OTA;
-        }
-        return InitialUserInfoRequestType.COLD_BOOT;
-    }
-
-    private void startUserByHalRequest(@UserIdInt int userId, @Nullable String userLocales) {
-        if (userId <= 0) {
-            Slog.w(TAG, "invalid (or missing) user id sent by HAL: " + userId);
-            fallbackToDefaultInitialUserBehavior();
-            return;
-        }
-
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_START_USER, userId, userLocales);
-        if (DBG) Slog.d(TAG, "Starting user " + userId + " as requested by HAL");
-
-        // It doesn't need to replace guest, as the switch would fail anyways if the requested user
-        // was a guest because it wouldn't exist.
-        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_SWITCH)
-                .setUserLocales(userLocales)
-                .setSwitchUserId(userId).build());
-    }
-
-    private InitialUserSetter.Builder newInitialUserInfoBuilder(@InitialUserInfoType int type) {
-        return new InitialUserSetter.Builder(type)
-                .setSupportsOverrideUserIdProperty(!CarProperties.user_hal_enabled().orElse(false));
-    }
-
-    private void createUserByHalRequest(@Nullable String name, @Nullable String userLocales,
-            int halFlags) {
-        String friendlyName = "user with name '" + safeName(name) + "', locales " + userLocales
-                + ", and flags " + UserHalHelper.userFlagsToString(halFlags);
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_CREATE_USER, halFlags, safeName(name),
-                userLocales);
-        if (DBG) Slog.d(TAG, "HAL request creation of " + friendlyName);
-
-        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_CREATE)
-                .setUserLocales(userLocales)
-                .setNewUserName(name)
-                .setNewUserFlags(halFlags).build());
-
-    }
-
-    private void fallbackToDefaultInitialUserBehavior() {
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_HAL_DEFAULT_BEHAVIOR, /* fallback= */ 1);
-        if (DBG) Slog.d(TAG, "Falling back to DEFAULT initial user behavior");
-        setupAndStartUsersDirectly();
-    }
-
-    private void setupAndStartUsersDirectly() {
-        setupAndStartUsersDirectly(newTimingsTraceAndSlog(), /* userLocales= */ null);
-    }
-
-    private void setupAndStartUsersDirectly(@NonNull TimingsTraceAndSlog t,
-            @Nullable String userLocales) {
-        synchronized (mLock) {
-            if (mInitialized) {
-                Slog.wtf(TAG, "Already initialized", new Exception());
-                return;
-            }
-            mInitialized = true;
-        }
-
-        mInitialUserSetter.set(newInitialUserInfoBuilder(InitialUserSetter.TYPE_DEFAULT_BEHAVIOR)
-                .setUserLocales(userLocales)
-                .build());
     }
 
     @VisibleForTesting
@@ -978,55 +814,6 @@ public class CarServiceHelperService extends SystemService {
         }
         try {
             carService.onUserLifecycleEvent(eventType, timestamp, fromId, toId);
-        } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
-            handleCarServiceCrash();
-        }
-    }
-
-    private void sendOrQueueGetInitialUserInfo(int requestType, @NonNull IResultReceiver receiver) {
-        synchronized (mLock) {
-            if (mCarService == null) {
-                if (DBG) Slog.d(TAG, "Queuing GetInitialUserInfo call for type " + requestType);
-                queueOperationLocked(() -> sendGetInitialUserInfo(requestType, receiver));
-                return;
-            }
-        }
-        sendGetInitialUserInfo(requestType, receiver);
-    }
-
-    private void sendGetInitialUserInfo(int requestType, @NonNull IResultReceiver receiver) {
-        ICarSystemServerClient carService;
-        synchronized (mLock) {
-            carService = mCarService;
-        }
-        try {
-            carService.getInitialUserInfo(requestType, mHalTimeoutMs, receiver.asBinder());
-        } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
-            handleCarServiceCrash();
-        }
-    }
-
-    @VisibleForTesting
-    void setInitialUser(@Nullable UserInfo user) {
-        synchronized (mLock) {
-            if (mCarService == null) {
-                if (DBG) Slog.d(TAG, "Queuing setInitialUser() call");
-                queueOperationLocked(() -> sendSetInitialUser(user));
-                return;
-            }
-        }
-        sendSetInitialUser(user);
-    }
-
-    private void sendSetInitialUser(@Nullable UserInfo user) {
-        ICarSystemServerClient carService;
-        synchronized (mLock) {
-            carService = mCarService;
-        }
-        try {
-            carService.setInitialUser(user != null ? user.id : UserHandle.USER_NULL);
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
