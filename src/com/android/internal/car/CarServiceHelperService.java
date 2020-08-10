@@ -56,10 +56,8 @@ import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.sysprop.CarProperties;
 import android.util.EventLog;
 import android.util.Slog;
-import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 import android.util.TimeUtils;
 
@@ -253,7 +251,7 @@ public class CarServiceHelperService extends SystemService {
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
-            managePreCreatedUsers();
+            preCreateUsers();
             synchronized (mLock) {
                 mSystemBootCompleted = true;
             }
@@ -286,37 +284,36 @@ public class CarServiceHelperService extends SystemService {
         loadNativeLibrary();
 
         // Register a binder for dumping CarServiceHelperService state
-        ServiceManager.addService("car_service_server", new CarServiceHelperDump());
-    }
+        ServiceManager.addService("car_service_server", new Binder() {
+            @Override
+            protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+                writer.printf("*Dump car service*\n");
+                writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
+                writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
+                int count = 0;
+                if (mPendingOperations != null) {
+                    count = mPendingOperations.size();
+                }
+                writer.printf("mPendingOperations Count=%s\n", count);
+                writer.printf("mCarServiceHasCrashed=%s\n", mCarServiceHasCrashed);
+                writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
+                writer.printf("mLastUserLifecycle:\n");
+                String indent = "    ";
+                int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
+                if (user0Lifecycle != 0) {
+                    writer.printf("%sSystemUser Lifecycle Event:%s\n", indent, user0Lifecycle);
+                } else {
+                    writer.printf("%sSystemUser not initialized\n", indent);
+                }
 
-    private final class CarServiceHelperDump extends Binder {
-        @Override
-        protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-            writer.printf("*Dump car service*\n");
-            writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
-            writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
-            int count = 0;
-            if (mPendingOperations != null) {
-                count = mPendingOperations.size();
-            }
-            writer.printf("mPendingOperations Count=%s\n", count);
-            writer.printf("mCarServiceHasCrashed=%s\n", mCarServiceHasCrashed);
-            writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
-            writer.printf("mLastUserLifecycle:\n");
-            String indent = "    ";
-            int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
-            if (user0Lifecycle != 0) {
-                writer.printf("%sSystemUser Lifecycle Event:%s\n", indent, user0Lifecycle);
-            } else {
-                writer.printf("%sSystemUser not initialized\n", indent);
+                int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
+                if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
+                    writer.printf("%slast user (%s) Lifecycle Event:%s\n", indent,
+                            mLastSwitchedUser, lastUserLifecycle);
+                }
             }
 
-            int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
-            if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
-                writer.printf("%slast user (%s) Lifecycle Event:%s\n", indent, mLastSwitchedUser,
-                        lastUserLifecycle);
-            }
-        }
+        });
     }
 
     @Override
@@ -505,6 +502,31 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
+    @VisibleForTesting
+    void preCreateUsers() {
+        synchronized (mLock) {
+            if (mCarService == null) {
+                if (DBG) Slog.d(TAG, "Queuing preCreateUsers() call");
+                queueOperationLocked(() -> sendPreCreateUsers());
+                return;
+            }
+        }
+        sendPreCreateUsers();
+    }
+
+    private void sendPreCreateUsers() {
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            carService = mCarService;
+        }
+        try {
+            carService.preCreateUsers();
+        } catch (RemoteException e) {
+            Slog.w(TAG, "RemoteException from car service", e);
+            handleCarServiceCrash();
+        }
+    }
+
     private void handleCarServiceUnresponsive() {
         // This should not happen. Calling this method means ICarSystemServerClient binder is not
         // returned after service connection. and CarService has not connected in the given time.
@@ -512,210 +534,6 @@ public class CarServiceHelperService extends SystemService {
         Slog.w(TAG, "*** GOODBYE!");
         Process.killProcess(Process.myPid());
         System.exit(10);
-    }
-
-    @VisibleForTesting
-    void managePreCreatedUsers() {
-        // First gets how many pre-createad users are defined by the OEM
-        int numberRequestedGuests = CarProperties.number_pre_created_guests().orElse(0);
-        int numberRequestedUsers = CarProperties.number_pre_created_users().orElse(0);
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_PRE_CREATION_REQUESTED, numberRequestedUsers,
-                numberRequestedGuests);
-        if (DBG) {
-            Slog.d(TAG, "managePreCreatedUsers(): OEM asked for " + numberRequestedGuests
-                    + " guests and " + numberRequestedUsers + " users");
-        }
-
-        if (numberRequestedGuests < 0 || numberRequestedUsers < 0) {
-            Slog.w(TAG, "preCreateUsers(): invalid values provided by OEM; "
-                    + "number_pre_created_guests=" + numberRequestedGuests
-                    + ", number_pre_created_users=" + numberRequestedUsers);
-            return;
-        }
-
-        // Then checks how many exist already
-        List<UserInfo> allUsers = mUserManager.getUsers(/* excludePartial= */ true,
-                /* excludeDying= */ true, /* excludePreCreated= */ false);
-
-        int allUsersSize = allUsers.size();
-        if (DBG) Slog.d(TAG, "preCreateUsers: total users size is " + allUsersSize);
-
-        int numberExistingGuests = 0;
-        int numberExistingUsers = 0;
-
-        // List of pre-created users that were not properly initialized. Typically happens when
-        // the system crashed / rebooted before they were fully started.
-        SparseBooleanArray invalidPreCreatedUsers = new SparseBooleanArray();
-
-        // List of all pre-created users - it will be used to remove unused ones (when needed)
-        SparseBooleanArray existingPrecreatedUsers = new SparseBooleanArray();
-
-        // List of extra pre-created users and guests - they will be removed
-        List<Integer> extraPreCreatedUsers = new ArrayList<>();
-
-        for (int i = 0; i < allUsersSize; i++) {
-            UserInfo user = allUsers.get(i);
-            if (!user.preCreated) continue;
-            if (!user.isInitialized()) {
-                Slog.w(TAG, "Found invalid pre-created user that needs to be removed: "
-                        + user.toFullString());
-                invalidPreCreatedUsers.append(user.id, /* notUsed=*/ true);
-                continue;
-            }
-            boolean isGuest = user.isGuest();
-            existingPrecreatedUsers.put(user.id, isGuest);
-            if (isGuest) {
-                numberExistingGuests++;
-                if (numberExistingGuests > numberRequestedGuests) {
-                    extraPreCreatedUsers.add(user.id);
-                }
-            } else {
-                numberExistingUsers++;
-                if (numberExistingUsers > numberRequestedUsers) {
-                    extraPreCreatedUsers.add(user.id);
-                }
-            }
-        }
-        if (DBG) {
-            Slog.d(TAG, "managePreCreatedUsers(): system already has " + numberExistingGuests
-                    + " pre-created guests," + numberExistingUsers + " pre-created users, and these"
-                    + " invalid users: " + invalidPreCreatedUsers
-                    + " extra pre-created users: " + extraPreCreatedUsers);
-        }
-
-        int numberGuestsToAdd = numberRequestedGuests - numberExistingGuests;
-        int numberUsersToAdd = numberRequestedUsers - numberExistingUsers;
-        int numberGuestsToRemove = numberExistingGuests - numberRequestedGuests;
-        int numberUsersToRemove = numberExistingUsers - numberRequestedUsers;
-        int numberInvalidUsersToRemove = invalidPreCreatedUsers.size();
-
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_PRE_CREATION_STATUS,
-                numberExistingUsers, numberUsersToAdd, numberUsersToRemove,
-                numberExistingGuests, numberGuestsToAdd, numberGuestsToRemove,
-                numberInvalidUsersToRemove);
-
-        if (numberGuestsToAdd == 0 && numberUsersToAdd == 0 && numberInvalidUsersToRemove == 0) {
-            if (DBG) Slog.d(TAG, "managePreCreatedUsers(): everything in sync");
-            return;
-        }
-
-        // Finally, manage them....
-
-        // In theory, we could submit multiple user pre-creations in parallel, but we're
-        // submitting just 1 task, for 2 reasons:
-        //   1.To minimize it's effect on other system server initialization tasks.
-        //   2.The pre-created users will be unlocked in parallel anyways.
-        runAsync(() -> {
-            TimingsTraceAndSlog t = new TimingsTraceAndSlog(TAG + "Async",
-                    Trace.TRACE_TAG_SYSTEM_SERVER);
-
-            t.traceBegin("preCreateUsers");
-            if (numberUsersToAdd > 0) {
-                preCreateUsers(t, numberUsersToAdd, /* isGuest= */ false);
-            }
-            if (numberGuestsToAdd > 0) {
-                preCreateUsers(t, numberGuestsToAdd, /* isGuest= */ true);
-            }
-
-            int totalNumberToRemove = extraPreCreatedUsers.size();
-            if (DBG) Slog.d(TAG, "Must delete " + totalNumberToRemove + " pre-created users");
-            if (totalNumberToRemove > 0) {
-                int[] usersToRemove = new int[totalNumberToRemove];
-                for (int i = 0; i < totalNumberToRemove; i++) {
-                    usersToRemove[i] = extraPreCreatedUsers.get(i);
-                }
-                removePreCreatedUsers(usersToRemove);
-            }
-
-            t.traceEnd();
-
-            if (numberInvalidUsersToRemove > 0) {
-                t.traceBegin("removeInvalidPreCreatedUsers");
-                for (int i = 0; i < numberInvalidUsersToRemove; i++) {
-                    int userId = invalidPreCreatedUsers.keyAt(i);
-                    Slog.i(TAG, "removing invalid pre-created user " + userId);
-                    mUserManager.removeUser(userId);
-                }
-                t.traceEnd();
-            }
-        });
-    }
-
-    private void preCreateUsers(@NonNull TimingsTraceAndSlog t, int size, boolean isGuest) {
-        String msg = isGuest ? "preCreateGuests-" + size : "preCreateUsers-" + size;
-        if (DBG) Slog.d(TAG, "preCreateUsers: " + msg);
-        t.traceBegin(msg);
-        for (int i = 1; i <= size; i++) {
-            UserInfo preCreated = preCreateUsers(t, isGuest);
-            if (preCreated == null) {
-                Slog.w(TAG, "Could not pre-create" + (isGuest ? " guest" : "")
-                        + " user #" + i);
-                continue;
-            }
-        }
-        t.traceEnd();
-    }
-
-    @VisibleForTesting
-    void runAsync(Runnable r) {
-        // We cannot use SystemServerInitThreadPool because user pre-creation can take too long,
-        // which would crash the SystemServer on SystemServerInitThreadPool.shutdown();
-        String threadName = TAG + ".AsyncTask";
-        Slog.i(TAG, "Starting thread " + threadName);
-        new Thread(() -> {
-            try {
-                r.run();
-                Slog.i(TAG, "Finishing thread " + threadName);
-            } catch (RuntimeException e) {
-                Slog.e(TAG, "runAsync() failed", e);
-                throw e;
-            }
-        }, threadName).start();
-    }
-
-    @Nullable
-    public UserInfo preCreateUsers(@NonNull TimingsTraceAndSlog t, boolean isGuest) {
-        String traceMsg = "pre-create" + (isGuest ? "-guest" : "-user");
-        t.traceBegin(traceMsg);
-        // NOTE: we want to get rid of UserManagerHelper, so let's call UserManager directly
-        String userType =
-                isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
-        UserInfo user = null;
-        try {
-            user = mUserManager.preCreateUser(userType);
-            if (user == null) {
-                logPrecreationFailure(traceMsg, /* cause= */ null);
-            }
-        } catch (Exception e) {
-            logPrecreationFailure(traceMsg, e);
-        } finally {
-            t.traceEnd();
-        }
-        return user;
-    }
-
-    private void removePreCreatedUsers(int[] usersToRemove) {
-        for (int userId : usersToRemove) {
-            Slog.i(TAG, "removing pre-created user with id " + userId);
-            mUserManager.removeUser(userId);
-        }
-    }
-
-    /**
-     * Logs proper message when user pre-creation fails (most likely because there are too many).
-     */
-    @VisibleForTesting
-    void logPrecreationFailure(@NonNull String operation, @Nullable Exception cause) {
-        int maxNumberUsers = UserManager.getMaxSupportedUsers();
-        int currentNumberUsers = mUserManager.getUserCount();
-        StringBuilder message = new StringBuilder(operation.length() + 100)
-                .append(operation).append(" failed. Number users: ").append(currentNumberUsers)
-                .append(" Max: ").append(maxNumberUsers);
-        if (cause == null) {
-            Slog.w(TAG, message.toString());
-        } else {
-            Slog.w(TAG, message.toString(), cause);
-        }
     }
 
     private void sendSetSystemServerConnectionsCall() {
