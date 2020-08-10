@@ -54,7 +54,6 @@ import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcel;
-import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
 import android.os.Trace;
@@ -95,8 +94,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private static final int PRE_CREATED_USER_ID = 24;
     private static final int PRE_CREATED_GUEST_ID = 25;
     private static final int USER_MANAGER_TIMEOUT_MS = 100;
-
-    private static final int HAL_TIMEOUT_MS = 500;
 
     private static final int ADDITIONAL_TIME_MS = 200;
 
@@ -143,9 +140,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 mUserManagerHelper,
                 mUserManager,
                 mCarLaunchParamsModifier,
-                mCarWatchdogDaemonHelper,
-                /* halEnabled= */ true,
-                HAL_TIMEOUT_MS);
+                mCarWatchdogDaemonHelper);
         mHelperSpy = spy(mHelper);
         mCarService = new FakeICarSystemServerClient();
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
@@ -254,47 +249,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
-    }
-
-    @Test
-    public void testOnUserUnlocked_notifiesICar_systemUserFirst() throws Exception {
-        bindMockICar();
-
-        int systemUserId = UserHandle.USER_SYSTEM;
-        long before = System.currentTimeMillis();
-        long minDuration = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime();
-        int firstUserId = 10;
-
-        setHalResponseTime();
-        mHelper.onUserUnlocked(newTargetUser(systemUserId));
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, before,
-                UserHandle.USER_NULL, systemUserId); // system user
-
-        mHelper.onUserUnlocked(newTargetUser(firstUserId));
-        assertNoICarCallExceptions();
-        verifyICarFirstUserUnlockedCalled(firstUserId, before, minDuration);    // first user
-    }
-
-    @Test
-    public void testOnUserUnlocked_notifiesICar_firstUserReportedJustOnce() throws Exception {
-        bindMockICar();
-
-        int firstUserId = 10;
-        long before = System.currentTimeMillis();
-        long minDuration = SystemClock.elapsedRealtime() - Process.getStartElapsedRealtime();
-        int secondUserId = 11;
-
-        setHalResponseTime();
-        mHelper.onUserUnlocked(newTargetUser(firstUserId));
-        mHelper.onUserUnlocked(newTargetUser(secondUserId));
-
-        assertNoICarCallExceptions();
-
-        verifyICarFirstUserUnlockedCalled(firstUserId, before, minDuration);    // first user
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, before,
-                UserHandle.USER_NULL, secondUserId); // second user
     }
 
     @Test
@@ -455,15 +409,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(trace.getUnfinishedTracesForDebug()).isEmpty();
     }
 
-    private void setHalResponseTime() {
-        mHelper.setInitialHalResponseTime();
-        sleepForHalResponseTimePurposes();
-        mHelper.setFinalHalResponseTime();
-    }
-
-    private void verifyHalResponseTime() {
-        assertThat(mHelper.getHalResponseTime()).isGreaterThan(0);
-    }
 
     private TargetUser newTargetUser(int userId) {
         return newTargetUser(userId, /* preCreated= */ false);
@@ -596,17 +541,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         assertThat(mCarService.isOnUserLifecycleEventCalled).isFalse();
     }
 
-    private void verifyICarFirstUserUnlockedCalled(int userId, long minTimestamp, long minDuration)
-            throws Exception {
-        assertThat(mCarService.isOnFirstUserUnlockedCalled).isTrue();
-        assertThat(mCarService.userIdForFirstUserUnlocked).isEqualTo(userId);
-        assertThat(mCarService.timeStampForFirstUserUnlocked).isGreaterThan(minTimestamp);
-        long now = System.currentTimeMillis();
-        assertThat(mCarService.timeStampForFirstUserUnlocked).isLessThan(now);
-        assertThat(mCarService.halResponseTimeForFirstUserUnlocked).isGreaterThan(1);
-        assertThat(mCarService.durationForFirstUserUnlocked).isGreaterThan(minDuration);
-    }
-
     private void setNumberRequestedUsersProperty(int numberUser) {
         doReturn(Optional.of(numberUser)).when(() -> CarProperties.number_pre_created_users());
     }
@@ -680,12 +614,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     // TODO(b/162241237): Use mock instead of fake if possible.
     private final class FakeICarSystemServerClient extends ICarSystemServerClient.Stub {
 
-        public boolean isOnFirstUserUnlockedCalled;
-        public int userIdForFirstUserUnlocked;
-        public long timeStampForFirstUserUnlocked;
-        public long durationForFirstUserUnlocked;
-        public int halResponseTimeForFirstUserUnlocked;
-
         public boolean isOnUserLifecycleEventCalled;
         public int eventTypeForLifeCycleEvent;
         public long timeStampForLifeCyleEvent;
@@ -693,17 +621,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         public int toUserForLifeCyleEvent;
 
         public boolean startInitialCalled;
-
-        @Override
-        public void onFirstUserUnlocked(int userId, long timestampMs, long duration,
-                int halResponseTime)
-                throws RemoteException {
-            isOnFirstUserUnlockedCalled = true;
-            userIdForFirstUserUnlocked = userId;
-            timeStampForFirstUserUnlocked = timestampMs;
-            durationForFirstUserUnlocked = duration;
-            halResponseTimeForFirstUserUnlocked = halResponseTime;
-        }
 
         @Override
         public void onUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
