@@ -50,6 +50,7 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
@@ -74,8 +75,10 @@ import com.android.server.wm.CarLaunchParamsModifier;
 
 import java.io.BufferedReader;
 import java.io.File;
+import java.io.FileDescriptor;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -107,14 +110,12 @@ public class CarServiceHelperService extends SystemService {
             "android.hardware.automotive.audiocontrol@2.0::IAudioControl"
     );
 
-    // Message ID representing HAL timeout handling.
-    private static final int WHAT_HAL_TIMEOUT = 1;
     // Message ID representing post-processing of process dumping.
-    private static final int WHAT_POST_PROCESS_DUMPING = 2;
+    private static final int WHAT_POST_PROCESS_DUMPING = 1;
     // Message ID representing process killing.
-    private static final int WHAT_PROCESS_KILL = 3;
+    private static final int WHAT_PROCESS_KILL = 2;
     // Message ID representing service unresponsiveness.
-    private static final int WHAT_SERVICE_UNRESPONSIVE = 4;
+    private static final int WHAT_SERVICE_UNRESPONSIVE = 3;
 
     private static final long CAR_SERVICE_BINDER_CALL_TIMEOUT = 15_000;
 
@@ -145,9 +146,6 @@ public class CarServiceHelperService extends SystemService {
     private final UserManager mUserManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
-    private final boolean mHalEnabled;
-    private final int mHalTimeoutMs;
-
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
 
@@ -159,17 +157,6 @@ public class CarServiceHelperService extends SystemService {
      * End-to-end time (from process start) for unlocking the first non-system user.
      */
     private long mFirstUnlockedUserDuration;
-
-    /**
-     * Used to calculate how long it took to get the {@code INITIAL_USER_INFO} response from HAL:
-     *
-     * <ul>
-     *   <li>{@code 0}: HAL not called yet
-     *   <li>{@code <0}: stores the time HAL was called (multiplied by -1)
-     *   <li>{@code >0}: contains the duration (in ms)
-     * </ul>
-     */
-    private int mHalResponseTime;
 
     // TODO(b/150413515): rather than store Runnables, it would be more efficient to store some
     // parcelables representing the operation, then pass them to setCarServiceHelper
@@ -232,9 +219,7 @@ public class CarServiceHelperService extends SystemService {
                 new CarUserManagerHelper(context),
                 UserManager.get(context),
                 new CarLaunchParamsModifier(context),
-                new CarWatchdogDaemonHelper(TAG),
-                CarProperties.user_hal_enabled().orElse(false),
-                CarProperties.user_hal_timeout().orElse(5_000)
+                new CarWatchdogDaemonHelper(TAG)
         );
     }
 
@@ -244,9 +229,7 @@ public class CarServiceHelperService extends SystemService {
             CarUserManagerHelper userManagerHelper,
             UserManager userManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
-            CarWatchdogDaemonHelper carWatchdogDaemonHelper,
-            boolean halEnabled,
-            int halTimeoutMs) {
+            CarWatchdogDaemonHelper carWatchdogDaemonHelper) {
         super(context);
         mContext = context;
         mHandlerThread.start();
@@ -255,24 +238,6 @@ public class CarServiceHelperService extends SystemService {
         mUserManager = userManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
-        boolean halValidUserHalSettings = false;
-        if (halEnabled) {
-            if (halTimeoutMs > 0) {
-                Slog.i(TAG, "User HAL enabled with timeout of " + halTimeoutMs + "ms");
-                halValidUserHalSettings = true;
-            } else {
-                Slog.w(TAG, "Not using User HAL due to invalid value on userHalTimeoutMs config: "
-                        + halTimeoutMs);
-            }
-        }
-        if (halValidUserHalSettings) {
-            mHalEnabled = true;
-            mHalTimeoutMs = halTimeoutMs;
-        } else {
-            mHalEnabled = false;
-            mHalTimeoutMs = -1;
-            Slog.i(TAG, "Not using User HAL");
-        }
     }
 
     @Override
@@ -304,7 +269,7 @@ public class CarServiceHelperService extends SystemService {
 
     @Override
     public void onStart() {
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_START, mHalEnabled ? 1 : 0);
+        EventLog.writeEvent(EventLogTags.CAR_HELPER_START);
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
         filter.addAction(Intent.ACTION_SHUTDOWN);
@@ -319,6 +284,39 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "cannot start car service");
         }
         loadNativeLibrary();
+
+        // Register a binder for dumping CarServiceHelperService state
+        ServiceManager.addService("car_service_server", new CarServiceHelperDump());
+    }
+
+    private final class CarServiceHelperDump extends Binder {
+        @Override
+        protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
+            writer.printf("*Dump car service*\n");
+            writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
+            writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
+            int count = 0;
+            if (mPendingOperations != null) {
+                count = mPendingOperations.size();
+            }
+            writer.printf("mPendingOperations Count=%s\n", count);
+            writer.printf("mCarServiceHasCrashed=%s\n", mCarServiceHasCrashed);
+            writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
+            writer.printf("mLastUserLifecycle:\n");
+            String indent = "    ";
+            int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
+            if (user0Lifecycle != 0) {
+                writer.printf("%sSystemUser Lifecycle Event:%s\n", indent, user0Lifecycle);
+            } else {
+                writer.printf("%sSystemUser not initialized\n", indent);
+            }
+
+            int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
+            if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
+                writer.printf("%slast user (%s) Lifecycle Event:%s\n", indent, mLastSwitchedUser,
+                        lastUserLifecycle);
+            }
+        }
     }
 
     @Override
@@ -342,17 +340,8 @@ public class CarServiceHelperService extends SystemService {
                     - Process.getStartElapsedRealtime();
             Slog.i(TAG, "Time to unlock 1st user(" + user + "): "
                     + TimeUtils.formatDuration(mFirstUnlockedUserDuration));
-            boolean operationQueued = false;
             synchronized (mLock) {
                 mLastUserLifecycle.put(userId, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
-                if (mCarService == null) {
-                    operationQueued = true;
-                    if (DBG) Slog.d(TAG, "Queuing first user unlock for user " + user);
-                    queueOperationLocked(() -> sendFirstUserUnlocked(user));
-                }
-            }
-            if (!operationQueued) {
-                sendFirstUserUnlocked(user);
             }
         }
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
@@ -429,21 +418,6 @@ public class CarServiceHelperService extends SystemService {
             mPendingOperations = new ArrayList<>(NUMBER_PENDING_OPERATIONS);
         }
         mPendingOperations.add(operation);
-    }
-
-    @VisibleForTesting
-    int getHalResponseTime() {
-        return mHalResponseTime;
-    }
-
-    @VisibleForTesting
-    void setInitialHalResponseTime() {
-        mHalResponseTime = -((int) SystemClock.uptimeMillis());
-    }
-
-    @VisibleForTesting
-    void setFinalHalResponseTime() {
-        mHalResponseTime += (int) SystemClock.uptimeMillis();
     }
 
     @VisibleForTesting
@@ -814,21 +788,6 @@ public class CarServiceHelperService extends SystemService {
         }
         try {
             carService.onUserLifecycleEvent(eventType, timestamp, fromId, toId);
-        } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
-            handleCarServiceCrash();
-        }
-    }
-
-    private void sendFirstUserUnlocked(@NonNull TargetUser user) {
-        long now = System.currentTimeMillis();
-        ICarSystemServerClient carService;
-        synchronized (mLock) {
-            carService = mCarService;
-        }
-        try {
-            carService.onFirstUserUnlocked(user.getUserIdentifier(), now,
-                    mFirstUnlockedUserDuration, mHalResponseTime);
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
