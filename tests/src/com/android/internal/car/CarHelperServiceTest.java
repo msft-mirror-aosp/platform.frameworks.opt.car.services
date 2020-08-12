@@ -16,34 +16,23 @@
 
 package com.android.internal.car;
 
-import static android.car.test.util.UserTestingHelper.UserInfoBuilder;
-import static android.car.test.util.UserTestingHelper.getDefaultUserType;
-import static android.car.test.util.UserTestingHelper.newGuestUser;
-import static android.car.test.util.UserTestingHelper.newSecondaryUser;
-
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doAnswer;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
 import static com.google.common.truth.Truth.assertThat;
 
-import static org.mockito.AdditionalAnswers.answerVoid;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.notNull;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.UserIdInt;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
-import android.car.test.mocks.SyncAnswer;
 import android.car.userlib.CarUserManagerHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
@@ -56,7 +45,6 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.SystemClock;
-import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.sysprop.CarProperties;
@@ -69,7 +57,6 @@ import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
-import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -79,10 +66,6 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Optional;
-
 /**
  * This class contains unit tests for the {@link CarServiceHelperService}.
  */
@@ -90,12 +73,6 @@ import java.util.Optional;
 public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private static final String TAG = CarHelperServiceTest.class.getSimpleName();
-
-    private static final int PRE_CREATED_USER_ID = 24;
-    private static final int PRE_CREATED_GUEST_ID = 25;
-    private static final int USER_MANAGER_TIMEOUT_MS = 100;
-
-    private static final int ADDITIONAL_TIME_MS = 200;
 
     private CarServiceHelperService mHelperSpy;
     private CarServiceHelperService mHelper;
@@ -175,6 +152,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
         verifyICarStartInitialUserCalled();
+    }
+
+    @Test
+    public void testPreCreateUser_notifiesICar() throws Exception {
+        bindMockICar();
+
+        mHelper.preCreateUsers();
+
+        assertNoICarCallExceptions();
+        verifyICarPreCreateUsersCalled();
     }
 
     @Test
@@ -300,113 +287,14 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testPreCreatedUsersLessThanRequested() throws Exception {
-        // Set existing user
-        expectNoPreCreatedUser();
-        // Set number of requested user
-        setNumberRequestedUsersProperty(1);
-        setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-        SyncAnswer<UserInfo> syncUserInfo = mockPreCreateUser(/* isGuest= */ false);
-
-        mHelperSpy.managePreCreatedUsers();
-        syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
-
-        verifyUserCreated(/* isGuest= */ false);
-    }
-
-    @Test
-    public void testPreCreatedGuestsLessThanRequested() throws Exception {
-        // Set existing user
-        expectNoPreCreatedUser();
-        // Set number of requested user
-        setNumberRequestedUsersProperty(0);
-        setNumberRequestedGuestsProperty(1);
-        mockRunAsync();
-        SyncAnswer<UserInfo> syncUserInfo = mockPreCreateUser(/* isGuest= */ true);
-
-        mHelperSpy.managePreCreatedUsers();
-        syncUserInfo.await(USER_MANAGER_TIMEOUT_MS);
-
-        verifyUserCreated(/* isGuest= */ true);
-    }
-
-    @Test
-    public void testRemovePreCreatedUser() throws Exception {
-        UserInfo user = expectPreCreatedUser(/* isGuest= */ false,
-                /* isInitialized= */ true);
-        setNumberRequestedUsersProperty(0);
-        setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-
-        SyncAnswer<Boolean> syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
-
-        mHelperSpy.managePreCreatedUsers();
-        syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
-
-        verifyUserRemoved(user);
-    }
-
-    @Test
-    public void testRemovePreCreatedGuest() throws Exception {
-        UserInfo user = expectPreCreatedUser(/* isGuest= */ true,
-                /* isInitialized= */ true);
-        setNumberRequestedUsersProperty(0);
-        setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-        SyncAnswer<Boolean>  syncRemoveStatus = mockRemoveUser(PRE_CREATED_GUEST_ID);
-
-        mHelperSpy.managePreCreatedUsers();
-        syncRemoveStatus.await(USER_MANAGER_TIMEOUT_MS);
-
-        verifyUserRemoved(user);
-    }
-
-    @Test
-    public void testRemoveInvalidPreCreatedUser() throws Exception {
-        UserInfo user = expectPreCreatedUser(/* isGuest= */ false,
-                /* isInitialized= */ false);
-        setNumberRequestedUsersProperty(0);
-        setNumberRequestedGuestsProperty(0);
-        mockRunAsync();
-        SyncAnswer<Boolean>  syncRemoveStatus = mockRemoveUser(PRE_CREATED_USER_ID);
-
-        mHelperSpy.managePreCreatedUsers();
-        syncRemoveStatus.await(ADDITIONAL_TIME_MS);
-
-        verifyUserRemoved(user);
-    }
-
-    @Test
-    public void testManagePreCreatedUsersDoNothing() throws Exception {
-        expectPreCreatedUser(/* isGuest= */ false, /* isInitialized= */ true);
-        setNumberRequestedUsersProperty(1);
-        setNumberRequestedGuestsProperty(0);
-        mockPreCreateUser(/* isGuest= */ false);
-        mockRemoveUser(PRE_CREATED_USER_ID);
-
-        mHelperSpy.managePreCreatedUsers();
-
-        verifyPostPreCreatedUserSkipped();
-    }
-
-    @Test
-    public void testManagePreCreatedUsersOnBootCompleted() throws Exception {
-        mockRunAsync();
-
+    public void testPreCreatedUsersOnBootCompleted() throws Exception {
         mHelperSpy.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
-        verifyManagePreCreatedUsers();
+        verifyPreCreatedUsers();
     }
 
-    @Test
-    public void testPreCreateUserExceptionLogged() throws Exception {
-        mockPreCreateUserException();
-        TimingsTraceAndSlog trace = new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
-        mHelperSpy.preCreateUsers(trace, false);
-
-        verifyPostPreCreatedUserException();
-        assertThat(trace.getUnfinishedTracesForDebug()).isEmpty();
+    private void verifyPreCreatedUsers() throws Exception {
+        verify(mHelperSpy).preCreateUsers();
     }
 
 
@@ -491,27 +379,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         SWITCH_MISSING_USER_ID
     }
 
-    private void expectNoPreCreatedUser() throws Exception {
-        when(mUserManager.getUsers(/* excludePartial= */ true,
-                /* excludeDying= */ true, /* excludePreCreated= */ false))
-                .thenReturn(new ArrayList<UserInfo> ());
-    }
-
-    private UserInfo expectPreCreatedUser(boolean isGuest, boolean isInitialized)
-            throws Exception {
-        int userId = isGuest ? PRE_CREATED_GUEST_ID : PRE_CREATED_USER_ID;
-        UserInfo user = new UserInfoBuilder(userId)
-                .setGuest(isGuest)
-                .setPreCreated(true)
-                .setInitialized(isInitialized)
-                .build();
-
-        when(mUserManager.getUsers(/* excludePartial= */ true,
-                /* excludeDying= */ true, /* excludePreCreated= */ false))
-                .thenReturn(Arrays.asList(user));
-        return user;
-    }
-
     private void sleepForHalResponseTimePurposes() {
         sleep("so HAL response time is not 0", 1);
     }
@@ -524,6 +391,10 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyICarStartInitialUserCalled() {
         assertThat(mCarService.startInitialCalled).isTrue();
+    }
+
+    private void verifyICarPreCreateUsersCalled() {
+        assertThat(mCarService.preCreateUsersCalled).isTrue();
     }
 
     private void verifyICarOnUserLifecycleEventCalled(int eventType, long minTimestamp,
@@ -539,64 +410,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
         assertThat(mCarService.isOnUserLifecycleEventCalled).isFalse();
-    }
-
-    private void setNumberRequestedUsersProperty(int numberUser) {
-        doReturn(Optional.of(numberUser)).when(() -> CarProperties.number_pre_created_users());
-    }
-
-    private void setNumberRequestedGuestsProperty(int numberGuest) {
-        doReturn(Optional.of(numberGuest)).when(() -> CarProperties.number_pre_created_guests());
-    }
-
-    private void mockRunAsync() {
-        doAnswer(answerVoid(Runnable::run)).when(mHelperSpy).runAsync(any(Runnable.class));
-    }
-
-    private SyncAnswer<UserInfo> mockPreCreateUser(boolean isGuest) {
-        UserInfo newUser = isGuest ? newGuestUser(PRE_CREATED_GUEST_ID) :
-                newSecondaryUser(PRE_CREATED_USER_ID);
-        SyncAnswer<UserInfo> syncUserInfo = SyncAnswer.forReturn(newUser);
-        when(mUserManager.preCreateUser(getDefaultUserType(isGuest)))
-                .thenAnswer(syncUserInfo);
-
-        return syncUserInfo;
-    }
-
-    private SyncAnswer<Boolean> mockRemoveUser(@UserIdInt int userId) {
-        SyncAnswer<Boolean> syncRemoveStatus = SyncAnswer.forReturn(true);
-        when(mUserManager.removeUser(userId)).thenAnswer(syncRemoveStatus);
-
-        return syncRemoveStatus;
-    }
-
-    private SyncAnswer<UserInfo> mockPreCreateUserException() {
-        SyncAnswer<UserInfo> syncException = SyncAnswer.forException(new Exception());
-        when(mUserManager.preCreateUser(anyString()))
-                .thenAnswer(syncException);
-        return syncException;
-    }
-
-    private void verifyUserCreated(boolean isGuest) throws Exception {
-        String userType =
-                isGuest ? UserManager.USER_TYPE_FULL_GUEST : UserManager.USER_TYPE_FULL_SECONDARY;
-        verify(mUserManager).preCreateUser(eq(userType));
-    }
-
-    private void verifyUserRemoved(UserInfo user) throws Exception {
-        verify(mUserManager).removeUser(user.id);
-    }
-
-    private void verifyPostPreCreatedUserSkipped() throws Exception {
-        verify(mHelperSpy, never()).runAsync(any());
-    }
-
-    private void verifyPostPreCreatedUserException() throws Exception {
-        verify(mHelperSpy).logPrecreationFailure(anyString(), any());
-    }
-
-    private void verifyManagePreCreatedUsers() throws Exception {
-        verify(mHelperSpy).managePreCreatedUsers();
     }
 
     /**
@@ -622,6 +435,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         public boolean startInitialCalled;
 
+        public boolean preCreateUsersCalled;
+
         @Override
         public void onUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
                 @UserIdInt int toId) throws RemoteException {
@@ -636,5 +451,11 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         public void initBootUser() throws RemoteException {
             startInitialCalled = true;
         }
+
+        @Override
+        public void preCreateUsers() throws RemoteException {
+            preCreateUsersCalled = true;
+        }
+
     }
 }

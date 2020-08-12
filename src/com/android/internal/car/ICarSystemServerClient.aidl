@@ -36,4 +36,9 @@ interface ICarSystemServerClient {
      * Notify to init boot user.
      */
     oneway void initBootUser();
+
+    /**
+     * Notify to pre-create users.
+     */
+    oneway void preCreateUsers();
 }
