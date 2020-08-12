@@ -16,12 +16,14 @@
 
 package com.android.internal.car;
 
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
-import static com.android.internal.car.ExternalConstants.CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
 import android.annotation.NonNull;
@@ -32,7 +34,6 @@ import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
 import android.car.userlib.CarUserManagerHelper;
-import android.car.userlib.UserHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -61,9 +62,12 @@ import android.util.Slog;
 import android.util.SparseIntArray;
 import android.util.TimeUtils;
 
+import com.android.car.internal.EventLogTags;
+import com.android.car.internal.ICarServiceHelper;
+import com.android.car.internal.ICarSystemServerClient;
+import com.android.car.internal.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.ExternalConstants.ICarConstants;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
@@ -93,7 +97,9 @@ import java.util.concurrent.Executors;
  * API for CarService. Only for car product.
  */
 public class CarServiceHelperService extends SystemService {
-    // Place holder for user name of the first user created.
+
+    static final String DUMP_SERVICE = "car_service_server";
+
     private static final String TAG = "CarServiceHelper";
 
     // TODO(b/154033860): STOPSHIP if they're still true
@@ -276,7 +282,7 @@ public class CarServiceHelperService extends SystemService {
         mCarWatchdogDaemonHelper.connect();
         Intent intent = new Intent();
         intent.setPackage("com.android.car");
-        intent.setAction(ICarConstants.CAR_SERVICE_INTERFACE);
+        intent.setAction(CAR_SERVICE_INTERFACE);
         if (!mContext.bindServiceAsUser(intent, mCarServiceConnection, Context.BIND_AUTO_CREATE,
                 mHandler, UserHandle.SYSTEM)) {
             Slog.wtf(TAG, "cannot start car service");
@@ -284,7 +290,7 @@ public class CarServiceHelperService extends SystemService {
         loadNativeLibrary();
 
         // Register a binder for dumping CarServiceHelperService state
-        ServiceManager.addService("car_service_server", new Binder() {
+        ServiceManager.addService(DUMP_SERVICE, new Binder() {
             @Override
             protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
                 writer.printf("*Dump car service*\n");
@@ -332,7 +338,7 @@ public class CarServiceHelperService extends SystemService {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKED, userId);
         if (DBG) Slog.d(TAG, "onUserUnlocked(" + user + ")");
 
-        if (mFirstUnlockedUserDuration == 0 && !UserHelper.isHeadlessSystemUser(userId)) {
+        if (mFirstUnlockedUserDuration == 0 && !UserHelperLite.isHeadlessSystemUser(userId)) {
             mFirstUnlockedUserDuration = SystemClock.elapsedRealtime()
                     - Process.getStartElapsedRealtime();
             Slog.i(TAG, "Time to unlock 1st user(" + user + "): "
@@ -538,7 +544,7 @@ public class CarServiceHelperService extends SystemService {
 
     private void sendSetSystemServerConnectionsCall() {
         Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(ICarConstants.CAR_SERVICE_INTERFACE);
+        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
         data.writeStrongBinder(mHelper.asBinder());
         data.writeStrongBinder(mCarServiceConnectedCallback.asBinder());
         IBinder binder;
@@ -878,7 +884,7 @@ public class CarServiceHelperService extends SystemService {
 
             IBinder binder;
             if (resultData == null || (binder =
-                    resultData.getBinder(ICarConstants.ICAR_SYSTEM_SERVER_CLIENT)) == null) {
+                    resultData.getBinder(ICAR_SYSTEM_SERVER_CLIENT)) == null) {
                 Slog.wtf(TAG, "setSystemServerConnections return NULL Binder.");
                 handleCarServiceUnresponsive();
                 return;
