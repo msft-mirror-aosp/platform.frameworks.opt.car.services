@@ -305,10 +305,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private TargetUser newTargetUser(int userId, boolean preCreated) {
         TargetUser targetUser = mock(TargetUser.class);
         when(targetUser.getUserIdentifier()).thenReturn(userId);
-        UserInfo userInfo = new UserInfo();
-        userInfo.id = userId;
-        userInfo.preCreated = preCreated;
-        when(targetUser.getUserInfo()).thenReturn(userInfo);
+        when(targetUser.isPreCreated()).thenReturn(preCreated);
         return targetUser;
     }
 
