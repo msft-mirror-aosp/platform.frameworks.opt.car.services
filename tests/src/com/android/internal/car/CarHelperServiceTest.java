@@ -16,6 +16,13 @@
 
 package com.android.internal.car;
 
+import static com.android.car.internal.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
@@ -44,16 +51,15 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.sysprop.CarProperties;
 import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.internal.car.ExternalConstants.CarUserManagerConstants;
-import com.android.internal.car.ExternalConstants.ICarConstants;
+import com.android.car.internal.ICarSystemServerClient;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
@@ -105,9 +111,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
      */
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session
-                .spyStatic(CarProperties.class)
-                .spyStatic(UserManager.class);
+        session.spyStatic(ServiceManager.class);
     }
 
     @Before
@@ -121,6 +125,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelperSpy = spy(mHelper);
         mCarService = new FakeICarSystemServerClient();
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
+        doNothing().when(
+                () -> ServiceManager.addService(eq(CarServiceHelperService.DUMP_SERVICE), any()));
     }
 
     @Test
@@ -174,8 +180,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
         assertNoICarCallExceptions();
 
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING, before,
                 UserHandle.USER_NULL, userId);
     }
 
@@ -200,8 +205,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 newTargetUser(targetUserId));
 
         assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING, before,
                 currentUserId, targetUserId);
     }
 
@@ -224,8 +228,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, before,
                 UserHandle.USER_NULL, userId);
     }
 
@@ -248,8 +251,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopping(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPING, before,
                 UserHandle.USER_NULL, userId);
     }
 
@@ -272,8 +274,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelper.onUserStopped(newTargetUser(userId));
 
         assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(
-                CarUserManagerConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED, before,
                 UserHandle.USER_NULL, userId);
     }
 
@@ -317,7 +318,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyBindService () throws Exception {
         verify(mMockContext).bindServiceAsUser(
-                argThat(intent -> intent.getAction().equals(ICarConstants.CAR_SERVICE_INTERFACE)),
+                argThat(intent -> intent.getAction().equals(CAR_SERVICE_INTERFACE)),
                 any(), eq(Context.BIND_AUTO_CREATE), any(), eq(UserHandle.SYSTEM));
     }
 
@@ -352,13 +353,13 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                     Log.d(TAG, "Answering txn " + txn);
                     Parcel data = (Parcel) invocation.getArguments()[1];
                     data.setDataPosition(0);
-                    data.enforceInterface(ICarConstants.CAR_SERVICE_INTERFACE);
+                    data.enforceInterface(CAR_SERVICE_INTERFACE);
                     data.readStrongBinder(); // helper
                     IBinder result = data.readStrongBinder();
                     IResultReceiver resultReceiver = IResultReceiver.Stub.asInterface(result);
                     Bundle bundle = new Bundle();
                     IBinder binder = mCarService.asBinder();
-                    bundle.putBinder(ICarConstants.ICAR_SYSTEM_SERVER_CLIENT, binder);
+                    bundle.putBinder(ICAR_SYSTEM_SERVER_CLIENT, binder);
                     resultReceiver.send(1, bundle);
                     return true;
                 });

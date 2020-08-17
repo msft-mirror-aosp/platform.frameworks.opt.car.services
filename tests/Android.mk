@@ -26,12 +26,13 @@ LOCAL_JAVA_LIBRARIES += \
     services
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    android.car.internal.event-log-tags \
     android.car.test.utils \
     android.car.userlib \
     android.car.watchdoglib \
     androidx.test.ext.junit \
     androidx.test.rules \
+    com.android.car.internal.all \
+    com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
     services \
     truth-prebuilt
