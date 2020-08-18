@@ -28,14 +28,13 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
-import static com.google.common.truth.Truth.assertThat;
-
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.UserIdInt;
@@ -45,14 +44,12 @@ import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
-import android.content.pm.UserInfo;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ServiceManager;
-import android.os.SystemClock;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.Log;
@@ -100,6 +97,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
     @Mock
     private IBinder mICarBinder;
+    @Mock
+    private CarServiceProxy mCarServiceProxy;
 
     @Captor
     private ArgumentCaptor<Parcel> mBinderCallData;
@@ -121,7 +120,8 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 mUserManagerHelper,
                 mUserManager,
                 mCarLaunchParamsModifier,
-                mCarWatchdogDaemonHelper);
+                mCarWatchdogDaemonHelper,
+                mCarServiceProxy);
         mHelperSpy = spy(mHelper);
         mCarService = new FakeICarSystemServerClient();
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
@@ -148,26 +148,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         mHelperSpy.handleCarServiceConnection(mICarBinder);
 
         verify(mHelperSpy).handleCarServiceCrash();
-    }
-
-    @Test
-    public void testInitBootUser_notifiesICar() throws Exception {
-        bindMockICar();
-
-        mHelper.initBootUser();
-
-        assertNoICarCallExceptions();
-        verifyICarStartInitialUserCalled();
-    }
-
-    @Test
-    public void testPreCreateUser_notifiesICar() throws Exception {
-        bindMockICar();
-
-        mHelper.preCreateUsers();
-
-        assertNoICarCallExceptions();
-        verifyICarPreCreateUsersCalled();
     }
 
     @Test
@@ -288,16 +268,18 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testPreCreatedUsersOnBootCompleted() throws Exception {
+    public void testOnBootPhase_thirdPartyCanStart_initBootUser() throws Exception {
+        mHelperSpy.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+
+        verifyInitBootUser();
+    }
+
+    @Test
+    public void testOnBootPhase_onBootCompleted_preCreatedUsers() throws Exception {
         mHelperSpy.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verifyPreCreatedUsers();
     }
-
-    private void verifyPreCreatedUsers() throws Exception {
-        verify(mHelperSpy).preCreateUsers();
-    }
-
 
     private TargetUser newTargetUser(int userId) {
         return newTargetUser(userId, /* preCreated= */ false);
@@ -377,37 +359,29 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         SWITCH_MISSING_USER_ID
     }
 
-    private void sleepForHalResponseTimePurposes() {
-        sleep("so HAL response time is not 0", 1);
-    }
-
-    private void sleep(String reason, long napTimeMs) {
-        Log.d(TAG, "Sleeping for " + napTimeMs + "ms: " + reason);
-        SystemClock.sleep(napTimeMs);
-        Log.d(TAG, "Woke up");
-    }
-
-    private void verifyICarStartInitialUserCalled() {
-        assertThat(mCarService.startInitialCalled).isTrue();
-    }
-
-    private void verifyICarPreCreateUsersCalled() {
-        assertThat(mCarService.preCreateUsersCalled).isTrue();
-    }
-
     private void verifyICarOnUserLifecycleEventCalled(int eventType, long minTimestamp,
             @UserIdInt int fromId, @UserIdInt int toId) throws Exception {
-        assertThat(mCarService.isOnUserLifecycleEventCalled).isTrue();
-        assertThat(mCarService.eventTypeForLifeCycleEvent).isEqualTo(eventType);
-        assertThat(mCarService.timeStampForLifeCyleEvent).isGreaterThan(minTimestamp);
-        long now = System.currentTimeMillis();
-        assertThat(mCarService.timeStampForLifeCyleEvent).isLessThan(now);
-        assertThat(mCarService.fromUserForLifeCycelEvent).isEqualTo(fromId);
-        assertThat(mCarService.toUserForLifeCyleEvent).isEqualTo(toId);
+        verify(mCarServiceProxy).sendUserLifecycleEvent(eq(eventType),
+                isTargetUser(fromId), isTargetUser(toId));
     }
 
+    private static TargetUser isTargetUser(@UserIdInt int userId) {
+        return argThat((user) -> {
+            return user == null || user.getUserIdentifier() == userId;
+        });
+    }
+
+
     private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
-        assertThat(mCarService.isOnUserLifecycleEventCalled).isFalse();
+        verify(mCarServiceProxy, never()).sendUserLifecycleEvent(anyInt(), any(), any());
+    }
+
+    private void verifyPreCreatedUsers() throws Exception {
+        verify(mCarServiceProxy).preCreateUsers();
+    }
+
+    private void verifyInitBootUser() throws Exception {
+        verify(mCarServiceProxy).initBootUser();
     }
 
     /**
@@ -424,35 +398,17 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     // TODO(b/162241237): Use mock instead of fake if possible.
     private final class FakeICarSystemServerClient extends ICarSystemServerClient.Stub {
-
-        public boolean isOnUserLifecycleEventCalled;
-        public int eventTypeForLifeCycleEvent;
-        public long timeStampForLifeCyleEvent;
-        public int fromUserForLifeCycelEvent;
-        public int toUserForLifeCyleEvent;
-
-        public boolean startInitialCalled;
-
-        public boolean preCreateUsersCalled;
-
         @Override
         public void onUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
                 @UserIdInt int toId) throws RemoteException {
-            isOnUserLifecycleEventCalled = true;
-            eventTypeForLifeCycleEvent = eventType;
-            timeStampForLifeCyleEvent = timestamp;
-            fromUserForLifeCycelEvent = fromId;
-            toUserForLifeCyleEvent = toId;
         }
 
         @Override
         public void initBootUser() throws RemoteException {
-            startInitialCalled = true;
         }
 
         @Override
         public void preCreateUsers() throws RemoteException {
-            preCreateUsersCalled = true;
         }
 
     }
