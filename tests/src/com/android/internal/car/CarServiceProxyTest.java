@@ -20,8 +20,6 @@ package com.android.internal.car;
 import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import static org.mockito.Mockito.anyInt;
-import static org.mockito.Mockito.anyLong;
-import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -150,11 +148,11 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void verifySendLifecycleEventCalled(int eventType) throws RemoteException {
-        verify(mCarService).onUserLifecycleEvent(eq(eventType), anyLong(),
-                eq(mFromUser.getUserIdentifier()), eq(mToUser.getUserIdentifier()));
+        verify(mCarService).onUserLifecycleEvent(eventType,
+                mFromUser.getUserIdentifier(), mToUser.getUserIdentifier());
     }
 
     private void verifySendLifecycleEventNeverCalled() throws RemoteException {
-        verify(mCarService, never()).onUserLifecycleEvent(anyInt(), anyLong(), anyInt(), anyInt());
+        verify(mCarService, never()).onUserLifecycleEvent(anyInt(), anyInt(), anyInt());
     }
 }
