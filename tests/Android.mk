@@ -23,6 +23,7 @@ LOCAL_PROGUARD_ENABLED := disabled
 LOCAL_JAVA_LIBRARIES += \
     android.test.runner \
     android.test.base \
+    android.hardware.automotive.vehicle-V2.0-java \
     services
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
@@ -34,7 +35,6 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     com.android.car.internal.all \
     com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
-    services \
     testng \
     truth-prebuilt
 
