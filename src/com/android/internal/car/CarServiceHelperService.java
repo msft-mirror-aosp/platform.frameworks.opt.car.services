@@ -130,8 +130,6 @@ public class CarServiceHelperService extends SystemService {
     @GuardedBy("mLock")
     private IBinder mCarServiceBinder;
     @GuardedBy("mLock")
-    private ICarSystemServerClient mCarService;
-    @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
 
     private final CarUserManagerHelper mCarUserManagerHelper;
@@ -150,14 +148,6 @@ public class CarServiceHelperService extends SystemService {
      * End-to-end time (from process start) for unlocking the first non-system user.
      */
     private long mFirstUnlockedUserDuration;
-
-    // TODO(b/150413515): rather than store Runnables, it would be more efficient to store some
-    // parcelables representing the operation, then pass them to setCarServiceHelper
-    @GuardedBy("mLock")
-    private ArrayList<Runnable> mPendingOperations;
-
-    @GuardedBy("mLock")
-    private boolean mCarServiceHasCrashed;
 
     private final CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
     private final ICarWatchdogMonitorImpl mCarWatchdogMonitor = new ICarWatchdogMonitorImpl(this);
@@ -287,16 +277,14 @@ public class CarServiceHelperService extends SystemService {
         ServiceManager.addService(DUMP_SERVICE, new Binder() {
             @Override
             protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-                writer.printf("*Dump car service*\n");
-                writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
-                writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
-                int count = 0;
-                if (mPendingOperations != null) {
-                    count = mPendingOperations.size();
+                if (args == null || args.length == 0) {
+                    writer.printf("* Car service Helper Service *\n");
+                    writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
+                    writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
+                    mCarServiceProxy.dump(writer);
+                } else if ("--user-metrics-only".equals(args[0])) {
+                    mCarServiceProxy.dumpUserMetrics(writer);
                 }
-                writer.printf("mPendingOperations Count=%s\n", count);
-                writer.printf("mCarServiceHasCrashed=%s\n", mCarServiceHasCrashed);
-                mCarServiceProxy.dump(writer, args);
             }
         });
     }
@@ -529,10 +517,6 @@ public class CarServiceHelperService extends SystemService {
         } else {
             Slog.w(TAG, "*** CARHELPER ignoring: " + "CarService crash");
         }
-        synchronized (mLock) {
-            mCarServiceHasCrashed = true;
-            mCarService = null;
-        }
     }
 
     private void handleClientsNotResponding(@NonNull int[] pids) {
@@ -731,12 +715,7 @@ public class CarServiceHelperService extends SystemService {
                 return;
             }
 
-            ICarSystemServerClient carService;
-            synchronized (mLock) {
-
-                carService = ICarSystemServerClient.Stub.asInterface(binder);
-                mCarService = carService;
-            }
+            ICarSystemServerClient carService = ICarSystemServerClient.Stub.asInterface(binder);
             mCarServiceProxy.handleCarServiceConnection(carService);
         }
     }
