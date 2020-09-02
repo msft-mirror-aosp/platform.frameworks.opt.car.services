@@ -399,7 +399,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     // TODO(b/162241237): Use mock instead of fake if possible.
     private final class FakeICarSystemServerClient extends ICarSystemServerClient.Stub {
         @Override
-        public void onUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
+        public void onUserLifecycleEvent(int eventType, @UserIdInt int fromId,
                 @UserIdInt int toId) throws RemoteException {
         }
 
