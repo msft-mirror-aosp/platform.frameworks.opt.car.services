@@ -93,6 +93,7 @@ final class CarServiceProxy {
     private ICarSystemServerClient mCarService;
 
     private final CarServiceHelperService mCarServiceHelperService;
+    private final UserMetrics mUserMetrics = new UserMetrics();
 
     CarServiceProxy(CarServiceHelperService carServiceHelperService) {
         mCarServiceHelperService = carServiceHelperService;
@@ -159,25 +160,25 @@ final class CarServiceProxy {
             Slog.d(TAG, "sendAllLifecyleToUser, user:" + userId + " lifecycle:" + lifecycle);
         }
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_STARTING) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, LIFECYCLE_TIMESTAMP_IGNORE,
-                    UserHandle.USER_NULL, userId);
+            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, UserHandle.USER_NULL,
+                    userId);
         }
 
         if (isCurrentUser && userId != UserHandle.USER_SYSTEM) {
             synchronized (mLock) {
                 sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
-                        LIFECYCLE_TIMESTAMP_IGNORE, mPreviousUserOfLastSwitchedUser, userId);
+                        mPreviousUserOfLastSwitchedUser, userId);
             }
         }
 
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_UNLOCKING) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, LIFECYCLE_TIMESTAMP_IGNORE,
-                    UserHandle.USER_NULL, userId);
+            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, UserHandle.USER_NULL,
+                    userId);
         }
 
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_UNLOCKED) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, LIFECYCLE_TIMESTAMP_IGNORE,
-                    UserHandle.USER_NULL, userId);
+            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, UserHandle.USER_NULL,
+                    userId);
         }
     }
 
@@ -241,6 +242,10 @@ final class CarServiceProxy {
     void sendUserLifecycleEvent(int eventType, @Nullable TargetUser from,
             @NonNull TargetUser to) {
         long now = System.currentTimeMillis();
+        int fromId = from == null ? UserHandle.USER_NULL : from.getUserIdentifier();
+        int toId = to.getUserIdentifier();
+        mUserMetrics.onEvent(eventType, now, fromId, toId);
+
         synchronized (mLock) {
             if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
                 mLastSwitchedUser = to.getUserIdentifier();
@@ -260,26 +265,18 @@ final class CarServiceProxy {
                 return;
             }
         }
-        sendUserLifecycleEvent(eventType, now, from, to);
+        sendUserLifecycleEvent(eventType, fromId, toId);
     }
 
-    private void sendUserLifecycleEvent(int eventType, long timestamp, @Nullable TargetUser from,
-            @NonNull TargetUser to) {
-        int fromId = from == null ? UserHandle.USER_NULL : from.getUserIdentifier();
-        int toId = to.getUserIdentifier();
-        sendUserLifecycleEvent(eventType, timestamp, fromId, toId);
-    }
-
-    private void sendUserLifecycleEvent(int eventType, long timestamp, @UserIdInt int fromId,
-            @UserIdInt int toId) {
+    private void sendUserLifecycleEvent(int eventType, @UserIdInt int fromId, @UserIdInt int toId) {
         if (DBG) {
-            Slog.d(TAG, "sendUserLifecycleEvent():" + " eventType " + eventType + " timestamp "
-                    + timestamp + " fromId " + fromId + " toId " + toId);
+            Slog.d(TAG, "sendUserLifecycleEvent():" + " eventType=" + eventType + ", fromId="
+                    + fromId + ", toId=" + toId);
         }
         try {
             synchronized (mLock) {
                 if (isServiceCrashedLoggedLocked("sendUserLifecycleEvent")) return;
-                mCarService.onUserLifecycleEvent(eventType, timestamp, fromId, toId);
+                mCarService.onUserLifecycleEvent(eventType, fromId, toId);
             }
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from car service", e);
@@ -311,8 +308,7 @@ final class CarServiceProxy {
     /**
      * Dump
      */
-    void dump(PrintWriter writer, String[] args) {
-        // TODO(b/158026653): move User Metrics here.
+    void dump(PrintWriter writer) {
         writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
         writer.printf("mLastUserLifecycle:\n");
         String indent = "    ";
@@ -328,5 +324,14 @@ final class CarServiceProxy {
             writer.printf("%slast user (%s) Lifecycle Event:%s\n", indent,
                     mLastSwitchedUser, lastUserLifecycle);
         }
+
+        dumpUserMetrics(writer);
+    }
+
+    /**
+     * Dump User metrics
+     */
+    void dumpUserMetrics(PrintWriter writer) {
+        mUserMetrics.dump(writer);
     }
 }
