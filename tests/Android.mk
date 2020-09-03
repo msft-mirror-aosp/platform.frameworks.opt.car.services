@@ -35,6 +35,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
     services \
+    testng \
     truth-prebuilt
 
 # mockito-target-extended dependencies
