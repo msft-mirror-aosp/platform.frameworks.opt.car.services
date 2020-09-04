@@ -22,7 +22,6 @@ import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE
 import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
-import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
@@ -45,19 +44,14 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Binder;
-import android.os.Bundle;
 import android.os.IBinder;
-import android.os.Parcel;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.Log;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.car.internal.ICarSystemServerClient;
-import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -65,8 +59,6 @@ import com.android.server.wm.CarLaunchParamsModifier;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
-import org.mockito.ArgumentCaptor;
-import org.mockito.Captor;
 import org.mockito.Mock;
 
 /**
@@ -79,14 +71,11 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private CarServiceHelperService mHelperSpy;
     private CarServiceHelperService mHelper;
-    private FakeICarSystemServerClient mCarService;
 
     @Mock
     private Context mMockContext;
     @Mock
     private PackageManager mPackageManager;
-    @Mock
-    private Context mApplicationContext;
     @Mock
     private CarUserManagerHelper mUserManagerHelper;
     @Mock
@@ -99,11 +88,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private IBinder mICarBinder;
     @Mock
     private CarServiceProxy mCarServiceProxy;
-
-    @Captor
-    private ArgumentCaptor<Parcel> mBinderCallData;
-
-    private Exception mBinderCallException;
 
     /**
      * Initialize objects and setup testing environment.
@@ -123,7 +107,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
                 mCarWatchdogDaemonHelper,
                 mCarServiceProxy);
         mHelperSpy = spy(mHelper);
-        mCarService = new FakeICarSystemServerClient();
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
         doNothing().when(
                 () -> ServiceManager.addService(eq(CarServiceHelperService.DUMP_SERVICE), any()));
@@ -152,22 +135,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnUserStarting_notifiesICar() throws Exception {
-        bindMockICar();
-
         int userId = 10;
-        long before = System.currentTimeMillis();
+
         mHelper.onUserStarting(newTargetUser(userId));
 
-        assertNoICarCallExceptions();
-
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING,
                 UserHandle.USER_NULL, userId);
     }
 
     @Test
     public void testOnUserStarting_preCreatedDoesntNotifyICar() throws Exception {
-        bindMockICar();
-
         mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
@@ -175,24 +152,18 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnUserSwitching_notifiesICar() throws Exception {
-        bindMockICar();
-
         int currentUserId = 10;
         int targetUserId = 11;
-        long before = System.currentTimeMillis();
 
         mHelper.onUserSwitching(newTargetUser(currentUserId),
                 newTargetUser(targetUserId));
 
-        assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 currentUserId, targetUserId);
     }
 
     @Test
     public void testOnUserSwitching_preCreatedDoesntNotifyICar() throws Exception {
-        bindMockICar();
-
         mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
@@ -200,22 +171,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnUserUnlocking_notifiesICar() throws Exception {
-        bindMockICar();
-
         int userId = 10;
-        long before = System.currentTimeMillis();
 
         mHelper.onUserUnlocking(newTargetUser(userId));
 
-        assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
                 UserHandle.USER_NULL, userId);
     }
 
     @Test
     public void testOnUserUnlocking_preCreatedDoesntNotifyICar() throws Exception {
-        bindMockICar();
-
         mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
@@ -223,22 +188,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnUserStopping_notifiesICar() throws Exception {
-        bindMockICar();
-
         int userId = 10;
-        long before = System.currentTimeMillis();
 
         mHelper.onUserStopping(newTargetUser(userId));
 
-        assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPING, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPING,
                 UserHandle.USER_NULL, userId);
     }
 
     @Test
     public void testOnUserStopping_preCreatedDoesntNotifyICar() throws Exception {
-        bindMockICar();
-
         mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
@@ -246,22 +205,16 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnUserStopped_notifiesICar() throws Exception {
-        bindMockICar();
-
         int userId = 10;
-        long before = System.currentTimeMillis();
 
         mHelper.onUserStopped(newTargetUser(userId));
 
-        assertNoICarCallExceptions();
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED, before,
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED,
                 UserHandle.USER_NULL, userId);
     }
 
     @Test
     public void testOnUserStopped_preCreatedDoesntNotifyICar() throws Exception {
-        bindMockICar();
-
         mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
 
         verifyICarOnUserLifecycleEventNeverCalled();
@@ -269,14 +222,14 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testOnBootPhase_thirdPartyCanStart_initBootUser() throws Exception {
-        mHelperSpy.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
+        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyInitBootUser();
     }
 
     @Test
     public void testOnBootPhase_onBootCompleted_preCreatedUsers() throws Exception {
-        mHelperSpy.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
+        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
 
         verifyPreCreatedUsers();
     }
@@ -290,12 +243,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         when(targetUser.getUserIdentifier()).thenReturn(userId);
         when(targetUser.isPreCreated()).thenReturn(preCreated);
         return targetUser;
-    }
-
-    private void bindMockICar() throws Exception {
-        // Must set the binder expectation, otherwise checks for other transactions would fail
-        expectSetSystemServerConnections();
-        mHelper.handleCarServiceConnection(mICarBinder);
     }
 
     private void verifyBindService () throws Exception {
@@ -328,25 +275,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         doNothing().when(mHelperSpy).handleCarServiceCrash();
     }
 
-    private void expectSetSystemServerConnections() throws Exception {
-        int txn = IBinder.FIRST_CALL_TRANSACTION;
-        when(mICarBinder.transact(eq(txn), notNull(), isNull(), eq(Binder.FLAG_ONEWAY)))
-                .thenAnswer((invocation) -> {
-                    Log.d(TAG, "Answering txn " + txn);
-                    Parcel data = (Parcel) invocation.getArguments()[1];
-                    data.setDataPosition(0);
-                    data.enforceInterface(CAR_SERVICE_INTERFACE);
-                    data.readStrongBinder(); // helper
-                    IBinder result = data.readStrongBinder();
-                    IResultReceiver resultReceiver = IResultReceiver.Stub.asInterface(result);
-                    Bundle bundle = new Bundle();
-                    IBinder binder = mCarService.asBinder();
-                    bundle.putBinder(ICAR_SYSTEM_SERVER_CLIENT, binder);
-                    resultReceiver.send(1, bundle);
-                    return true;
-                });
-    }
-
     enum InitialUserInfoAction {
         DEFAULT,
         DEFAULT_WITH_LOCALE,
@@ -359,7 +287,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         SWITCH_MISSING_USER_ID
     }
 
-    private void verifyICarOnUserLifecycleEventCalled(int eventType, long minTimestamp,
+    private void verifyICarOnUserLifecycleEventCalled(int eventType,
             @UserIdInt int fromId, @UserIdInt int toId) throws Exception {
         verify(mCarServiceProxy).sendUserLifecycleEvent(eq(eventType),
                 isTargetUser(fromId), isTargetUser(toId));
@@ -371,7 +299,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         });
     }
 
-
     private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
         verify(mCarServiceProxy, never()).sendUserLifecycleEvent(anyInt(), any(), any());
     }
@@ -382,34 +309,5 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyInitBootUser() throws Exception {
         verify(mCarServiceProxy).initBootUser();
-    }
-
-    /**
-     * Asserts that no exception was thrown when answering to a mocked {@code ICar} binder call.
-     * <p>
-     * This method should be called before asserting the expected results of a test, so it makes
-     * clear why the test failed when the call was not made as expected.
-     */
-    private void assertNoICarCallExceptions() throws Exception {
-        if (mBinderCallException != null)
-            throw mBinderCallException;
-
-    }
-
-    // TODO(b/162241237): Use mock instead of fake if possible.
-    private final class FakeICarSystemServerClient extends ICarSystemServerClient.Stub {
-        @Override
-        public void onUserLifecycleEvent(int eventType, @UserIdInt int fromId,
-                @UserIdInt int toId) throws RemoteException {
-        }
-
-        @Override
-        public void initBootUser() throws RemoteException {
-        }
-
-        @Override
-        public void preCreateUsers() throws RemoteException {
-        }
-
     }
 }
