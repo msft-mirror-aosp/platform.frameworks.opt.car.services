@@ -1,13 +1,15 @@
 java_library {
     name: "car-frameworks-service",
     installable: true,
-    libs: ["services"],
+    libs: [
+        "services",
+        "android.hardware.automotive.vehicle-V2.0-java",
+    ],
     required: ["libcar-framework-service-jni"],
     srcs: [
         "src/**/*.java",
     ],
     static_libs: [
-        "android.hardware.automotive.vehicle-V2.0-java",
         "android.car.userlib",
         "android.car.watchdoglib",
         "com.android.car.internal.all",
