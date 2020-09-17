@@ -4,6 +4,8 @@ java_library {
     libs: [
         "services",
         "android.hardware.automotive.vehicle-V2.0-java",
+        "android.car.constants",
+        "com.android.car.internal.all",
     ],
     required: ["libcar-framework-service-jni"],
     srcs: [
@@ -12,7 +14,6 @@ java_library {
     static_libs: [
         "android.car.userlib",
         "android.car.watchdoglib",
-        "com.android.car.internal.all",
         "com.android.car.internal.system",
         "carwatchdog_aidl_interface-java",
     ],
