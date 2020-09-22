@@ -4,6 +4,7 @@ java_library {
     libs: [
         "services",
         "android.hardware.automotive.vehicle-V2.0-java",
+        "android.car.internal.event-log-tags",
     ],
     required: ["libcar-framework-service-jni"],
     srcs: [
@@ -11,7 +12,6 @@ java_library {
         "src/com/android/internal/car/ICarServiceHelper.aidl",
     ],
     static_libs: [
-        "android.car.internal.event-log-tags",
         "android.car.userlib",
         "android.car.watchdoglib",
         "carwatchdog_aidl_interface-java",
