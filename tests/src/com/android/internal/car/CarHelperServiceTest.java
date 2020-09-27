@@ -16,12 +16,13 @@
 
 package com.android.internal.car;
 
-import static com.android.car.internal.CommonConstants.CAR_SERVICE_INTERFACE;
-import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
-import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
-import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
-import static com.android.car.internal.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static android.car.constants.CommonConstants.CAR_SERVICE_INTERFACE;
+import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doNothing;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
