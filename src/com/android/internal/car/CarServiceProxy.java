@@ -16,12 +16,12 @@
 
 package com.android.internal.car;
 
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
