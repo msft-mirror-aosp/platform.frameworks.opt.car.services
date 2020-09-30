@@ -38,7 +38,6 @@ import static org.mockito.Mockito.spy;
 
 import android.annotation.UserIdInt;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
-import android.car.userlib.CarUserManagerHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.Intent;
@@ -77,8 +76,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     @Mock
     private PackageManager mPackageManager;
     @Mock
-    private CarUserManagerHelper mUserManagerHelper;
-    @Mock
     private UserManager mUserManager;
     @Mock
     private CarLaunchParamsModifier mCarLaunchParamsModifier;
@@ -101,7 +98,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     public void setUpMocks() {
         mHelper = new CarServiceHelperService(
                 mMockContext,
-                mUserManagerHelper,
                 mUserManager,
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
