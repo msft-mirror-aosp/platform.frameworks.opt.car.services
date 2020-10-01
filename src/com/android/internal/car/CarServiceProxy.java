@@ -34,6 +34,7 @@ import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
 
 import com.android.car.internal.ICarSystemServerClient;
+import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.TimingsTraceAndSlog;
@@ -238,8 +239,7 @@ final class CarServiceProxy {
     /**
      * Sends user life-cycle events to CarService.
      */
-    // TODO (b/158026653): add @UserLifecycleEventType for eventType
-    void sendUserLifecycleEvent(int eventType, @Nullable TargetUser from,
+    void sendUserLifecycleEvent(@UserLifecycleEventType int eventType, @Nullable TargetUser from,
             @NonNull TargetUser to) {
         long now = System.currentTimeMillis();
         int fromId = from == null ? UserHandle.USER_NULL : from.getUserIdentifier();
@@ -268,7 +268,8 @@ final class CarServiceProxy {
         sendUserLifecycleEvent(eventType, fromId, toId);
     }
 
-    private void sendUserLifecycleEvent(int eventType, @UserIdInt int fromId, @UserIdInt int toId) {
+    private void sendUserLifecycleEvent(@UserLifecycleEventType int eventType,
+            @UserIdInt int fromId, @UserIdInt int toId) {
         if (DBG) {
             Slog.d(TAG, "sendUserLifecycleEvent():" + " eventType=" + eventType + ", fromId="
                     + fromId + ", toId=" + toId);
