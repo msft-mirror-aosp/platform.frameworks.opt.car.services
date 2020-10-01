@@ -33,7 +33,6 @@ import android.app.admin.DevicePolicyManager;
 import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
-import android.car.userlib.CarUserManagerHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -132,7 +131,6 @@ public class CarServiceHelperService extends SystemService {
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
 
-    private final CarUserManagerHelper mCarUserManagerHelper;
     private final UserManager mUserManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
@@ -199,7 +197,6 @@ public class CarServiceHelperService extends SystemService {
 
     public CarServiceHelperService(Context context) {
         this(context,
-                new CarUserManagerHelper(context),
                 UserManager.get(context),
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
@@ -210,7 +207,6 @@ public class CarServiceHelperService extends SystemService {
     @VisibleForTesting
     CarServiceHelperService(
             Context context,
-            CarUserManagerHelper userManagerHelper,
             UserManager userManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
@@ -219,7 +215,6 @@ public class CarServiceHelperService extends SystemService {
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mCarUserManagerHelper = userManagerHelper;
         mUserManager = userManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;

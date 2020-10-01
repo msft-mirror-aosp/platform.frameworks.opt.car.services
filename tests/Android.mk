@@ -29,7 +29,6 @@ LOCAL_JAVA_LIBRARIES += \
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
     android.car.test.utils \
-    android.car.userlib \
     android.car.watchdoglib \
     androidx.test.ext.junit \
     androidx.test.rules \
