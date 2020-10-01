@@ -16,15 +16,14 @@
 
 package com.android.internal.car;
 
-import static android.car.constants.CommonConstants.CAR_SERVICE_INTERFACE;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
-import static android.car.constants.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
-
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
+import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
 import android.annotation.NonNull;
@@ -61,10 +60,10 @@ import android.util.EventLog;
 import android.util.Slog;
 import android.util.TimeUtils;
 
-import com.android.car.internal.EventLogTags;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
-import com.android.car.internal.UserHelperLite;
+import com.android.car.internal.common.EventLogTags;
+import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.IResultReceiver;

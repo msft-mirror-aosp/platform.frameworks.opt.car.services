@@ -4,8 +4,7 @@ java_library {
     libs: [
         "services",
         "android.hardware.automotive.vehicle-V2.0-java",
-        "android.car.constants",
-        "com.android.car.internal.all",
+        "com.android.car.internal.common",
     ],
     required: ["libcar-framework-service-jni"],
     srcs: [
