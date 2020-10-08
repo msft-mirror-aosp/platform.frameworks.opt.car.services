@@ -61,6 +61,7 @@ import android.util.TimeUtils;
 
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
+import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.EventLogTags;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
@@ -357,7 +358,7 @@ public class CarServiceHelperService extends SystemService {
         System.loadLibrary("car-framework-service-jni");
     }
 
-    private boolean isPreCreated(@NonNull TargetUser user, int eventType) {
+    private boolean isPreCreated(@NonNull TargetUser user, @UserLifecycleEventType int eventType) {
         if (!user.isPreCreated()) return false;
 
         if (DBG) {
@@ -438,7 +439,8 @@ public class CarServiceHelperService extends SystemService {
         }
     }
 
-    private void sendUserLifecycleEvent(int eventType, @NonNull TargetUser user) {
+    private void sendUserLifecycleEvent(@UserLifecycleEventType int eventType,
+            @NonNull TargetUser user) {
         mCarServiceProxy.sendUserLifecycleEvent(eventType, /* from= */ null, user);
     }
 

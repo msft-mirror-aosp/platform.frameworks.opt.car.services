@@ -31,6 +31,7 @@ import android.util.Slog;
 import android.util.SparseArray;
 import android.util.TimeUtils;
 
+import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -80,8 +81,7 @@ final class UserMetrics {
     /**
      * Logs a user lifecycle event.
      */
-    // TODO (b/158026653): add @UserLifecycleEventType for eventType
-    public void onEvent(int eventType, long timestampMs,
+    public void onEvent(@UserLifecycleEventType int eventType, long timestampMs,
             @UserIdInt int fromUserId, @UserIdInt int toUserId) {
         synchronized (mLock) {
             switch(eventType) {
@@ -104,7 +104,6 @@ final class UserMetrics {
                     onUserStoppedEventLocked(timestampMs, toUserId);
                     return;
                 default:
-                    // TODO(b/158026653):use lifecycleEventTypeToString from CarUserManager
                     Slog.w(TAG, "Invalid event: " + eventType);
             }
         }
