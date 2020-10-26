@@ -29,6 +29,7 @@ import android.annotation.UserIdInt;
 import android.os.RemoteException;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.util.IndentingPrintWriter;
 import android.util.Slog;
 import android.util.SparseBooleanArray;
 import android.util.SparseIntArray;
@@ -38,8 +39,6 @@ import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.internal.annotations.GuardedBy;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.TimingsTraceAndSlog;
-
-import java.io.PrintWriter;
 
 /**
  * Manages CarService operations requested by CarServiceHelperService.
@@ -309,30 +308,30 @@ final class CarServiceProxy {
     /**
      * Dump
      */
-    void dump(PrintWriter writer) {
+    void dump(IndentingPrintWriter writer) {
         writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
         writer.printf("mLastUserLifecycle:\n");
-        String indent = "    ";
+        writer.increaseIndent();
         int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
         if (user0Lifecycle != 0) {
-            writer.printf("%sSystemUser Lifecycle Event:%s\n", indent, user0Lifecycle);
+            writer.printf("SystemUser Lifecycle Event:%s\n", user0Lifecycle);
         } else {
-            writer.printf("%sSystemUser not initialized\n", indent);
+            writer.println("SystemUser not initialized");
         }
 
         int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
         if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
-            writer.printf("%slast user (%s) Lifecycle Event:%s\n", indent,
+            writer.printf("last user (%s) Lifecycle Event:%s\n",
                     mLastSwitchedUser, lastUserLifecycle);
         }
-
+        writer.decreaseIndent();
         dumpUserMetrics(writer);
     }
 
     /**
      * Dump User metrics
      */
-    void dumpUserMetrics(PrintWriter writer) {
+    void dumpUserMetrics(IndentingPrintWriter writer) {
         mUserMetrics.dump(writer);
     }
 }
