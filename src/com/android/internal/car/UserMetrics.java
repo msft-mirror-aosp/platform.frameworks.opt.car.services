@@ -26,6 +26,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.util.IndentingPrintWriter;
 import android.util.LocalLog;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -229,7 +230,7 @@ final class UserMetrics {
     /**
      * Dumps its contents.
      */
-    public void dump(@NonNull PrintWriter pw) {
+    public void dump(@NonNull IndentingPrintWriter pw) {
         pw.println("* User Metrics *");
         synchronized (mLock) {
 
@@ -246,20 +247,24 @@ final class UserMetrics {
         }
     }
 
-    private void dump(@NonNull PrintWriter pw, @NonNull String message,
+    private void dump(@NonNull IndentingPrintWriter pw, @NonNull String message,
             @NonNull SparseArray<? extends BaseUserMetric> metrics) {
-        String indent = "  ";
-        if (metrics == null) {
-            pw.printf("%sno users %s\n", indent, message);
-            return;
-        }
-        int size = metrics.size();
-        pw.printf("%d users %s\n", size, message);
-        for (int i = 0; i < size; i++) {
-            BaseUserMetric metric = metrics.valueAt(i);
-            pw.printf("%s%d: ", indent, i);
-            metric.dump(pw);
-            pw.println();
+        pw.increaseIndent();
+        try {
+            if (metrics == null) {
+                pw.printf("no users %s\n", message);
+                return;
+            }
+            int size = metrics.size();
+            pw.printf("%d users %s\n", size, message);
+            for (int i = 0; i < size; i++) {
+                BaseUserMetric metric = metrics.valueAt(i);
+                pw.printf("%d: ", i);
+                metric.dump(pw);
+                pw.println();
+            }
+        } finally {
+            pw.decreaseIndent();
         }
     }
 
@@ -274,12 +279,14 @@ final class UserMetrics {
         public String toString() {
             StringWriter sw = new StringWriter();
             PrintWriter pw = new PrintWriter(sw);
-            dump(pw);
+            try (IndentingPrintWriter ipw = new IndentingPrintWriter(pw, "  ")) {
+                dump(ipw);
+            }
             pw.flush();
             return sw.toString();
         }
 
-        abstract void dump(@NonNull PrintWriter pw);
+        abstract void dump(@NonNull IndentingPrintWriter pw);
     }
 
     @VisibleForTesting
@@ -296,7 +303,7 @@ final class UserMetrics {
         }
 
         @Override
-        public void dump(@NonNull PrintWriter pw) {
+        public void dump(@NonNull IndentingPrintWriter pw) {
             pw.printf("user=%d start=", userId);
             TimeUtils.dumpTime(pw, startTime);
 
@@ -334,7 +341,7 @@ final class UserMetrics {
         }
 
         @Override
-        public void dump(@NonNull PrintWriter pw) {
+        public void dump(@NonNull IndentingPrintWriter pw) {
             pw.printf("user=%d stop=", userId);
             TimeUtils.dumpTime(pw, stopTime);
 
