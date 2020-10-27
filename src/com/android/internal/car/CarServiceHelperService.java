@@ -49,13 +49,13 @@ import android.os.IBinder;
 import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
-import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.EventLog;
+import android.util.IndentingPrintWriter;
 import android.util.Slog;
 import android.util.TimeUtils;
 
@@ -67,6 +67,7 @@ import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.IResultReceiver;
+import com.android.server.Dumpable;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
@@ -75,10 +76,8 @@ import com.android.server.wm.CarLaunchParamsModifier;
 
 import java.io.BufferedReader;
 import java.io.File;
-import java.io.FileDescriptor;
 import java.io.FileReader;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -94,7 +93,7 @@ import java.util.concurrent.Executors;
  * System service side companion service for CarService. Starts car service and provide necessary
  * API for CarService. Only for car product.
  */
-public class CarServiceHelperService extends SystemService {
+public class CarServiceHelperService extends SystemService implements Dumpable {
 
     @VisibleForTesting
     static final String DUMP_SERVICE = "car_service_server";
@@ -268,21 +267,29 @@ public class CarServiceHelperService extends SystemService {
             Slog.wtf(TAG, "cannot start car service");
         }
         loadNativeLibrary();
+    }
 
-        // Register a binder for dumping CarServiceHelperService state
-        ServiceManager.addService(DUMP_SERVICE, new Binder() {
-            @Override
-            protected void dump(FileDescriptor fd, PrintWriter writer, String[] args) {
-                if (args == null || args.length == 0) {
-                    writer.printf("* Car service Helper Service *\n");
-                    writer.printf("mSystemBootCompleted=%s\n", mSystemBootCompleted);
-                    writer.printf("mFirstUnlockedUserDuration=%s\n", mFirstUnlockedUserDuration);
-                    mCarServiceProxy.dump(writer);
-                } else if ("--user-metrics-only".equals(args[0])) {
-                    mCarServiceProxy.dumpUserMetrics(writer);
-                }
-            }
-        });
+    @Override
+    public void dump(IndentingPrintWriter pw, String[] args) {
+        if (args == null || args.length == 0 || args[0].equals("-a")) {
+            pw.printf("System boot completed: %b\n", mSystemBootCompleted);
+            pw.print("First unlocked user duration: ");
+            TimeUtils.formatDuration(mFirstUnlockedUserDuration, pw); pw.println();
+            pw.printf("Queued tasks: %d\n", mProcessTerminator.mQueuedTask);
+            mCarServiceProxy.dump(pw);
+            return;
+        }
+
+        if ("--user-metrics-only".equals(args[0])) {
+            mCarServiceProxy.dumpUserMetrics(pw);
+            return;
+        }
+        pw.printf("Invalid args: %s\n", Arrays.toString(args));
+    }
+
+    @Override
+    public String getDumpableName() {
+        return "CarServiceHelper";
     }
 
     @Override
