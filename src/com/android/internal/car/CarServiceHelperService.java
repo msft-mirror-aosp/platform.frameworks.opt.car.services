@@ -33,9 +33,9 @@ import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.app.admin.UnsafeStateException;
-import android.automotive.watchdog.ICarWatchdogMonitor;
-import android.automotive.watchdog.PowerCycle;
-import android.automotive.watchdog.StateType;
+import android.automotive.watchdog.internal.ICarWatchdogMonitor;
+import android.automotive.watchdog.internal.PowerCycle;
+import android.automotive.watchdog.internal.StateType;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -634,16 +634,6 @@ public class CarServiceHelperService extends SystemService
                 return;
             }
             service.handleClientsNotResponding(pids);
-        }
-
-        @Override
-        public int getInterfaceVersion() {
-            return this.VERSION;
-        }
-
-        @Override
-        public String getInterfaceHash() {
-            return this.HASH;
         }
     }
 
