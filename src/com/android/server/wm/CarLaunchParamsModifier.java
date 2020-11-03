@@ -310,6 +310,13 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                             mSourcePreferredComponents, activity.info.getComponentName()) >= 0)) {
                 targetDisplayArea = source.noDisplay ? source.mHandoverTaskDisplayArea
                         : source.getDisplayArea();
+            } else if (originalDisplayArea == null
+                    && source != null && !source.getDisplayContent().isTrusted()
+                    && ((activity.info.flags & ActivityInfo.FLAG_ALLOW_EMBEDDED) == 0)) {
+                if (DBG) {
+                    Slog.d(TAG, "Disallow launch on virtual display for not-embedded activity.");
+                }
+                targetDisplayArea = getDefaultTaskDisplayAreaOnDisplay(Display.DEFAULT_DISPLAY);
             }
             if (userId == mCurrentDriverUser) {
                 // Respect the existing DisplayArea.
