@@ -30,6 +30,9 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.admin.DevicePolicyManager;
+import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
+import android.app.admin.DevicePolicySafetyChecker;
+import android.app.admin.UnsafeStateException;
 import android.automotive.watchdog.ICarWatchdogMonitor;
 import android.automotive.watchdog.PowerCycle;
 import android.automotive.watchdog.StateType;
@@ -93,7 +96,8 @@ import java.util.concurrent.Executors;
  * System service side companion service for CarService. Starts car service and provide necessary
  * API for CarService. Only for car product.
  */
-public class CarServiceHelperService extends SystemService implements Dumpable {
+public class CarServiceHelperService extends SystemService
+        implements Dumpable, DevicePolicySafetyChecker {
 
     @VisibleForTesting
     static final String DUMP_SERVICE = "car_service_server";
@@ -195,6 +199,9 @@ public class CarServiceHelperService extends SystemService implements Dumpable {
         }
     };
 
+    private final CarDevicePolicySafetyChecker mDevicePolicySafetyChecker =
+            new CarDevicePolicySafetyChecker();
+
     public CarServiceHelperService(Context context) {
         this(context,
                 UserManager.get(context),
@@ -277,6 +284,7 @@ public class CarServiceHelperService extends SystemService implements Dumpable {
             TimeUtils.formatDuration(mFirstUnlockedUserDuration, pw); pw.println();
             pw.printf("Queued tasks: %d\n", mProcessTerminator.mQueuedTask);
             mCarServiceProxy.dump(pw);
+            mDevicePolicySafetyChecker.dump(pw);
             return;
         }
 
@@ -284,6 +292,19 @@ public class CarServiceHelperService extends SystemService implements Dumpable {
             mCarServiceProxy.dumpUserMetrics(pw);
             return;
         }
+
+        // TODO(b/172376923): temporary commands until CarDevicePolicySafetyChecker is properly
+        // integrated with CarUxRestrictionsManagerService
+        if ("--drive".equals(args[0])) {
+            pw.println("Changing safe to false");
+            mDevicePolicySafetyChecker.setSafe(false);
+            return;
+        } else if ("--park".equals(args[0])) {
+            pw.println("Changing safe to false");
+            mDevicePolicySafetyChecker.setSafe(true);
+            return;
+        }
+
         pw.printf("Invalid args: %s\n", Arrays.toString(args));
     }
 
@@ -358,6 +379,16 @@ public class CarServiceHelperService extends SystemService implements Dumpable {
                 from, to);
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
+    }
+
+    @Override // from SafetyChecker
+    public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
+        return mDevicePolicySafetyChecker.isDevicePolicyOperationSafe(operation);
+    }
+
+    @Override
+    public UnsafeStateException newUnsafeStateException(@DevicePolicyOperation int operation) {
+        return mDevicePolicySafetyChecker.newUnsafeStateException(operation);
     }
 
     @VisibleForTesting
