@@ -22,8 +22,7 @@ LOCAL_PROGUARD_ENABLED := disabled
 
 LOCAL_JAVA_LIBRARIES += \
     android.test.runner \
-    android.test.base \
-    services
+    android.test.base
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
     android.car.internal.event-log-tags \
@@ -33,7 +32,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     androidx.test.ext.junit \
     androidx.test.rules \
     mockito-target-extended-minus-junit4 \
-    services \
+    services.core \
     truth-prebuilt
 
 # mockito-target-extended dependencies
