@@ -24,8 +24,7 @@ LOCAL_JAVA_LIBRARIES += \
     android.test.runner \
     android.test.base \
     android.hardware.automotive.vehicle-V2.0-java \
-    com.android.car.internal.common \
-    services
+    com.android.car.internal.common
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
     android.car.test.utils \
@@ -34,6 +33,7 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     androidx.test.rules \
     com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
+    services.core \
     testng \
     truth-prebuilt
 
