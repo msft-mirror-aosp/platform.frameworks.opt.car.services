@@ -28,15 +28,12 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
 
     private static final String TAG = CarDevicePolicySafetyChecker.class.getSimpleName();
 
-    // TODO(b/172376923): STOPSHIP if it's not false
-    private static final boolean DEBUG = true;
+    private static final boolean DEBUG = false;
 
     private boolean mSafe = true;
 
     @Override
     public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
-        // TODO(b/172376923): add unit test once it's integrated with
-        // CarUxRestrictionsManagerService
         // TODO(b/172376923): use a lookup table as not all operations need to be checked
         boolean safe = mSafe;
         if (DEBUG) {
@@ -45,11 +42,9 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
         return safe;
     }
 
-    // TODO(b/172376923): override getUnsafeStateException to showerror message explaining how to
+    // TODO(b/172376923): override getUnsafeStateException to show error message explaining how to
     // wrap it under CarDevicePolicyManager
 
-    // TODO(b/172376923): temporary method until it's properly integrated with
-    // CarUxRestrictionsManagerService
     void setSafe(boolean safe) {
         Slog.i(TAG, "Setting safe to " + safe);
         mSafe = safe;
