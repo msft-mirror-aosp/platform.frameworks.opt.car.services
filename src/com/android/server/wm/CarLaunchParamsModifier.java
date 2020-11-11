@@ -311,6 +311,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 targetDisplayArea = source.noDisplay ? source.mHandoverTaskDisplayArea
                         : source.getDisplayArea();
             } else if (originalDisplayArea == null
+                    && task == null  // launching as a new task
                     && source != null && !source.getDisplayContent().isTrusted()
                     && ((activity.info.flags & ActivityInfo.FLAG_ALLOW_EMBEDDED) == 0)) {
                 if (DBG) {
