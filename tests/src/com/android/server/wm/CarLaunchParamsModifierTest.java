@@ -166,15 +166,15 @@ public class CarLaunchParamsModifierTest {
                 mColorDisplayServiceInternal);
         when(mActivityOptions.getLaunchDisplayId()).thenReturn(INVALID_DISPLAY);
         mockDisplay(mDisplay0ForDriver, mDisplayArea0ForDriver, DEFAULT_DISPLAY,
-                FLAG_TRUSTED, /* type */ 0);
+                FLAG_TRUSTED, /* type= */ 0);
         mockDisplay(mDisplay10ForPassenger, mDisplayArea10ForPassenger, PASSENGER_DISPLAY_ID_10,
-                FLAG_TRUSTED, /* type */ 0);
+                FLAG_TRUSTED, /* type= */ 0);
         mockDisplay(mDisplay11ForPassenger, mDisplayArea11ForPassenger, PASSENGER_DISPLAY_ID_11,
-                FLAG_TRUSTED, /* type */ 0);
+                FLAG_TRUSTED, /* type= */ 0);
         mockDisplay(mDisplay1Private, mDisplayArea1Private, 1,
-                FLAG_TRUSTED | FLAG_PRIVATE, /* type */ 0);
+                FLAG_TRUSTED | FLAG_PRIVATE, /* type= */ 0);
         mockDisplay(mDisplay2Virtual, mDisplayArea2Virtual, VIRTUAL_DISPLAY_ID_2,
-                /* no-trusted */ FLAG_PRIVATE, /* type */ 0);
+                FLAG_PRIVATE, /* type= */ 0);
         DisplayContent defaultDc = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
         when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDc);
 
@@ -214,7 +214,9 @@ public class CarLaunchParamsModifierTest {
 
     private void assertDisplayIsAssigned(
             @UserIdInt int userId, TaskDisplayArea expectedDisplayArea) {
-        mTask.mUserId = userId;
+        if (mTask != null) {
+            mTask.mUserId = userId;
+        }
         mCurrentParams.mPreferredTaskDisplayArea = null;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, 0, mCurrentParams, mOutParams))
@@ -523,11 +525,24 @@ public class CarLaunchParamsModifierTest {
     }
 
     @Test
-    public void testNonEmbeddedActivityMoviesToDefaultDisplay() {
+    public void testNonEmbeddedActivityWithExistingTaskDoesNotChangeDisplay() {
         // The launch request comes from the Activity in Virtual display.
         DisplayContent dc = mRootWindowContainer.getDisplayContentOrCreate(VIRTUAL_DISPLAY_ID_2);
         when(mActivityRecordSource.getDisplayContent()).thenReturn(dc);
         mActivityRecordActivity = buildActivityRecord("testPackage", "testActivity");
+        // No setting of FLAG_ALLOW_EMBEDDED and mTask.
+
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testNonEmbeddedActivityWithNewTaskMoviesToDefaultDisplay() {
+        // The launch request comes from the Activity in Virtual display.
+        DisplayContent dc = mRootWindowContainer.getDisplayContentOrCreate(VIRTUAL_DISPLAY_ID_2);
+        when(mActivityRecordSource.getDisplayContent()).thenReturn(dc);
+        mActivityRecordActivity = buildActivityRecord("testPackage", "testActivity");
+        // No setting of FLAG_ALLOW_EMBEDDED.
+        mTask = null;  // ATM will assign 'null' to 'task' argument for new task case.
 
         assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
     }
