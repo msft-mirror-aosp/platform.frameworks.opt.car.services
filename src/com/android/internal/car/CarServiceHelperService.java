@@ -199,7 +199,7 @@ public class CarServiceHelperService extends SystemService
         }
     };
 
-    private final CarDevicePolicySafetyChecker mDevicePolicySafetyChecker =
+    private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker =
             new CarDevicePolicySafetyChecker();
 
     public CarServiceHelperService(Context context) {
@@ -284,24 +284,12 @@ public class CarServiceHelperService extends SystemService
             TimeUtils.formatDuration(mFirstUnlockedUserDuration, pw); pw.println();
             pw.printf("Queued tasks: %d\n", mProcessTerminator.mQueuedTask);
             mCarServiceProxy.dump(pw);
-            mDevicePolicySafetyChecker.dump(pw);
+            mCarDevicePolicySafetyChecker.dump(pw);
             return;
         }
 
         if ("--user-metrics-only".equals(args[0])) {
             mCarServiceProxy.dumpUserMetrics(pw);
-            return;
-        }
-
-        // TODO(b/172376923): temporary commands until CarDevicePolicySafetyChecker is properly
-        // integrated with CarUxRestrictionsManagerService
-        if ("--drive".equals(args[0])) {
-            pw.println("Changing safe to false");
-            mDevicePolicySafetyChecker.setSafe(false);
-            return;
-        } else if ("--park".equals(args[0])) {
-            pw.println("Changing safe to false");
-            mDevicePolicySafetyChecker.setSafe(true);
             return;
         }
 
@@ -383,12 +371,12 @@ public class CarServiceHelperService extends SystemService
 
     @Override // from SafetyChecker
     public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
-        return mDevicePolicySafetyChecker.isDevicePolicyOperationSafe(operation);
+        return mCarDevicePolicySafetyChecker.isDevicePolicyOperationSafe(operation);
     }
 
     @Override
     public UnsafeStateException newUnsafeStateException(@DevicePolicyOperation int operation) {
-        return mDevicePolicySafetyChecker.newUnsafeStateException(operation);
+        return mCarDevicePolicySafetyChecker.newUnsafeStateException(operation);
     }
 
     @VisibleForTesting
@@ -595,6 +583,8 @@ public class CarServiceHelperService extends SystemService
 
     private static native int nativeForceSuspend(int timeoutMs);
 
+    // TODO: it's missing unit tests (for example, to make sure that
+    // when its setSafetyMode() is called, mCarDevicePolicySafetyChecker is updated).
     private class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
         /**
          * Force device to suspend
@@ -627,6 +617,11 @@ public class CarServiceHelperService extends SystemService
                 @Nullable List<ComponentName> sourcePreferredComponents) {
             mCarLaunchParamsModifier.setSourcePreferredComponents(
                     enableSourcePreferred, sourcePreferredComponents);
+        }
+
+        @Override
+        public void setSafetyMode(boolean safe) {
+            mCarDevicePolicySafetyChecker.setSafe(safe);
         }
     }
 
