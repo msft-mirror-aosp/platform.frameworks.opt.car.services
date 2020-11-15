@@ -56,7 +56,6 @@ import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
-import android.os.UserManager;
 import android.util.EventLog;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
@@ -135,7 +134,6 @@ public class CarServiceHelperService extends SystemService
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
 
-    private final UserManager mUserManager;
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
 
     private final Handler mHandler;
@@ -204,7 +202,6 @@ public class CarServiceHelperService extends SystemService
 
     public CarServiceHelperService(Context context) {
         this(context,
-                UserManager.get(context),
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 null
@@ -214,7 +211,6 @@ public class CarServiceHelperService extends SystemService
     @VisibleForTesting
     CarServiceHelperService(
             Context context,
-            UserManager userManager,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             CarServiceProxy carServiceOperationManager) {
@@ -222,7 +218,6 @@ public class CarServiceHelperService extends SystemService
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mUserManager = userManager;
         mCarLaunchParamsModifier = carLaunchParamsModifier;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         mCarServiceProxy =
