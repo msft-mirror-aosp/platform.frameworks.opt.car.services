@@ -47,7 +47,6 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
 import android.os.UserHandle;
-import android.os.UserManager;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -64,9 +63,9 @@ import org.mockito.Mock;
  * This class contains unit tests for the {@link CarServiceHelperService}.
  */
 @RunWith(AndroidJUnit4.class)
-public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
+public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase {
 
-    private static final String TAG = CarHelperServiceTest.class.getSimpleName();
+    private static final String TAG = CarServiceHelperServiceTest.class.getSimpleName();
 
     private CarServiceHelperService mHelperSpy;
     private CarServiceHelperService mHelper;
@@ -75,8 +74,6 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     private Context mMockContext;
     @Mock
     private PackageManager mPackageManager;
-    @Mock
-    private UserManager mUserManager;
     @Mock
     private CarLaunchParamsModifier mCarLaunchParamsModifier;
     @Mock
@@ -95,10 +92,9 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Before
-    public void setUpMocks() {
+    public void setTestFixtures() {
         mHelper = new CarServiceHelperService(
                 mMockContext,
-                mUserManager,
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
                 mCarServiceProxy);
@@ -241,7 +237,7 @@ public class CarHelperServiceTest extends AbstractExtendedMockitoTestCase {
         return targetUser;
     }
 
-    private void verifyBindService () throws Exception {
+    private void verifyBindService() throws Exception {
         verify(mMockContext).bindServiceAsUser(
                 argThat(intent -> intent.getAction().equals(CAR_SERVICE_INTERFACE)),
                 any(), eq(Context.BIND_AUTO_CREATE), any(), eq(UserHandle.SYSTEM));
