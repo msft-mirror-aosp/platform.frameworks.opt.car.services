@@ -42,6 +42,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.ServiceConnection;
+import android.content.pm.UserInfo;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Binder;
 import android.os.Bundle;
@@ -55,6 +56,7 @@ import android.os.SystemClock;
 import android.os.SystemProperties;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.os.UserManager;
 import android.util.EventLog;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
@@ -69,9 +71,11 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.Dumpable;
+import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
@@ -571,7 +575,7 @@ public class CarServiceHelperService extends SystemService
 
     private static native int nativeForceSuspend(int timeoutMs);
 
-    // TODO: it's missing unit tests (for example, to make sure that
+    // TODO(b/173664653): it's missing unit tests (for example, to make sure that
     // when its setSafetyMode() is called, mCarDevicePolicySafetyChecker is updated).
     private class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
         /**
@@ -610,6 +614,27 @@ public class CarServiceHelperService extends SystemService
         @Override
         public void setSafetyMode(boolean safe) {
             mCarDevicePolicySafetyChecker.setSafe(safe);
+        }
+
+        @Override
+        public UserInfo createUserEvenWhenDisallowed(String name, String userType, int flags) {
+            if (DBG) {
+                Slog.d(TAG, "createUserEvenWhenDisallowed(): name=" + UserHelperLite.safeName(name)
+                        + ", type=" + userType + ", flags=" + UserInfo.flagsToString(flags));
+            }
+            UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+            try {
+                UserInfo user = umi.createUserEvenWhenDisallowed(name, userType, flags,
+                        /* disallowedPackages= */ null);
+                if (DBG) {
+                    Slog.d(TAG, "User created: " + (user == null ? null : user.toFullString()));
+                }
+                // TODO(b/172691310): decide if user should be affiliated when DeviceOwner is set
+                return user;
+            } catch (UserManager.CheckedUserOperationException e) {
+                Slog.e(TAG, "Error creating user", e);
+                return null;
+            }
         }
     }
 
