@@ -132,7 +132,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      */
     public void init() {
         mAtm = (ActivityTaskManagerService) ActivityTaskManager.getService();
-        LaunchParamsController controller = mAtm.mStackSupervisor.getLaunchParamsController();
+        LaunchParamsController controller = mAtm.mTaskSupervisor.getLaunchParamsController();
         controller.registerModifier(this);
         mDisplayManager = mContext.getSystemService(DisplayManager.class);
         mDisplayManager.registerDisplayListener(mDisplayListener,

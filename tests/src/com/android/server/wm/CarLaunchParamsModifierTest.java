@@ -79,7 +79,7 @@ public class CarLaunchParamsModifierTest {
     @Mock
     private ActivityTaskManagerService mActivityTaskManagerService;
     @Mock
-    private ActivityStackSupervisor mActivityStackSupervisor;
+    private ActivityTaskSupervisor mActivityTaskSupervisor;
     @Mock
     private RecentTasks mRecentTasks;
     @Mock
@@ -154,8 +154,8 @@ public class CarLaunchParamsModifierTest {
                 .startMocking();
         when(mContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);
         doReturn(mActivityTaskManagerService).when(() -> ActivityTaskManager.getService());
-        mActivityTaskManagerService.mStackSupervisor = mActivityStackSupervisor;
-        when(mActivityStackSupervisor.getLaunchParamsController()).thenReturn(
+        mActivityTaskManagerService.mTaskSupervisor = mActivityTaskSupervisor;
+        when(mActivityTaskSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
         mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
@@ -246,7 +246,7 @@ public class CarLaunchParamsModifierTest {
                 /* launchedFromFeature */ null, intent, /* resolvedType */ null, info,
                 new Configuration(), /* resultTo */ null, /* resultWho */ null, /* reqCode */ 0,
                 /*componentSpecified*/ false, /* rootVoiceInteraction */ false,
-                mActivityStackSupervisor, /* options */ null, /* sourceRecord */ null);
+                mActivityTaskSupervisor, /* options */ null, /* sourceRecord */ null);
     }
 
     @Test
