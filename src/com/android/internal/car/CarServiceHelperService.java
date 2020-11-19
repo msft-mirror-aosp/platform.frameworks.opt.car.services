@@ -29,7 +29,6 @@ import static com.android.internal.util.function.pooled.PooledLambda.obtainMessa
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.app.admin.UnsafeStateException;
@@ -412,13 +411,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     private void setupAndStartUsers(@NonNull TimingsTraceAndSlog t) {
-        DevicePolicyManager devicePolicyManager =
-                mContext.getSystemService(DevicePolicyManager.class);
-        if (devicePolicyManager != null && devicePolicyManager.getUserProvisioningState()
-                != DevicePolicyManager.STATE_USER_UNMANAGED) {
-            Slog.i(TAG, "DevicePolicyManager active, skip user unlock/switch");
-            return;
-        }
+        // TODO(b/156263735): decide if it should return in case the device's on Retail Mode
         t.traceBegin("setupAndStartUsers");
         mCarServiceProxy.initBootUser();
         t.traceEnd();
