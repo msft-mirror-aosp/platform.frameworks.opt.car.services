@@ -100,8 +100,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarServiceProxy);
         mHelperSpy = spy(mHelper);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
-        doNothing().when(
-                () -> ServiceManager.addService(eq(CarServiceHelperService.DUMP_SERVICE), any()));
     }
 
     @Test

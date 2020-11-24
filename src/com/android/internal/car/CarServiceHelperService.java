@@ -77,6 +77,7 @@ import com.android.server.SystemService;
 import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.UserManagerInternal;
+import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
@@ -101,9 +102,6 @@ import java.util.concurrent.Executors;
  */
 public class CarServiceHelperService extends SystemService
         implements Dumpable, DevicePolicySafetyChecker {
-
-    @VisibleForTesting
-    static final String DUMP_SERVICE = "car_service_server";
 
     private static final String TAG = "CarServiceHelper";
 
@@ -227,8 +225,23 @@ public class CarServiceHelperService extends SystemService
         mCarServiceProxy =
                 carServiceOperationManager == null ? new CarServiceProxy(this)
                         : carServiceOperationManager;
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        if (umi != null) {
+            umi.addUserLifecycleListener(new UserLifecycleListener() {
+                @Override
+                public void onUserCreated(UserInfo user) {
+                    if (DBG) Slog.d(TAG, "onUserCreated:" + user.toFullString());
+                }
+                @Override
+                public void onUserRemoved(UserInfo user) {
+                    if (DBG) Slog.d(TAG, "onUserRemoved:" + user.toFullString());
+                    mCarServiceProxy.onUserRemoved(user);
+                }
+            });
+        } else {
+            Slog.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
+        }
     }
-
     @Override
     public void onBootPhase(int phase) {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_BOOT_PHASE, phase);
