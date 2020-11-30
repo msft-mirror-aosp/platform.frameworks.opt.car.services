@@ -42,7 +42,6 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
-import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
 import android.os.UserHandle;
 import android.view.Display;
@@ -252,12 +251,11 @@ public class CarLaunchParamsModifierTest {
         info.applicationInfo.packageName = packageName;
         Intent intent = new Intent();
         intent.setClassName(packageName, className);
-        return new ActivityRecord(mActivityTaskManagerService, /* caller */null,
-                /* launchedFromPid */ 0, /* launchedFromUid */ 0, /* launchedFromPackage */ null,
-                /* launchedFromFeature */ null, intent, /* resolvedType */ null, info,
-                new Configuration(), /* resultTo */ null, /* resultWho */ null, /* reqCode */ 0,
-                /*componentSpecified*/ false, /* rootVoiceInteraction */ false,
-                mActivityTaskSupervisor, /* options */ null, /* sourceRecord */ null);
+
+        return new ActivityRecord.Builder(mActivityTaskManagerService)
+                .setIntent(intent)
+                .setActivityInfo(info)
+                .build();
     }
 
     @Test
