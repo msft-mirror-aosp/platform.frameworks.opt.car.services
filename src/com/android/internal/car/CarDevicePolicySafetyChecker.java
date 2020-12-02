@@ -15,11 +15,18 @@
  */
 package com.android.internal.car;
 
+import static android.app.admin.DevicePolicyManager.OPERATION_SWITCH_USER;
+import static android.app.admin.DevicePolicyManager.operationToString;
+
 import android.annotation.NonNull;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
+
+import java.util.Arrays;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.stream.Collectors;
 
 /**
  * Integrates {@link android.app.admin.DevicePolicyManager} operations with car UX restrictions.
@@ -30,14 +37,26 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
 
     private static final boolean DEBUG = false;
 
-    private boolean mSafe = true;
+    private static final int[] UNSAFE_OPERATIONS = new int[] { OPERATION_SWITCH_USER };
+
+    private final AtomicBoolean mSafe = new AtomicBoolean(true);
 
     @Override
     public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
-        // TODO(b/172376923): use a lookup table as not all operations need to be checked
-        boolean safe = mSafe;
+        boolean safe = true;
+        boolean globalSafe = mSafe.get();
+        if (!globalSafe) {
+            for (int unsafeOperation : UNSAFE_OPERATIONS) {
+                if (unsafeOperation == operation) {
+                    safe = false;
+                    break;
+                }
+            }
+        }
+
         if (DEBUG) {
-            Slog.d(TAG, "isDevicePolicyOperationSafe(" + operation + "): " + safe);
+            Slog.d(TAG, "isDevicePolicyOperationSafe(" + operationToString(operation)
+                    + "): " + safe + " (mSafe=" + globalSafe + ")");
         }
         return safe;
     }
@@ -47,11 +66,12 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
 
     void setSafe(boolean safe) {
         Slog.i(TAG, "Setting safe to " + safe);
-        mSafe = safe;
+        mSafe.set(safe);
     }
 
     void dump(@NonNull IndentingPrintWriter pw) {
-        pw.printf("Safe to run device policy operations: %b\n", mSafe);
-        // TODO(b/172376923): dump lookup table
+        pw.printf("Safe to run device policy operations: %b\n", mSafe.get());
+        pw.printf("Unsafe operations: %s\n", Arrays.stream(UNSAFE_OPERATIONS)
+                .mapToObj(o -> operationToString(o)).collect(Collectors.toList()));
     }
 }

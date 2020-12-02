@@ -15,27 +15,73 @@
  */
 package com.android.internal.car;
 
+import static android.app.admin.DevicePolicyManager.OPERATION_CREATE_AND_MANAGE_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_LOCK_NOW;
+import static android.app.admin.DevicePolicyManager.OPERATION_REMOVE_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_START_USER_IN_BACKGROUND;
+import static android.app.admin.DevicePolicyManager.OPERATION_STOP_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_SWITCH_USER;
+import static android.app.admin.DevicePolicyManager.operationToString;
 
-import static com.google.common.truth.Truth.assertThat;
+import static com.google.common.truth.Truth.assertWithMessage;
+
+import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 
 import org.junit.Test;
+import org.junit.runner.RunWith;
+import org.junit.runners.Parameterized;
 
+import java.util.Arrays;
+import java.util.Collection;
+
+@RunWith(Parameterized.class)
 public final class CarDevicePolicySafetyCheckerTest {
 
     private final CarDevicePolicySafetyChecker mChecker = new CarDevicePolicySafetyChecker();
 
-    // TODO(b/172376923): test for all operations / use parameterized test
+    private final @DevicePolicyOperation int mOperation;
+    private final boolean mSafe;
+
+    @Parameterized.Parameters
+    public static Collection<?> packageManagers() {
+        return Arrays.asList(new Object[][] {
+                // unsafe operations
+                {OPERATION_SWITCH_USER, false},
+
+                // safe operations
+                {OPERATION_CREATE_AND_MANAGE_USER, true},
+                {OPERATION_LOCK_NOW, true},
+                {OPERATION_REMOVE_USER, true},
+                {OPERATION_START_USER_IN_BACKGROUND, true},
+                {OPERATION_STOP_USER, true}
+        });
+    }
+
+    public CarDevicePolicySafetyCheckerTest(@DevicePolicyOperation int operation, boolean safe) {
+        mOperation = operation;
+        mSafe = safe;
+    }
 
     @Test
     public void testSafe() throws Exception {
         mChecker.setSafe(true);
-        assertThat(mChecker.isDevicePolicyOperationSafe(OPERATION_LOCK_NOW)).isTrue();
+
+        assertWithMessage("%s should be safe when car is safe", operationToString(mOperation))
+                .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isTrue();
     }
 
     @Test
     public void testUnsafe() throws Exception {
         mChecker.setSafe(false);
-        assertThat(mChecker.isDevicePolicyOperationSafe(OPERATION_LOCK_NOW)).isFalse();
+
+        if (mSafe) {
+            assertWithMessage("%s should be safe EVEN when car isn't",
+                    operationToString(mOperation))
+                            .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isTrue();
+        } else {
+            assertWithMessage("%s should NOT be safe even when car isn't",
+                    operationToString(mOperation))
+                            .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isFalse();
+        }
     }
 }
