@@ -29,6 +29,7 @@ import static com.android.internal.util.function.pooled.PooledLambda.obtainMessa
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.app.admin.UnsafeStateException;
@@ -291,6 +292,21 @@ public class CarServiceHelperService extends SystemService
             return;
         }
 
+        if ("--is-operation-safe".equals(args[0]) & args.length > 1) {
+            String arg1 = args[1];
+            int operation = 0;
+            try {
+                operation = Integer.parseInt(arg1);
+            } catch (Exception e) {
+                pw.printf("Invalid operation type: %s\n", arg1);
+                return;
+
+            }
+            boolean safe = isDevicePolicyOperationSafe(operation);
+            pw.printf("Operation %s is %s\n", DevicePolicyManager.operationToString(operation),
+                    safe ? "SAFE" : "UNSAFE");
+            return;
+        }
         pw.printf("Invalid args: %s\n", Arrays.toString(args));
     }
 
