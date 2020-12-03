@@ -13,7 +13,7 @@ java_library {
     static_libs: [
         "android.car.watchdoglib",
         "com.android.car.internal.system",
-        "android.automotive.watchdog-java",
+        "android.automotive.watchdog.internal-java",
     ],
 }
 
