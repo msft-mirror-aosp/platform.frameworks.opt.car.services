@@ -17,6 +17,7 @@ package com.android.internal.car;
 
 import static android.app.admin.DevicePolicyManager.OPERATION_CREATE_AND_MANAGE_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_LOCK_NOW;
+import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
 import static android.app.admin.DevicePolicyManager.OPERATION_REMOVE_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_START_USER_IN_BACKGROUND;
 import static android.app.admin.DevicePolicyManager.OPERATION_STOP_USER;
@@ -47,6 +48,7 @@ public final class CarDevicePolicySafetyCheckerTest {
         return Arrays.asList(new Object[][] {
                 // unsafe operations
                 {OPERATION_SWITCH_USER, false},
+                {OPERATION_REBOOT, false},
 
                 // safe operations
                 {OPERATION_CREATE_AND_MANAGE_USER, true},
