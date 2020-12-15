@@ -15,8 +15,10 @@
  */
 package com.android.internal.car;
 
+import static android.app.admin.DevicePolicyManager.OPERATION_LOGOUT_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
 import static android.app.admin.DevicePolicyManager.OPERATION_SWITCH_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_WIPE_DATA;
 import static android.app.admin.DevicePolicyManager.operationToString;
 
 import android.annotation.NonNull;
@@ -39,8 +41,10 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
     private static final boolean DEBUG = false;
 
     private static final int[] UNSAFE_OPERATIONS = new int[] {
+            OPERATION_LOGOUT_USER,
+            OPERATION_REBOOT,
             OPERATION_SWITCH_USER,
-            OPERATION_REBOOT
+            OPERATION_WIPE_DATA
     };
 
     private final AtomicBoolean mSafe = new AtomicBoolean(true);
