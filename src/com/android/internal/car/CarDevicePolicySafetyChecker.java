@@ -23,12 +23,10 @@ import static android.app.admin.DevicePolicyManager.OPERATION_SET_PACKAGES_SUSPE
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_STATUS_BAR_DISABLED;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_SYSTEM_SETTING;
 import static android.app.admin.DevicePolicyManager.OPERATION_SWITCH_USER;
-import static android.app.admin.DevicePolicyManager.OPERATION_WIPE_DATA;
 import static android.app.admin.DevicePolicyManager.operationToString;
 
 import android.annotation.NonNull;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
-import android.app.admin.DevicePolicySafetyChecker;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
 
@@ -39,7 +37,7 @@ import java.util.stream.Collectors;
 /**
  * Integrates {@link android.app.admin.DevicePolicyManager} operations with car UX restrictions.
  */
-final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
+final class CarDevicePolicySafetyChecker {
 
     private static final String TAG = CarDevicePolicySafetyChecker.class.getSimpleName();
 
@@ -53,14 +51,12 @@ final class CarDevicePolicySafetyChecker implements DevicePolicySafetyChecker {
             OPERATION_SET_PACKAGES_SUSPENDED,
             OPERATION_SET_STATUS_BAR_DISABLED,
             OPERATION_SET_SYSTEM_SETTING,
-            OPERATION_SWITCH_USER,
-            OPERATION_WIPE_DATA
+            OPERATION_SWITCH_USER
     };
 
     private final AtomicBoolean mSafe = new AtomicBoolean(true);
 
-    @Override
-    public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
+    boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
         boolean safe = true;
         boolean globalSafe = mSafe.get();
         if (!globalSafe) {

@@ -71,9 +71,9 @@ public final class CarDevicePolicySafetyCheckerTest {
                 {OPERATION_SET_STATUS_BAR_DISABLED, false},
                 {OPERATION_SET_SYSTEM_SETTING, false},
                 {OPERATION_SWITCH_USER, false},
-                {OPERATION_WIPE_DATA, false},
 
                 // safe operations
+                {OPERATION_WIPE_DATA, true}, // Safe because it will be delayed
                 {OPERATION_CREATE_AND_MANAGE_USER, true},
                 {OPERATION_LOCK_NOW, true},
                 {OPERATION_REMOVE_USER, true},
