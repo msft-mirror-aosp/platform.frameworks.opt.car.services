@@ -271,8 +271,9 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     @Result
     public int onCalculate(@Nullable Task task, @Nullable ActivityInfo.WindowLayout layout,
             @Nullable ActivityRecord activity, @Nullable ActivityRecord source,
-            ActivityOptions options, int phase, LaunchParamsController.LaunchParams currentParams,
-            LaunchParamsController.LaunchParams outParams, @Nullable Request request) {
+            ActivityOptions options, @Nullable Request request, int phase,
+            LaunchParamsController.LaunchParams currentParams,
+            LaunchParamsController.LaunchParams outParams) {
         int userId;
         if (task != null) {
             userId = task.mUserId;
