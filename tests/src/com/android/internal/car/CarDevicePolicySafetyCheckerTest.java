@@ -17,11 +17,14 @@ package com.android.internal.car;
 
 import static android.app.admin.DevicePolicyManager.OPERATION_CREATE_AND_MANAGE_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_LOCK_NOW;
+import static android.app.admin.DevicePolicyManager.OPERATION_LOGOUT_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
 import static android.app.admin.DevicePolicyManager.OPERATION_REMOVE_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_USER_RESTRICTION;
 import static android.app.admin.DevicePolicyManager.OPERATION_START_USER_IN_BACKGROUND;
 import static android.app.admin.DevicePolicyManager.OPERATION_STOP_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_SWITCH_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_WIPE_DATA;
 import static android.app.admin.DevicePolicyManager.operationToString;
 
 import static com.google.common.truth.Truth.assertWithMessage;
@@ -47,13 +50,16 @@ public final class CarDevicePolicySafetyCheckerTest {
     public static Collection<?> packageManagers() {
         return Arrays.asList(new Object[][] {
                 // unsafe operations
-                {OPERATION_SWITCH_USER, false},
+                {OPERATION_LOGOUT_USER, false},
                 {OPERATION_REBOOT, false},
+                {OPERATION_SWITCH_USER, false},
+                {OPERATION_WIPE_DATA, false},
 
                 // safe operations
                 {OPERATION_CREATE_AND_MANAGE_USER, true},
                 {OPERATION_LOCK_NOW, true},
                 {OPERATION_REMOVE_USER, true},
+                {OPERATION_SET_USER_RESTRICTION, true},
                 {OPERATION_START_USER_IN_BACKGROUND, true},
                 {OPERATION_STOP_USER, true}
         });
