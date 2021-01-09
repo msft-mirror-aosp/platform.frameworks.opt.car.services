@@ -39,6 +39,7 @@ import android.util.SparseIntArray;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.Preconditions;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.TimingsTraceAndSlog;
@@ -76,12 +77,14 @@ final class CarServiceProxy {
     // Operation ID for each non life-cycle event calls
     private static final int PO_INIT_BOOT_USER = 0;
     private static final int PO_PRE_CREATE_USERS = 1;
-    private static final int PO_OPERATION_ON_USER_REMOVED = 2;
+    private static final int PO_ON_USER_REMOVED = 2;
+    private static final int PO_ON_FACTORY_RESET = 3;
 
     @IntDef(prefix = { "PO_" }, value = {
             PO_INIT_BOOT_USER,
             PO_PRE_CREATE_USERS,
-            PO_OPERATION_ON_USER_REMOVED,
+            PO_ON_USER_REMOVED,
+            PO_ON_FACTORY_RESET
     })
     @Retention(RetentionPolicy.SOURCE)
     public @interface PendingOperationId{}
@@ -130,7 +133,8 @@ final class CarServiceProxy {
             mCarServiceCrashed = false;
             runQueuedOperationLocked(PO_INIT_BOOT_USER);
             runQueuedOperationLocked(PO_PRE_CREATE_USERS);
-            runQueuedOperationLocked(PO_OPERATION_ON_USER_REMOVED);
+            runQueuedOperationLocked(PO_ON_USER_REMOVED);
+            runQueuedOperationLocked(PO_ON_FACTORY_RESET);
         }
         sendLifeCycleEvents();
         t.traceEnd();
@@ -232,15 +236,25 @@ final class CarServiceProxy {
         saveOrRun(PO_PRE_CREATE_USERS);
     }
 
+    // TODO(b/173664653): add unit test
     /**
      * Callback to indifcate the given user was removed.
      */
     void onUserRemoved(@NonNull UserInfo user) {
         if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toFullString());
 
-        saveOrRun(PO_OPERATION_ON_USER_REMOVED, user);
+        saveOrRun(PO_ON_USER_REMOVED, user);
     }
 
+    // TODO(b/173664653): add unit test
+    /**
+     * Callback to ask user to confirm if it's ok to factory reset the device.
+     */
+    void onFactoryReset(@NonNull IResultReceiver callback) {
+        if (DBG) Slog.d(TAG, "onFactoryReset(): " + callback);
+
+        saveOrRun(PO_ON_FACTORY_RESET, callback);
+    }
 
     private void saveOrRun(@PendingOperationId int operationId) {
         saveOrRun(operationId, /* value= */ null);
@@ -286,7 +300,7 @@ final class CarServiceProxy {
             mPendingOperations.put(operationId, pendingOperation);
             return;
         }
-        if (operationId == PO_OPERATION_ON_USER_REMOVED) {
+        if (operationId == PO_ON_USER_REMOVED) {
             Preconditions.checkArgument((value instanceof UserInfo),
                     "invalid value passed to ON_USER_REMOVED", value);
             if (pendingOperation.value instanceof ArrayList) {
@@ -303,7 +317,7 @@ final class CarServiceProxy {
             }
         } else {
             if (DBG) {
-                Slog.d(TAG, "Already saved opeartion of type "
+                Slog.d(TAG, "Already saved operation of type "
                         + pendingOperationToString(operationId));
             }
         }
@@ -323,7 +337,7 @@ final class CarServiceProxy {
             case PO_PRE_CREATE_USERS:
                 mCarService.preCreateUsers();
                 break;
-            case PO_OPERATION_ON_USER_REMOVED:
+            case PO_ON_USER_REMOVED:
                 if (value instanceof ArrayList) {
                     ArrayList<Object> list = (ArrayList<Object>) value;
                     if (DBG) Slog.d(TAG, "Sending " + list.size() + " onUserRemoved() calls");
@@ -333,6 +347,9 @@ final class CarServiceProxy {
                 } else {
                     onUserRemovedLocked(value);
                 }
+                break;
+            case PO_ON_FACTORY_RESET:
+                mCarService.onFactoryReset((IResultReceiver) value);
                 break;
             default:
                 Slog.wtf(TAG, "Invalid Operation. OperationId -" + operationId);
@@ -478,7 +495,7 @@ final class CarServiceProxy {
                 return "INIT_BOOT_USER";
             case PO_PRE_CREATE_USERS:
                 return "PRE_CREATE_USERS";
-            case PO_OPERATION_ON_USER_REMOVED:
+            case PO_ON_USER_REMOVED:
                 return "ON_USER_REMOVED";
             default:
                 return "INVALID-" + operationType;
