@@ -20,6 +20,18 @@ import static android.app.admin.DevicePolicyManager.OPERATION_LOCK_NOW;
 import static android.app.admin.DevicePolicyManager.OPERATION_LOGOUT_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
 import static android.app.admin.DevicePolicyManager.OPERATION_REMOVE_USER;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_HIDDEN;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_RESTRICTIONS;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_KEEP_UNINSTALLED_PACKAGES;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_KEYGUARD_DISABLED;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_LOCK_TASK_FEATURES;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_LOCK_TASK_PACKAGES;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_PACKAGES_SUSPENDED;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_STATUS_BAR_DISABLED;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_SYSTEM_SETTING;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_SYSTEM_UPDATE_POLICY;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_TRUST_AGENT_CONFIGURATION;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_USER_CONTROL_DISABLED_PACKAGES;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_USER_RESTRICTION;
 import static android.app.admin.DevicePolicyManager.OPERATION_START_USER_IN_BACKGROUND;
 import static android.app.admin.DevicePolicyManager.OPERATION_STOP_USER;
@@ -52,13 +64,25 @@ public final class CarDevicePolicySafetyCheckerTest {
                 // unsafe operations
                 {OPERATION_LOGOUT_USER, false},
                 {OPERATION_REBOOT, false},
+                {OPERATION_SET_APPLICATION_HIDDEN, false},
+                {OPERATION_SET_APPLICATION_RESTRICTIONS, false},
+                {OPERATION_SET_KEYGUARD_DISABLED, false},
+                {OPERATION_SET_PACKAGES_SUSPENDED, false},
+                {OPERATION_SET_STATUS_BAR_DISABLED, false},
+                {OPERATION_SET_SYSTEM_SETTING, false},
                 {OPERATION_SWITCH_USER, false},
-                {OPERATION_WIPE_DATA, false},
 
                 // safe operations
+                {OPERATION_WIPE_DATA, true}, // Safe because it will be delayed
                 {OPERATION_CREATE_AND_MANAGE_USER, true},
                 {OPERATION_LOCK_NOW, true},
                 {OPERATION_REMOVE_USER, true},
+                {OPERATION_SET_KEEP_UNINSTALLED_PACKAGES, true},
+                {OPERATION_SET_LOCK_TASK_FEATURES, true},
+                {OPERATION_SET_LOCK_TASK_PACKAGES, true},
+                {OPERATION_SET_SYSTEM_UPDATE_POLICY, true},
+                {OPERATION_SET_TRUST_AGENT_CONFIGURATION, true},
+                {OPERATION_SET_USER_CONTROL_DISABLED_PACKAGES, true},
                 {OPERATION_SET_USER_RESTRICTION, true},
                 {OPERATION_START_USER_IN_BACKGROUND, true},
                 {OPERATION_STOP_USER, true}

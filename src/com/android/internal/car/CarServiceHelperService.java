@@ -32,7 +32,6 @@ import android.annotation.UserIdInt;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicySafetyChecker;
-import android.app.admin.UnsafeStateException;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
@@ -396,14 +395,16 @@ public class CarServiceHelperService extends SystemService
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
     }
 
-    @Override // from SafetyChecker
+    @Override // from DevicePolicySafetyChecker
     public boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
         return mCarDevicePolicySafetyChecker.isDevicePolicyOperationSafe(operation);
     }
 
-    @Override
-    public UnsafeStateException newUnsafeStateException(@DevicePolicyOperation int operation) {
-        return mCarDevicePolicySafetyChecker.newUnsafeStateException(operation);
+    @Override // from DevicePolicySafetyChecker
+    public void onFactoryReset(IResultReceiver callback) {
+        if (DBG) Slog.d(TAG, "onFactoryReset:" + callback);
+
+        mCarServiceProxy.onFactoryReset(callback);
     }
 
     @VisibleForTesting
