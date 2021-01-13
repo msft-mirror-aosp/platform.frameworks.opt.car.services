@@ -30,6 +30,7 @@ import android.content.pm.UserInfo;
 import android.os.RemoteException;
 
 import com.android.car.internal.ICarSystemServerClient;
+import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService.TargetUser;
 
 import org.junit.Before;
@@ -42,6 +43,12 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     private CarServiceHelperService mCarServiceHelperService;
     @Mock
     private ICarSystemServerClient mCarService;
+
+    @Mock
+    private IResultReceiver mFactoryResetCallback1;
+
+    @Mock
+    private IResultReceiver mFactoryResetCallback2;
 
     private final TargetUser mFromUser = new TargetUser(new UserInfo(101, "fromUser", 0));
     private final TargetUser mToUser = new TargetUser(new UserInfo(102, "toUser", 0));
@@ -145,6 +152,35 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         verifyOnUserRemovedNeverCalled();
     }
 
+    @Test
+    public void testOnFactoryReset_CarServiceNotNull() throws RemoteException {
+        connectToCarService();
+
+        callOnFactoryReset(mFactoryResetCallback1);
+        callOnFactoryReset(mFactoryResetCallback2);
+
+        verifyOnFactoryResetCalled(mFactoryResetCallback1);
+        verifyOnFactoryResetCalled(mFactoryResetCallback2);
+    }
+
+    @Test
+    public void testOnFactoryReset_CarServiceNull() throws RemoteException {
+        callOnFactoryReset(mFactoryResetCallback1);
+        callOnFactoryReset(mFactoryResetCallback2);
+
+        verifyOnFactoryResetNeverCalled();
+    }
+
+    @Test
+    public void testOnFactoryReset_CarServiceNullThenConnected() throws RemoteException {
+        callOnFactoryReset(mFactoryResetCallback1);
+        callOnFactoryReset(mFactoryResetCallback2);
+        connectToCarService();
+
+        verifyOnFactoryResetNotCalled(mFactoryResetCallback1);
+        verifyOnFactoryResetCalled(mFactoryResetCallback2);
+    }
+
     private void connectToCarService() {
         mCarServiceProxy.handleCarServiceConnection(mCarService);
     }
@@ -165,6 +201,10 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.onUserRemoved(mRemovedUser1);
         mCarServiceProxy.onUserRemoved(mRemovedUser2);
         mCarServiceProxy.onUserRemoved(mRemovedUser3);
+    }
+
+    private void callOnFactoryReset(IResultReceiver callback) {
+        mCarServiceProxy.onFactoryReset(callback);
     }
 
     private void verifyInitBootUserCalled() throws RemoteException {
@@ -200,5 +240,17 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyOnUserRemovedNeverCalled() throws RemoteException {
         verify(mCarService, never()).onUserRemoved(any());
+    }
+
+    private void verifyOnFactoryResetCalled(IResultReceiver callback) throws RemoteException {
+        verify(mCarService).onFactoryReset(callback);
+    }
+
+    private void verifyOnFactoryResetNotCalled(IResultReceiver callback) throws RemoteException {
+        verify(mCarService, never()).onFactoryReset(callback);
+    }
+
+    private void verifyOnFactoryResetNeverCalled() throws RemoteException {
+        verify(mCarService, never()).onFactoryReset(any());
     }
 }

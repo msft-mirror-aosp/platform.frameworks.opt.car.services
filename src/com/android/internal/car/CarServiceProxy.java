@@ -31,6 +31,7 @@ import android.content.pm.UserInfo;
 import android.os.RemoteException;
 import android.os.Trace;
 import android.os.UserHandle;
+import android.util.DebugUtils;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
 import android.util.SparseArray;
@@ -75,10 +76,11 @@ final class CarServiceProxy {
      */
 
     // Operation ID for each non life-cycle event calls
-    private static final int PO_INIT_BOOT_USER = 0;
-    private static final int PO_PRE_CREATE_USERS = 1;
-    private static final int PO_ON_USER_REMOVED = 2;
-    private static final int PO_ON_FACTORY_RESET = 3;
+    // NOTE: public because of DebugUtils
+    public static final int PO_INIT_BOOT_USER = 0;
+    public static final int PO_PRE_CREATE_USERS = 1;
+    public static final int PO_ON_USER_REMOVED = 2;
+    public static final int PO_ON_FACTORY_RESET = 3;
 
     @IntDef(prefix = { "PO_" }, value = {
             PO_INIT_BOOT_USER,
@@ -271,17 +273,28 @@ final class CarServiceProxy {
                 savePendingOperationLocked(operationId, value);
                 return;
             }
+            if (operationId == PO_ON_FACTORY_RESET) {
+                // Must always persist it, so it's sent again if CarService is crashed before
+                // the next reboot or suspension-to-ram
+                savePendingOperationLocked(operationId, value);
+            }
             runLocked(operationId, value);
         }
     }
 
     @GuardedBy("mLock")
     private void runLocked(@PendingOperationId int operationId, @Nullable Object value) {
+        if (DBG) Slog.d(TAG, "runLocked(): " + pendingOperationToString(operationId) + "/" + value);
         try {
             if (isServiceCrashedLoggedLocked(operationId)) {
                 return;
             }
             sendCarServiceActionLocked(operationId, value);
+            if (operationId == PO_ON_FACTORY_RESET) {
+                if (DBG) Slog.d(TAG, "NOT removing " + pendingOperationToString(operationId));
+                return;
+            }
+            if (DBG) Slog.d(TAG, "removing " + pendingOperationToString(operationId));
             mPendingOperations.delete(operationId);
         } catch (RemoteException e) {
             Slog.w(TAG, "RemoteException from car service", e);
@@ -300,26 +313,33 @@ final class CarServiceProxy {
             mPendingOperations.put(operationId, pendingOperation);
             return;
         }
-        if (operationId == PO_ON_USER_REMOVED) {
-            Preconditions.checkArgument((value instanceof UserInfo),
-                    "invalid value passed to ON_USER_REMOVED", value);
-            if (pendingOperation.value instanceof ArrayList) {
-                if (DBG) Slog.d(TAG, "Adding " + value + " to existing " + pendingOperation);
-                ((ArrayList) pendingOperation.value).add(value);
-            } else if (pendingOperation.value instanceof UserInfo) {
-                ArrayList<Object> list = new ArrayList<>(2);
-                list.add(pendingOperation.value);
-                list.add(value);
-                if (DBG) Slog.d(TAG, "Converting " + pendingOperation.value + " to list" + list);
-                pendingOperation.value = list;
-            } else {
-                throw new IllegalStateException("Invalid value for ON_USER_REMOVED: " + value);
-            }
-        } else {
-            if (DBG) {
-                Slog.d(TAG, "Already saved operation of type "
-                        + pendingOperationToString(operationId));
-            }
+        switch (operationId) {
+            case PO_ON_USER_REMOVED:
+                Preconditions.checkArgument((value instanceof UserInfo),
+                        "invalid value passed to ON_USER_REMOVED", value);
+                if (pendingOperation.value instanceof ArrayList) {
+                    if (DBG) Slog.d(TAG, "Adding " + value + " to existing " + pendingOperation);
+                    ((ArrayList) pendingOperation.value).add(value);
+                } else if (pendingOperation.value instanceof UserInfo) {
+                    ArrayList<Object> list = new ArrayList<>(2);
+                    list.add(pendingOperation.value);
+                    list.add(value);
+                    if (DBG) Slog.d(TAG, "Converting " + pendingOperation.value + " to " + list);
+                    pendingOperation.value = list;
+                } else {
+                    throw new IllegalStateException("Invalid value for ON_USER_REMOVED: " + value);
+                }
+                break;
+            case PO_ON_FACTORY_RESET:
+                PendingOperation newOperation = new PendingOperation(operationId, value);
+                if (DBG) Slog.d(TAG, "Replacing " + pendingOperation + " by " + newOperation);
+                mPendingOperations.put(operationId, newOperation);
+                break;
+            default:
+                if (DBG) {
+                    Slog.d(TAG, "Already saved operation of type "
+                            + pendingOperationToString(operationId));
+                }
         }
     }
 
@@ -445,9 +465,10 @@ final class CarServiceProxy {
      * Dump
      */
     void dump(IndentingPrintWriter writer) {
+        writer.println("CarServiceProxy");
+        writer.increaseIndent();
         writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
         writer.printf("mLastUserLifecycle:\n");
-        writer.increaseIndent();
         int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
         if (user0Lifecycle != 0) {
             writer.printf("SystemUser Lifecycle Event:%s\n", user0Lifecycle);
@@ -459,6 +480,18 @@ final class CarServiceProxy {
         if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
             writer.printf("last user (%s) Lifecycle Event:%s\n",
                     mLastSwitchedUser, lastUserLifecycle);
+        }
+
+        int size = mPendingOperations.size();
+        if (size == 0) {
+            writer.println("No pending operations");
+        } else {
+            writer.printf("%d pending operation%s:\n", size, size == 1 ? "" : "s");
+            writer.increaseIndent();
+            for (int i = 0; i < size; i++) {
+                writer.println(mPendingOperations.valueAt(i));
+            }
+            writer.decreaseIndent();
         }
         writer.decreaseIndent();
         dumpUserMetrics(writer);
@@ -487,18 +520,8 @@ final class CarServiceProxy {
         }
     }
 
-    // TODO(b/160819016): use DebugUtil.constantsToString() instead
     @NonNull
     private String pendingOperationToString(@PendingOperationId int operationType) {
-        switch (operationType) {
-            case PO_INIT_BOOT_USER:
-                return "INIT_BOOT_USER";
-            case PO_PRE_CREATE_USERS:
-                return "PRE_CREATE_USERS";
-            case PO_ON_USER_REMOVED:
-                return "ON_USER_REMOVED";
-            default:
-                return "INVALID-" + operationType;
-        }
+        return DebugUtils.constantToString(CarServiceProxy.class, "PO_" , operationType);
     }
 }
