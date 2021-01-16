@@ -15,9 +15,12 @@
  */
 package com.android.internal.car;
 
+import static android.app.admin.DevicePolicyManager.OPERATION_CLEAR_APPLICATION_USER_DATA;
 import static android.app.admin.DevicePolicyManager.OPERATION_LOGOUT_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
+import static android.app.admin.DevicePolicyManager.OPERATION_REQUEST_BUGREPORT;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_HIDDEN;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_RESTRICTIONS;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_KEYGUARD_DISABLED;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_PACKAGES_SUSPENDED;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_STATUS_BAR_DISABLED;
@@ -44,9 +47,12 @@ final class CarDevicePolicySafetyChecker {
     private static final boolean DEBUG = false;
 
     private static final int[] UNSAFE_OPERATIONS = new int[] {
+            OPERATION_CLEAR_APPLICATION_USER_DATA,
             OPERATION_LOGOUT_USER,
             OPERATION_REBOOT,
+            OPERATION_REQUEST_BUGREPORT,
             OPERATION_SET_APPLICATION_HIDDEN,
+            OPERATION_SET_APPLICATION_RESTRICTIONS,
             OPERATION_SET_KEYGUARD_DISABLED,
             OPERATION_SET_PACKAGES_SUSPENDED,
             OPERATION_SET_STATUS_BAR_DISABLED,
