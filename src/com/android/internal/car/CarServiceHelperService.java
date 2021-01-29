@@ -356,16 +356,18 @@ public class CarServiceHelperService extends SystemService {
                     - Process.getStartElapsedRealtime();
             Slog.i(TAG, "Time to unlock 1st user(" + user + "): "
                     + TimeUtils.formatDuration(mFirstUnlockedUserDuration));
+            boolean operationQueued = false;
             synchronized (mLock) {
                 mLastUserLifecycle.put(userId, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
                 if (mCarService == null) {
+                    operationQueued = true;
                     if (DBG) Slog.d(TAG, "Queuing first user unlock for user " + user);
                     queueOperationLocked(() -> sendFirstUserUnlocked(user));
-                    return;
                 }
             }
-            sendFirstUserUnlocked(user);
-            return;
+            if (!operationQueued) {
+                sendFirstUserUnlocked(user);
+            }
         }
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
     }
