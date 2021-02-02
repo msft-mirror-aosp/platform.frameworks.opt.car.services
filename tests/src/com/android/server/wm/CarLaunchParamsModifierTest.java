@@ -49,7 +49,7 @@ import android.view.SurfaceControl;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.server.AttributeCache;
+import com.android.internal.policy.AttributeCache;
 import com.android.server.LocalServices;
 import com.android.server.display.color.ColorDisplayService;
 
