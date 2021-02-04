@@ -15,7 +15,7 @@ java_library {
         "android.hardware.automotive.vehicle-V2.0-java",
         "android.car.userlib",
         "android.car.watchdoglib",
-        "carwatchdog_aidl_interface-java",
+        "carwatchdog_aidl_interface-V2-java",
     ],
 }
 
