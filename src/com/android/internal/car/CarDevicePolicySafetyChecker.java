@@ -19,6 +19,7 @@ import static android.app.admin.DevicePolicyManager.OPERATION_CLEAR_APPLICATION_
 import static android.app.admin.DevicePolicyManager.OPERATION_LOGOUT_USER;
 import static android.app.admin.DevicePolicyManager.OPERATION_REBOOT;
 import static android.app.admin.DevicePolicyManager.OPERATION_REQUEST_BUGREPORT;
+import static android.app.admin.DevicePolicyManager.OPERATION_SAFETY_REASON_DRIVING_DISTRACTION;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_HIDDEN;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_RESTRICTIONS;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_KEYGUARD_DISABLED;
@@ -30,8 +31,13 @@ import static android.app.admin.DevicePolicyManager.operationToString;
 
 import android.annotation.NonNull;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
+import android.app.admin.DevicePolicyManagerInternal;
+import android.app.admin.DevicePolicySafetyChecker;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
+
+import com.android.internal.annotations.VisibleForTesting;
+import com.android.server.LocalServices;
 
 import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -62,6 +68,20 @@ final class CarDevicePolicySafetyChecker {
 
     private final AtomicBoolean mSafe = new AtomicBoolean(true);
 
+    private final DevicePolicySafetyChecker mCheckerImplementation;
+    private final DevicePolicyManagerInternal mDpmi;
+
+    CarDevicePolicySafetyChecker(DevicePolicySafetyChecker checkerImplementation) {
+        this(checkerImplementation, LocalServices.getService(DevicePolicyManagerInternal.class));
+    }
+
+    @VisibleForTesting
+    CarDevicePolicySafetyChecker(DevicePolicySafetyChecker checkerImplementation,
+            DevicePolicyManagerInternal dpmi) {
+        mCheckerImplementation = checkerImplementation;
+        mDpmi = dpmi;
+    }
+
     boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
         boolean safe = true;
         boolean globalSafe = mSafe.get();
@@ -87,6 +107,13 @@ final class CarDevicePolicySafetyChecker {
     void setSafe(boolean safe) {
         Slog.i(TAG, "Setting safe to " + safe);
         mSafe.set(safe);
+
+        mDpmi.notifyUnsafeOperationStateChanged(mCheckerImplementation,
+                OPERATION_SAFETY_REASON_DRIVING_DISTRACTION, /* isSafe= */ safe);
+    }
+
+    boolean isSafe() {
+        return mSafe.get();
     }
 
     void dump(@NonNull IndentingPrintWriter pw) {
