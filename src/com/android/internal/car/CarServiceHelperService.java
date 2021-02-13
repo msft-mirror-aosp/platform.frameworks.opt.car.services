@@ -31,7 +31,7 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
-import android.app.admin.DevicePolicyManager.UnsafeOperationReason;
+import android.app.admin.DevicePolicyManager.OperationSafetyReason;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
@@ -199,8 +199,7 @@ public class CarServiceHelperService extends SystemService
         }
     };
 
-    private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker =
-            new CarDevicePolicySafetyChecker();
+    private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     public CarServiceHelperService(Context context) {
         this(context,
@@ -217,6 +216,7 @@ public class CarServiceHelperService extends SystemService
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             CarServiceProxy carServiceOperationManager) {
         super(context);
+
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
@@ -241,6 +241,7 @@ public class CarServiceHelperService extends SystemService
         } else {
             Slog.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
         }
+        mCarDevicePolicySafetyChecker = new CarDevicePolicySafetyChecker(this);
     }
     @Override
     public void onBootPhase(int phase) {
@@ -316,11 +317,11 @@ public class CarServiceHelperService extends SystemService
 
             }
             int reason = getUnsafeOperationReason(operation);
-            boolean safe = reason == DevicePolicyManager.UNSAFE_OPERATION_REASON_NONE;
+            boolean safe = reason == DevicePolicyManager.OPERATION_SAFETY_REASON_NONE;
             pw.printf("Operation %s is %s. Reason: %s\n",
                     DevicePolicyManager.operationToString(operation),
                     safe ? "SAFE" : "UNSAFE",
-                    DevicePolicyManager.unsafeOperationReasonToString(reason));
+                    DevicePolicyManager.operationSafetyReasonToString(reason));
             return;
         }
         pw.printf("Invalid args: %s\n", Arrays.toString(args));
@@ -400,11 +401,16 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override // from DevicePolicySafetyChecker
-    @UnsafeOperationReason
+    @OperationSafetyReason
     public int getUnsafeOperationReason(@DevicePolicyOperation int operation) {
         return mCarDevicePolicySafetyChecker.isDevicePolicyOperationSafe(operation)
-                ? DevicePolicyManager.UNSAFE_OPERATION_REASON_NONE
-                : DevicePolicyManager.UNSAFE_OPERATION_REASON_DRIVING_DISTRACTION;
+                ? DevicePolicyManager.OPERATION_SAFETY_REASON_NONE
+                : DevicePolicyManager.OPERATION_SAFETY_REASON_DRIVING_DISTRACTION;
+    }
+
+    @Override // from DevicePolicySafetyChecker
+    public boolean isSafeOperation(@OperationSafetyReason int reason) {
+        return mCarDevicePolicySafetyChecker.isSafe();
     }
 
     @Override // from DevicePolicySafetyChecker
