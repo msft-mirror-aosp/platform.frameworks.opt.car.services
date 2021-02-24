@@ -22,7 +22,8 @@ LOCAL_PROGUARD_ENABLED := disabled
 
 LOCAL_JAVA_LIBRARIES += \
     android.test.runner \
-    android.test.base
+    android.test.base \
+    android.hardware.automotive.vehicle-V2.0-java
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
     android.car.internal.event-log-tags \
