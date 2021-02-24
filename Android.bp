@@ -1,3 +1,7 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 java_library {
     name: "car-frameworks-service",
     installable: true,
@@ -15,7 +19,7 @@ java_library {
         "android.hardware.automotive.vehicle-V2.0-java",
         "android.car.userlib",
         "android.car.watchdoglib",
-        "carwatchdog_aidl_interface-java",
+        "carwatchdog_aidl_interface-V2-java",
     ],
 }
 
