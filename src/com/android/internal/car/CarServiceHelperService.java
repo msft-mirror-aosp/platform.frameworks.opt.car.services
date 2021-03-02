@@ -229,12 +229,12 @@ public class CarServiceHelperService extends SystemService
         if (umi != null) {
             umi.addUserLifecycleListener(new UserLifecycleListener() {
                 @Override
-                public void onUserCreated(UserInfo user) {
-                    if (DBG) Slog.d(TAG, "onUserCreated:" + user.toFullString());
+                public void onUserCreated(UserInfo user, Object token) {
+                    if (DBG) Slog.d(TAG, "onUserCreated(): " + user.toFullString());
                 }
                 @Override
                 public void onUserRemoved(UserInfo user) {
-                    if (DBG) Slog.d(TAG, "onUserRemoved:" + user.toFullString());
+                    if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toFullString());
                     mCarServiceProxy.onUserRemoved(user);
                 }
             });
@@ -668,7 +668,7 @@ public class CarServiceHelperService extends SystemService
             UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
             try {
                 UserInfo user = umi.createUserEvenWhenDisallowed(name, userType, flags,
-                        /* disallowedPackages= */ null);
+                        /* disallowedPackages= */ null, /* token= */ null);
                 if (DBG) {
                     Slog.d(TAG, "User created: " + (user == null ? null : user.toFullString()));
                 }
