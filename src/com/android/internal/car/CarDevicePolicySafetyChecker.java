@@ -23,6 +23,8 @@ import static android.app.admin.DevicePolicyManager.OPERATION_SAFETY_REASON_DRIV
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_HIDDEN;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_APPLICATION_RESTRICTIONS;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_KEYGUARD_DISABLED;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_LOCK_TASK_FEATURES;
+import static android.app.admin.DevicePolicyManager.OPERATION_SET_LOCK_TASK_PACKAGES;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_PACKAGES_SUSPENDED;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_STATUS_BAR_DISABLED;
 import static android.app.admin.DevicePolicyManager.OPERATION_SET_SYSTEM_SETTING;
@@ -60,6 +62,8 @@ final class CarDevicePolicySafetyChecker {
             OPERATION_SET_APPLICATION_HIDDEN,
             OPERATION_SET_APPLICATION_RESTRICTIONS,
             OPERATION_SET_KEYGUARD_DISABLED,
+            OPERATION_SET_LOCK_TASK_FEATURES,
+            OPERATION_SET_LOCK_TASK_PACKAGES,
             OPERATION_SET_PACKAGES_SUSPENDED,
             OPERATION_SET_STATUS_BAR_DISABLED,
             OPERATION_SET_SYSTEM_SETTING,
