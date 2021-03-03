@@ -75,6 +75,8 @@ public final class CarDevicePolicySafetyCheckerTest {
                 { DevicePolicyManager.OPERATION_SET_STATUS_BAR_DISABLED, false },
                 { DevicePolicyManager.OPERATION_SET_SYSTEM_SETTING, false },
                 { DevicePolicyManager.OPERATION_SWITCH_USER, false },
+                { DevicePolicyManager.OPERATION_SET_LOCK_TASK_FEATURES, false },
+                { DevicePolicyManager.OPERATION_SET_LOCK_TASK_PACKAGES, false },
 
                 // safe operations
                 { DevicePolicyManager.OPERATION_WIPE_DATA, true }, // Safe because it'll be delayed
@@ -91,8 +93,6 @@ public final class CarDevicePolicySafetyCheckerTest {
                 { DevicePolicyManager.OPERATION_SET_FACTORY_RESET_PROTECTION_POLICY, true },
                 { DevicePolicyManager.OPERATION_SET_GLOBAL_PRIVATE_DNS, true },
                 { DevicePolicyManager.OPERATION_SET_KEEP_UNINSTALLED_PACKAGES, true },
-                { DevicePolicyManager.OPERATION_SET_LOCK_TASK_FEATURES, true },
-                { DevicePolicyManager.OPERATION_SET_LOCK_TASK_PACKAGES, true },
                 { DevicePolicyManager.OPERATION_SET_LOGOUT_ENABLED, true },
                 { DevicePolicyManager.OPERATION_SET_MASTER_VOLUME_MUTED, true },
                 { DevicePolicyManager.OPERATION_SET_OVERRIDE_APNS_ENABLED, true },
@@ -119,7 +119,7 @@ public final class CarDevicePolicySafetyCheckerTest {
         boolean isSafe = true;
         mChecker.setSafe(isSafe);
 
-        assertWithMessage("%s should be safe when car is safe", operationToString(mOperation))
+        assertWithMessage("safety of %s when car is safe", operationToString(mOperation))
                 .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isTrue();
 
         verifySafetyNofiticationSend(isSafe);
@@ -131,11 +131,11 @@ public final class CarDevicePolicySafetyCheckerTest {
         mChecker.setSafe(isSafe);
 
         if (mSafe) {
-            assertWithMessage("%s should be safe EVEN when car isn't",
+            assertWithMessage("safety of %s EVEN when car isn't safe",
                     operationToString(mOperation))
                             .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isTrue();
         } else {
-            assertWithMessage("%s should NOT be safe even when car isn't",
+            assertWithMessage("safety of %s when car isn't safe",
                     operationToString(mOperation))
                             .that(mChecker.isDevicePolicyOperationSafe(mOperation)).isFalse();
         }
