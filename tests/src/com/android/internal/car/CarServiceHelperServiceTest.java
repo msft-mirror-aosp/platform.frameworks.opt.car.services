@@ -217,13 +217,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         verifyInitBootUser();
     }
 
-    @Test
-    public void testOnBootPhase_onBootCompleted_preCreatedUsers() throws Exception {
-        mHelper.onBootPhase(SystemService.PHASE_BOOT_COMPLETED);
-
-        verifyPreCreatedUsers();
-    }
-
     private TargetUser newTargetUser(int userId) {
         return newTargetUser(userId, /* preCreated= */ false);
     }
@@ -291,10 +284,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
         verify(mCarServiceProxy, never()).sendUserLifecycleEvent(anyInt(), any(), any());
-    }
-
-    private void verifyPreCreatedUsers() throws Exception {
-        verify(mCarServiceProxy).preCreateUsers();
     }
 
     private void verifyInitBootUser() throws Exception {
