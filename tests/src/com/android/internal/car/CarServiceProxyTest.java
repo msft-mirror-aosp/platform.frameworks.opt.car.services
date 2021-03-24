@@ -81,22 +81,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testPreCreateUsers_CarServiceNotNull() throws RemoteException {
-        connectToCarService();
-
-        callPreCreateUsers();
-
-        verifyPreCreateUsersCalled();
-    }
-
-    @Test
-    public void testPreCreateUsers_CarServiceNull() throws RemoteException {
-        callPreCreateUsers();
-
-        verifyPreCreateUsersNeverCalled();
-    }
-
-    @Test
     public void testSendUserLifecycleEvent_CarServiceNotNull() throws RemoteException {
         connectToCarService();
 
@@ -115,23 +99,19 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     @Test
     public void testHandleCarServiceConnection() throws RemoteException {
         callInitBootUser();
-        callPreCreateUsers();
         callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         callOnUserRemoved();
 
         // Call again to make sure only one call is made after the service is connected
         callInitBootUser();
-        callPreCreateUsers();
 
         verifyInitBootUserNeverCalled();
-        verifyPreCreateUsersNeverCalled();
         verifySendLifecycleEventNeverCalled();
         verifyOnUserRemovedNeverCalled();
 
         connectToCarService();
 
         verifyInitBootUserCalled();
-        verifyPreCreateUsersCalled();
         verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         verifyOnUserRemovedCalled();
     }
@@ -189,10 +169,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.initBootUser();
     }
 
-    private void callPreCreateUsers() {
-        mCarServiceProxy.preCreateUsers();
-    }
-
     private void callSendLifecycleEvent(int eventType) {
         mCarServiceProxy.sendUserLifecycleEvent(eventType, mFromUser, mToUser);
     }
@@ -213,14 +189,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     private void verifyInitBootUserNeverCalled() throws RemoteException {
         verify(mCarService, never()).initBootUser();
-    }
-
-    private void verifyPreCreateUsersCalled() throws RemoteException {
-        verify(mCarService).preCreateUsers();
-    }
-
-    private void verifyPreCreateUsersNeverCalled() throws RemoteException {
-        verify(mCarService, never()).preCreateUsers();
     }
 
     private void verifySendLifecycleEventCalled(int eventType) throws RemoteException {
