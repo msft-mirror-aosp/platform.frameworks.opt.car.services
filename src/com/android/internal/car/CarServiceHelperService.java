@@ -256,7 +256,6 @@ public class CarServiceHelperService extends SystemService
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
-            mCarServiceProxy.preCreateUsers();
             synchronized (mLock) {
                 mSystemBootCompleted = true;
             }
