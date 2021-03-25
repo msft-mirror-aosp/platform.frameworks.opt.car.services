@@ -78,13 +78,11 @@ final class CarServiceProxy {
     // Operation ID for each non life-cycle event calls
     // NOTE: public because of DebugUtils
     public static final int PO_INIT_BOOT_USER = 0;
-    public static final int PO_PRE_CREATE_USERS = 1;
-    public static final int PO_ON_USER_REMOVED = 2;
-    public static final int PO_ON_FACTORY_RESET = 3;
+    public static final int PO_ON_USER_REMOVED = 1;
+    public static final int PO_ON_FACTORY_RESET = 2;
 
     @IntDef(prefix = { "PO_" }, value = {
             PO_INIT_BOOT_USER,
-            PO_PRE_CREATE_USERS,
             PO_ON_USER_REMOVED,
             PO_ON_FACTORY_RESET
     })
@@ -134,7 +132,6 @@ final class CarServiceProxy {
             mCarService = carService;
             mCarServiceCrashed = false;
             runQueuedOperationLocked(PO_INIT_BOOT_USER);
-            runQueuedOperationLocked(PO_PRE_CREATE_USERS);
             runQueuedOperationLocked(PO_ON_USER_REMOVED);
             runQueuedOperationLocked(PO_ON_FACTORY_RESET);
         }
@@ -227,15 +224,6 @@ final class CarServiceProxy {
         if (DBG) Slog.d(TAG, "initBootUser()");
 
         saveOrRun(PO_INIT_BOOT_USER);
-    }
-
-    /**
-     * Pre-creates required number of user.
-     */
-    void preCreateUsers() {
-        if (DBG) Slog.d(TAG, "preCreateUsers()");
-
-        saveOrRun(PO_PRE_CREATE_USERS);
     }
 
     // TODO(b/173664653): add unit test
@@ -353,9 +341,6 @@ final class CarServiceProxy {
         switch (operationId) {
             case PO_INIT_BOOT_USER:
                 mCarService.initBootUser();
-                break;
-            case PO_PRE_CREATE_USERS:
-                mCarService.preCreateUsers();
                 break;
             case PO_ON_USER_REMOVED:
                 if (value instanceof ArrayList) {
