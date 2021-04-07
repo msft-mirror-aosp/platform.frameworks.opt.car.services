@@ -60,7 +60,6 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.util.EventLog;
 import android.util.IndentingPrintWriter;
-import android.util.Slog;
 import android.util.TimeUtils;
 
 import com.android.car.internal.ICarServiceHelper;
@@ -78,6 +77,7 @@ import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
+import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
 
@@ -164,7 +164,7 @@ public class CarServiceHelperService extends SystemService
         @Override
         public void onServiceConnected(ComponentName componentName, IBinder iBinder) {
             if (DBG) {
-                Slog.d(TAG, "onServiceConnected:" + iBinder);
+                Slogf.d(TAG, "onServiceConnected: %s", iBinder);
             }
             handleCarServiceConnection(iBinder);
         }
@@ -191,10 +191,10 @@ public class CarServiceHelperService extends SystemService
                 mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
                         powerCycle, /* arg2= */ 0);
                 if (DBG) {
-                    Slog.d(TAG, "Notified car watchdog daemon a power cycle(" + powerCycle + ")");
+                    Slogf.d(TAG, "Notified car watchdog daemon a power cycle(%d)", powerCycle);
                 }
             } catch (RemoteException | RuntimeException e) {
-                Slog.w(TAG, "Notifying system state change failed: " + e);
+                Slogf.w(TAG, "Notifying system state change failed: %s", e);
             }
         }
     };
@@ -230,23 +230,23 @@ public class CarServiceHelperService extends SystemService
             umi.addUserLifecycleListener(new UserLifecycleListener() {
                 @Override
                 public void onUserCreated(UserInfo user, Object token) {
-                    if (DBG) Slog.d(TAG, "onUserCreated(): " + user.toFullString());
+                    if (DBG) Slogf.d(TAG, "onUserCreated(): %s", user.toFullString());
                 }
                 @Override
                 public void onUserRemoved(UserInfo user) {
-                    if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toFullString());
+                    if (DBG) Slogf.d(TAG, "onUserRemoved(): $s", user.toFullString());
                     mCarServiceProxy.onUserRemoved(user);
                 }
             });
         } else {
-            Slog.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
+            Slogf.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
         }
         mCarDevicePolicySafetyChecker = new CarDevicePolicySafetyChecker(this);
     }
     @Override
     public void onBootPhase(int phase) {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_BOOT_PHASE, phase);
-        if (DBG) Slog.d(TAG, "onBootPhase:" + phase);
+        if (DBG) Slogf.d(TAG, "onBootPhase: %d", phase);
 
         TimingsTraceAndSlog t = newTimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
@@ -263,7 +263,7 @@ public class CarServiceHelperService extends SystemService
                 mCarWatchdogDaemonHelper.notifySystemStateChange(
                         StateType.BOOT_PHASE, phase, /* arg2= */ 0);
             } catch (RemoteException | RuntimeException e) {
-                Slog.w(TAG, "Failed to notify boot phase change: " + e);
+                Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
             t.traceEnd();
         }
@@ -283,7 +283,7 @@ public class CarServiceHelperService extends SystemService
         intent.setAction(CAR_SERVICE_INTERFACE);
         if (!mContext.bindServiceAsUser(intent, mCarServiceConnection, Context.BIND_AUTO_CREATE,
                 mHandler, UserHandle.SYSTEM)) {
-            Slog.wtf(TAG, "cannot start car service");
+            Slogf.wtf(TAG, "cannot start car service");
         }
         loadNativeLibrary();
     }
@@ -335,7 +335,7 @@ public class CarServiceHelperService extends SystemService
     public void onUserUnlocking(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKING, user.getUserIdentifier());
-        if (DBG) Slog.d(TAG, "onUserUnlocking(" + user + ")");
+        if (DBG) Slogf.d(TAG, "onUserUnlocking(%s)", user);
 
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, user);
     }
@@ -345,13 +345,13 @@ public class CarServiceHelperService extends SystemService
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)) return;
         int userId = user.getUserIdentifier();
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKED, userId);
-        if (DBG) Slog.d(TAG, "onUserUnlocked(" + user + ")");
+        if (DBG) Slogf.d(TAG, "onUserUnlocked(%s)", user);
 
         if (mFirstUnlockedUserDuration == 0 && !UserHelperLite.isHeadlessSystemUser(userId)) {
             mFirstUnlockedUserDuration = SystemClock.elapsedRealtime()
                     - Process.getStartElapsedRealtime();
-            Slog.i(TAG, "Time to unlock 1st user(" + user + "): "
-                    + TimeUtils.formatDuration(mFirstUnlockedUserDuration));
+            Slogf.i(TAG, "Time to unlock 1st user(%s): %s", user,
+                    TimeUtils.formatDuration(mFirstUnlockedUserDuration));
         }
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, user);
     }
@@ -360,7 +360,7 @@ public class CarServiceHelperService extends SystemService
     public void onUserStarting(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STARTING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STARTING, user.getUserIdentifier());
-        if (DBG) Slog.d(TAG, "onUserStarting(" + user + ")");
+        if (DBG) Slogf.d(TAG, "onUserStarting(%s)", user);
 
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, user);
     }
@@ -369,7 +369,7 @@ public class CarServiceHelperService extends SystemService
     public void onUserStopping(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPING)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPING, user.getUserIdentifier());
-        if (DBG) Slog.d(TAG, "onUserStopping(" + user + ")");
+        if (DBG) Slogf.d(TAG, "onUserStopping(%s)", user);
 
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPING, user);
         int userId = user.getUserIdentifier();
@@ -380,7 +380,7 @@ public class CarServiceHelperService extends SystemService
     public void onUserStopped(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) return;
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPED, user.getUserIdentifier());
-        if (DBG) Slog.d(TAG, "onUserStopped(" + user + ")");
+        if (DBG) Slogf.d(TAG, "onUserStopped(%s)", user);
 
         sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPED, user);
     }
@@ -391,7 +391,7 @@ public class CarServiceHelperService extends SystemService
         EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_SWITCHING,
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
                 to.getUserIdentifier());
-        if (DBG) Slog.d(TAG, "onUserSwitching(" + from + ">>" + to + ")");
+        if (DBG) Slogf.d(TAG, "onUserSwitching(%s>>%s)", from, to);
 
         mCarServiceProxy.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                 from, to);
@@ -414,7 +414,7 @@ public class CarServiceHelperService extends SystemService
 
     @Override // from DevicePolicySafetyChecker
     public void onFactoryReset(IResultReceiver callback) {
-        if (DBG) Slog.d(TAG, "onFactoryReset:" + callback);
+        if (DBG) Slogf.d(TAG, "onFactoryReset: %s", callback);
 
         mCarServiceProxy.onFactoryReset(callback);
     }
@@ -428,7 +428,7 @@ public class CarServiceHelperService extends SystemService
         if (!user.isPreCreated()) return false;
 
         if (DBG) {
-            Slog.d(TAG, "Ignoring event of type " + eventType + " for pre-created user " + user);
+            Slogf.d(TAG, "Ignoring event of type %d for pre-created user %s", eventType, user);
         }
         return true;
     }
@@ -439,9 +439,9 @@ public class CarServiceHelperService extends SystemService
             if (mCarServiceBinder == iBinder) {
                 return; // already connected.
             }
-            Slog.i(TAG, "car service binder changed, was:" + mCarServiceBinder + " new:" + iBinder);
+            Slogf.i(TAG, "car service binder changed, was %s new: %s", mCarServiceBinder, iBinder);
             mCarServiceBinder = iBinder;
-            Slog.i(TAG, "**CarService connected**");
+            Slogf.i(TAG, "**CarService connected**");
         }
 
         sendSetSystemServerConnectionsCall();
@@ -466,8 +466,8 @@ public class CarServiceHelperService extends SystemService
     private void handleCarServiceUnresponsive() {
         // This should not happen. Calling this method means ICarSystemServerClient binder is not
         // returned after service connection. and CarService has not connected in the given time.
-        Slog.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: " + "CarService unresponsive.");
-        Slog.w(TAG, "*** GOODBYE!");
+        Slogf.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: CarService unresponsive.");
+        Slogf.w(TAG, "*** GOODBYE!");
         Process.killProcess(Process.myPid());
         System.exit(10);
     }
@@ -483,16 +483,15 @@ public class CarServiceHelperService extends SystemService
         }
         int code = IBinder.FIRST_CALL_TRANSACTION;
         try {
-            if (VERBOSE) Slog.v(TAG, "calling one-way binder transaction with code " + code);
+            if (VERBOSE) Slogf.v(TAG, "calling one-way binder transaction with code %d", code);
             // oneway void setSystemServerConnections(in IBinder helper, in IBinder receiver) = 0;
             binder.transact(code, data, null, Binder.FLAG_ONEWAY);
-            if (VERBOSE) Slog.v(TAG, "finished one-way binder transaction with code " + code);
+            if (VERBOSE) Slogf.v(TAG, "finished one-way binder transaction with code %d", code);
         } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
+            Slogf.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
         } catch (RuntimeException e) {
-            Slog.wtf(TAG, "Exception calling binder transaction (real code: "
-                    + code + ")", e);
+            Slogf.wtf(TAG, e, "Exception calling binder transaction (real code: %d)", code);
             throw e;
         } finally {
             data.recycle();
@@ -567,12 +566,12 @@ public class CarServiceHelperService extends SystemService
 
         dumpServiceStacks();
         if (restartOnServiceCrash) {
-            Slog.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: " + "CarService crash");
-            Slog.w(TAG, "*** GOODBYE!");
+            Slogf.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: CarService crash");
+            Slogf.w(TAG, "*** GOODBYE!");
             Process.killProcess(Process.myPid());
             System.exit(10);
         } else {
-            Slog.w(TAG, "*** CARHELPER ignoring: " + "CarService crash");
+            Slogf.w(TAG, "*** CARHELPER ignoring: CarService crash");
         }
     }
 
@@ -584,18 +583,18 @@ public class CarServiceHelperService extends SystemService
         try {
             mCarWatchdogDaemonHelper.registerMonitor(mCarWatchdogMonitor);
         } catch (RemoteException | RuntimeException e) {
-            Slog.w(TAG, "Cannot register to car watchdog daemon: " + e);
+            Slogf.w(TAG, "Cannot register to car watchdog daemon: %s", e);
         }
     }
 
     private void killProcessAndReportToMonitor(int pid) {
         String processName = getProcessName(pid);
         Process.killProcess(pid);
-        Slog.w(TAG, "carwatchdog killed " + processName + " (pid: " + pid + ")");
+        Slogf.w(TAG, "carwatchdog killed %s (pid: %d)", processName, pid);
         try {
             mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
         } catch (RemoteException | RuntimeException e) {
-            Slog.w(TAG, "Cannot report monitor result to car watchdog daemon: " + e);
+            Slogf.w(TAG, "Cannot report monitor result to car watchdog daemon: %s", e);
         }
     }
 
@@ -610,7 +609,7 @@ public class CarServiceHelperService extends SystemService
             }
             return Paths.get(line).getFileName().toString();
         } catch (IOException e) {
-            Slog.w(TAG, "Cannot read " + filename);
+            Slogf.w(TAG, "Cannot read %s", filename);
             return unknownProcessName;
         }
     }
@@ -661,20 +660,20 @@ public class CarServiceHelperService extends SystemService
         @Override
         public UserInfo createUserEvenWhenDisallowed(String name, String userType, int flags) {
             if (DBG) {
-                Slog.d(TAG, "createUserEvenWhenDisallowed(): name=" + UserHelperLite.safeName(name)
-                        + ", type=" + userType + ", flags=" + UserInfo.flagsToString(flags));
+                Slogf.d(TAG, "createUserEvenWhenDisallowed(): name=%s, type=%s, flags=%s",
+                        UserHelperLite.safeName(name), userType, UserInfo.flagsToString(flags));
             }
             UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
             try {
                 UserInfo user = umi.createUserEvenWhenDisallowed(name, userType, flags,
                         /* disallowedPackages= */ null, /* token= */ null);
                 if (DBG) {
-                    Slog.d(TAG, "User created: " + (user == null ? null : user.toFullString()));
+                    Slogf.d(TAG, "User created: %s", (user == null ? "null" : user.toFullString()));
                 }
                 // TODO(b/172691310): decide if user should be affiliated when DeviceOwner is set
                 return user;
             } catch (UserManager.CheckedUserOperationException e) {
-                Slog.e(TAG, "Error creating user", e);
+                Slogf.e(TAG, "Error creating user", e);
                 return null;
             }
         }
@@ -736,7 +735,7 @@ public class CarServiceHelperService extends SystemService
 
         private void dumpAndKillProcess(int pid) {
             if (DBG) {
-                Slog.d(TAG, "Dumping and killing process(pid: " + pid + ")");
+                Slogf.d(TAG, "Dumping and killing process(pid: %d)", pid);
             }
             ArrayList<Integer> javaPids = new ArrayList<>(1);
             ArrayList<Integer> nativePids = new ArrayList<>();
@@ -747,7 +746,7 @@ public class CarServiceHelperService extends SystemService
                     nativePids.add(pid);
                 }
             } catch (IOException e) {
-                Slog.w(TAG, "Cannot get process information: " + e);
+                Slogf.w(TAG, "Cannot get process information: %s", e);
                 return;
             }
             nativePids.addAll(getInterestingNativePids());
@@ -755,7 +754,7 @@ public class CarServiceHelperService extends SystemService
             ActivityManagerService.dumpStackTraces(javaPids, null, null, nativePids, null);
             long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
             if (DBG) {
-                Slog.d(TAG, "Dumping process took " + dumpTime + "ms");
+                Slogf.d(TAG, "Dumping process took %dms", dumpTime);
             }
             // To give clients a chance of wrapping up before the termination.
             if (dumpTime < ONE_SECOND_MS) {
@@ -785,7 +784,7 @@ public class CarServiceHelperService extends SystemService
             IBinder binder;
             if (resultData == null
                     || (binder = resultData.getBinder(ICAR_SYSTEM_SERVER_CLIENT)) == null) {
-                Slog.wtf(TAG, "setSystemServerConnections return NULL Binder.");
+                Slogf.wtf(TAG, "setSystemServerConnections return NULL Binder.");
                 handleCarServiceUnresponsive();
                 return;
             }
