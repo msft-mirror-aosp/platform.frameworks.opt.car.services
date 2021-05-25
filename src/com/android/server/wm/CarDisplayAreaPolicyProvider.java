@@ -31,10 +31,32 @@ import java.util.List;
  */
 public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider {
 
+    /**
+     * This display area is mandatory to be defined. This is where the applications will be
+     * launched.
+     */
     private static final int DEFAULT_APP_TASK_CONTAINER = FEATURE_DEFAULT_TASK_CONTAINER;
+
+    /**
+     * The display partition to launch applications by default. This contains {@link
+     * #DEFAULT_APP_TASK_CONTAINER}.
+     */
     private static final int FOREGROUND_DISPLAY_AREA_ROOT = FEATURE_VENDOR_FIRST + 1;
+
+    /**
+     * Background applications task container.
+     */
     private static final int BACKGROUND_TASK_CONTAINER = FEATURE_VENDOR_FIRST + 2;
     private static final int FEATURE_TASKDISPLAYAREA_PARENT = FEATURE_VENDOR_FIRST + 3;
+
+    /**
+     * Control bar task container.
+     *
+     * Currently we are launching CarLauncher activity in this TDA. This is because the audio card
+     * implementation today is using fragments. If that changes in future then we can use the window
+     * instead to display that view instead of fragments that need an activity.
+     */
+    private static final int CONTROL_BAR_DISPLAY_AREA = FEATURE_VENDOR_FIRST + 4;
 
     @Override
     public DisplayAreaPolicy instantiate(WindowManagerService wmService, DisplayContent content,
@@ -45,11 +67,15 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                     imeContainer);
         }
 
-        final TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(content, wmService,
-                "backgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER);
+        TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(content, wmService,
+                "BackgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER);
 
-        final List<TaskDisplayArea> backgroundTdaList = new ArrayList<>();
+        TaskDisplayArea controlBarDisplayArea = new TaskDisplayArea(content, wmService,
+                "ControlBarTaskDisplayArea", CONTROL_BAR_DISPLAY_AREA);
+
+        List<TaskDisplayArea> backgroundTdaList = new ArrayList<>();
         backgroundTdaList.add(backgroundTaskDisplayArea);
+        backgroundTdaList.add(controlBarDisplayArea);
 
         // Root
         DisplayAreaPolicyBuilder.HierarchyBuilder rootHierarchy =
@@ -67,12 +93,11 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                                 .build());
 
         // Default application launches here
-        final RootDisplayArea defaultAppsRoot = new DisplayAreaGroup(wmService,
-                "FeatureForegroundApplication",
-                FOREGROUND_DISPLAY_AREA_ROOT);
-        final TaskDisplayArea defaultAppTaskDisplayArea = new TaskDisplayArea(content, wmService,
+        RootDisplayArea defaultAppsRoot = new DisplayAreaGroup(wmService,
+                "FeatureForegroundApplication", FOREGROUND_DISPLAY_AREA_ROOT);
+        TaskDisplayArea defaultAppTaskDisplayArea = new TaskDisplayArea(content, wmService,
                 "DefaultApplicationTaskDisplayArea", DEFAULT_APP_TASK_CONTAINER);
-        final List<TaskDisplayArea> firstTdaList = new ArrayList<>();
+        List<TaskDisplayArea> firstTdaList = new ArrayList<>();
         firstTdaList.add(defaultAppTaskDisplayArea);
         DisplayAreaPolicyBuilder.HierarchyBuilder applicationHierarchy =
                 new DisplayAreaPolicyBuilder.HierarchyBuilder(defaultAppsRoot)
