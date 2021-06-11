@@ -23,7 +23,7 @@ import static org.mockito.Mockito.verify;
 
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
-import android.app.admin.DevicePolicyManagerInternal;
+import android.app.admin.DevicePolicyManagerLiteInternal;
 import android.app.admin.DevicePolicySafetyChecker;
 
 import org.junit.Before;
@@ -48,7 +48,7 @@ public final class CarDevicePolicySafetyCheckerTest {
     private DevicePolicySafetyChecker mCheckerImplementation;
 
     @Mock
-    private DevicePolicyManagerInternal mDpmi;
+    private DevicePolicyManagerLiteInternal mDpmi;
 
     private CarDevicePolicySafetyChecker mChecker;
 
