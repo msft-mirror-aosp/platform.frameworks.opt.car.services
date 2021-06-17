@@ -33,7 +33,7 @@ import static android.app.admin.DevicePolicyManager.operationToString;
 
 import android.annotation.NonNull;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
-import android.app.admin.DevicePolicyManagerInternal;
+import android.app.admin.DevicePolicyManagerLiteInternal;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.util.IndentingPrintWriter;
 import android.util.Slog;
@@ -42,6 +42,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.server.LocalServices;
 
 import java.util.Arrays;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.stream.Collectors;
 
@@ -73,17 +74,19 @@ final class CarDevicePolicySafetyChecker {
     private final AtomicBoolean mSafe = new AtomicBoolean(true);
 
     private final DevicePolicySafetyChecker mCheckerImplementation;
-    private final DevicePolicyManagerInternal mDpmi;
+    private final DevicePolicyManagerLiteInternal mDpmi;
 
     CarDevicePolicySafetyChecker(DevicePolicySafetyChecker checkerImplementation) {
-        this(checkerImplementation, LocalServices.getService(DevicePolicyManagerInternal.class));
+        this(checkerImplementation,
+                LocalServices.getService(DevicePolicyManagerLiteInternal.class));
     }
 
     @VisibleForTesting
     CarDevicePolicySafetyChecker(DevicePolicySafetyChecker checkerImplementation,
-            DevicePolicyManagerInternal dpmi) {
-        mCheckerImplementation = checkerImplementation;
-        mDpmi = dpmi;
+            DevicePolicyManagerLiteInternal dpmi) {
+        mCheckerImplementation = Objects.requireNonNull(checkerImplementation,
+                "DevicePolicySafetyChecker cannot be null");
+        mDpmi = Objects.requireNonNull(dpmi, "DevicePolicyManagerLiteInternal cannot be null");
     }
 
     boolean isDevicePolicyOperationSafe(@DevicePolicyOperation int operation) {
