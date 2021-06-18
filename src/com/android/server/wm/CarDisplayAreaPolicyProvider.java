@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
 import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER;
@@ -33,10 +34,16 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
     private static final int DEFAULT_APP_TASK_CONTAINER = FEATURE_DEFAULT_TASK_CONTAINER;
     private static final int FOREGROUND_DISPLAY_AREA_ROOT = FEATURE_VENDOR_FIRST + 1;
     private static final int BACKGROUND_TASK_CONTAINER = FEATURE_VENDOR_FIRST + 2;
+    private static final int FEATURE_TASKDISPLAYAREA_PARENT = FEATURE_VENDOR_FIRST + 3;
 
     @Override
     public DisplayAreaPolicy instantiate(WindowManagerService wmService, DisplayContent content,
             RootDisplayArea root, DisplayArea.Tokens imeContainer) {
+
+        if (!content.isDefaultDisplay) {
+            return new DisplayAreaPolicy.DefaultProvider().instantiate(wmService, content, root,
+                    imeContainer);
+        }
 
         final TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(content, wmService,
                 "backgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER);
@@ -51,11 +58,17 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                         .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
                                 "ImePlaceholder", FEATURE_IME_PLACEHOLDER)
                                 .and(TYPE_INPUT_METHOD, TYPE_INPUT_METHOD_DIALOG)
+                                .build())
+                        // to make sure there are 2 children under root.
+                        // TODO: replace when b/188102153 is resolved to set this to top.
+                        .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
+                                "TaskDisplayAreaParent", FEATURE_TASKDISPLAYAREA_PARENT)
+                                .and(TYPE_APPLICATION)
                                 .build());
 
         // Default application launches here
         final RootDisplayArea defaultAppsRoot = new DisplayAreaGroup(wmService,
-                "FeatureApplication",
+                "FeatureForegroundApplication",
                 FOREGROUND_DISPLAY_AREA_ROOT);
         final TaskDisplayArea defaultAppTaskDisplayArea = new TaskDisplayArea(content, wmService,
                 "DefaultApplicationTaskDisplayArea", DEFAULT_APP_TASK_CONTAINER);
