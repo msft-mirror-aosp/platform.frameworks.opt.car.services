@@ -17,6 +17,7 @@
 package com.android.server.wm;
 
 import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION;
+import static android.view.WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD;
 import static android.view.WindowManager.LayoutParams.TYPE_INPUT_METHOD_DIALOG;
 import static android.window.DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER;
@@ -57,6 +58,11 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
      * instead to display that view instead of fragments that need an activity.
      */
     private static final int CONTROL_BAR_DISPLAY_AREA = FEATURE_VENDOR_FIRST + 4;
+
+    /**
+     * Feature to display the title bar.
+     */
+    private static final int FEATURE_TITLE_BAR = FEATURE_VENDOR_FIRST + 5;
 
     @Override
     public DisplayAreaPolicy instantiate(WindowManagerService wmService, DisplayContent content,
@@ -106,6 +112,10 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                         .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
                                 "ImePlaceholder", FEATURE_IME_PLACEHOLDER)
                                 .and(TYPE_INPUT_METHOD, TYPE_INPUT_METHOD_DIALOG)
+                                .build())
+                        .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
+                                "TitleBar", FEATURE_TITLE_BAR)
+                                .and(TYPE_APPLICATION_OVERLAY)
                                 .build());
 
         return new DisplayAreaPolicyBuilder()
