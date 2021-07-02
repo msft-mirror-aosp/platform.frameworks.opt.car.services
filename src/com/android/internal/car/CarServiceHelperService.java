@@ -186,15 +186,15 @@ public class CarServiceHelperService extends SystemService
                     || (intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
                 return;
             }
-            int powerCycle = PowerCycle.POWER_CYCLE_SUSPEND;
+            int powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
             try {
                 mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
                         powerCycle, /* arg2= */ 0);
                 if (DBG) {
-                    Slogf.d(TAG, "Notified car watchdog daemon a power cycle(%d)", powerCycle);
+                    Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)", powerCycle);
                 }
             } catch (RemoteException | RuntimeException e) {
-                Slogf.w(TAG, "Notifying system state change failed: %s", e);
+                Slogf.w(TAG, "Notifying power cycle state change failed: %s", e);
             }
         }
     };
