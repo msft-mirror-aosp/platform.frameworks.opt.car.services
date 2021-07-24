@@ -42,6 +42,7 @@ import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
+import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
 import android.os.UserHandle;
 import android.view.Display;
@@ -96,6 +97,8 @@ public class CarLaunchParamsModifierTest {
     private RootWindowContainer mRootWindowContainer;
     @Mock
     private LaunchParamsController mLaunchParamsController;
+    @Mock
+    private PackageConfigPersister mPackageConfigPersister;
 
     @Mock
     private Display mDisplay0ForDriver;
@@ -183,6 +186,7 @@ public class CarLaunchParamsModifierTest {
                 FLAG_PRIVATE, /* type= */ 0);
         DisplayContent defaultDc = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
         when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDc);
+        mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mModifier.init();
@@ -255,6 +259,7 @@ public class CarLaunchParamsModifierTest {
         return new ActivityRecord.Builder(mActivityTaskManagerService)
                 .setIntent(intent)
                 .setActivityInfo(info)
+                .setConfiguration(new Configuration())
                 .build();
     }
 
