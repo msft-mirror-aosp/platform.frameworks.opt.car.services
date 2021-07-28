@@ -29,6 +29,7 @@ import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
+import android.util.ArrayMap;
 import android.util.Slog;
 import android.util.SparseIntArray;
 import android.view.Display;
@@ -56,6 +57,18 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
 
     private static final String TAG = "CAR.LAUNCH";
     private static final boolean DBG = false;
+
+    /**
+     * See {@link android.car.Car.CAR_EXTRA_LAUNCH_PERSISTENT} for the detail.
+     */
+    @VisibleForTesting
+    static final String CAR_EXTRA_LAUNCH_PERSISTENT =
+            "android.car.intent.extra.launchparams.PERSISTENT";
+    private static final int LAUNCH_PERSISTENT_INVALID = -1;
+    @VisibleForTesting
+    static final int LAUNCH_PERSISTENT_DELETE = 0;
+    @VisibleForTesting
+    static final int LAUNCH_PERSISTENT_ADD = 1;
 
     private final Context mContext;
 
@@ -92,6 +105,8 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     @GuardedBy("mLock")
     private List<ComponentName> mSourcePreferredComponents;
 
+    @GuardedBy("mLock")
+    private final ArrayMap<ComponentName, TaskDisplayArea> mPersistentActivities = new ArrayMap<>();
 
     @VisibleForTesting
     final DisplayManager.DisplayListener mDisplayListener =
@@ -168,6 +183,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             mCurrentDriverUser = newUserId;
             mDefaultDisplayForProfileUser.clear();
             mDisplayToProfileUserMapping.clear();
+            mPersistentActivities.clear();
         }
     }
 
@@ -287,29 +303,48 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         TaskDisplayArea originalDisplayArea = currentParams.mPreferredTaskDisplayArea;
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayArea targetDisplayArea = null;
+        int extraLaunchPersistent = LAUNCH_PERSISTENT_INVALID;
+        if (activity != null && activity.intent != null) {
+            extraLaunchPersistent = activity.intent.getIntExtra(CAR_EXTRA_LAUNCH_PERSISTENT,
+                    LAUNCH_PERSISTENT_INVALID);
+        }
         if (DBG) {
             Slog.d(TAG, "onCalculate, userId:" + userId
                     + " original displayArea:" + originalDisplayArea
-                    + " ActivityOptions:" + options);
+                    + " ActivityOptions:" + options
+                    + " extraLaunchPersistent=" + extraLaunchPersistent);
         }
-        // If originalDisplayArea is set, respect that before ActivityOptions check.
-        if (originalDisplayArea == null) {
-            if (options != null) {
-                WindowContainerToken daToken = options.getLaunchTaskDisplayArea();
-                if (daToken != null) {
-                    originalDisplayArea = (TaskDisplayArea) WindowContainer.fromBinder(
-                            daToken.asBinder());
-                } else {
-                    int originalDisplayId = options.getLaunchDisplayId();
-                    if (originalDisplayId != Display.INVALID_DISPLAY) {
-                        originalDisplayArea = getDefaultTaskDisplayAreaOnDisplay(originalDisplayId);
-                    }
-                }
-            }
+        ComponentName activityName = null;
+        if (activity != null && activity.info != null) {
+            activityName = activity.info.getComponentName();
         }
         decision:
         synchronized (mLock) {
-            if (originalDisplayArea == null  // No specified DisplayArea to launch the Activity
+            if (extraLaunchPersistent == LAUNCH_PERSISTENT_DELETE) {
+                deleteLaunchPersistentInfoLocked(activityName);
+            }
+            // If originalDisplayArea is set, respect that before ActivityOptions check.
+            if (originalDisplayArea == null) {
+                if (options != null) {
+                    WindowContainerToken daToken = options.getLaunchTaskDisplayArea();
+                    if (daToken != null) {
+                        originalDisplayArea = (TaskDisplayArea) WindowContainer.fromBinder(
+                                daToken.asBinder());
+                        if (extraLaunchPersistent == LAUNCH_PERSISTENT_ADD) {
+                            addLaunchPersistentInfoLocked(activityName, originalDisplayArea);
+                        }
+                    } else {
+                        int originalDisplayId = options.getLaunchDisplayId();
+                        if (originalDisplayId != Display.INVALID_DISPLAY) {
+                            originalDisplayArea = getDefaultTaskDisplayAreaOnDisplay(
+                                    originalDisplayId);
+                        }
+                    }
+                }
+            }
+            if (mPersistentActivities.containsKey(activityName)) {
+                targetDisplayArea = mPersistentActivities.get(activityName);
+            } else if (originalDisplayArea == null  // No specified DA to launch the Activity
                     && mIsSourcePreferred && source != null
                     && (mSourcePreferredComponents == null || Collections.binarySearch(
                             mSourcePreferredComponents, activity.info.getComponentName()) >= 0)) {
@@ -373,6 +408,21 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         } else {
             return RESULT_SKIP;
         }
+    }
+
+    @GuardedBy("mLock")
+    private void addLaunchPersistentInfoLocked(ComponentName activityName, TaskDisplayArea tda) {
+        // Remove the existing Activity on the given TDA.
+        int index = mPersistentActivities.indexOfValue(tda);
+        if (index >= 0) {
+            mPersistentActivities.removeAt(index);
+        }
+        mPersistentActivities.put(activityName, tda);
+    }
+
+    @GuardedBy("mLock")
+    private void deleteLaunchPersistentInfoLocked(ComponentName activityName) {
+        mPersistentActivities.remove(activityName);
     }
 
     @Nullable

@@ -26,6 +26,9 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
+import static com.android.server.wm.CarLaunchParamsModifier.CAR_EXTRA_LAUNCH_PERSISTENT;
+import static com.android.server.wm.CarLaunchParamsModifier.LAUNCH_PERSISTENT_ADD;
+import static com.android.server.wm.CarLaunchParamsModifier.LAUNCH_PERSISTENT_DELETE;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -47,6 +50,7 @@ import android.hardware.display.DisplayManager;
 import android.os.UserHandle;
 import android.view.Display;
 import android.view.SurfaceControl;
+import android.window.WindowContainerToken;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -120,6 +124,8 @@ public class CarLaunchParamsModifierTest {
     private Display mDisplay2Virtual;
     @Mock
     private TaskDisplayArea mDisplayArea2Virtual;
+    @Mock
+    private TaskDisplayArea mMapTaskDisplayArea;
 
     // All mocks from here before CarLaunchParamsModifier are arguments for
     // LaunchParamsModifier.onCalculate() call.
@@ -187,6 +193,7 @@ public class CarLaunchParamsModifierTest {
         DisplayContent defaultDc = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
         when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDc);
         mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
+        mMapTaskDisplayArea.mRemoteToken = new WindowContainer.RemoteToken(mMapTaskDisplayArea);
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mModifier.init();
@@ -663,7 +670,100 @@ public class CarLaunchParamsModifierTest {
                 .isEqualTo(mDisplayArea11ForPassenger);
     }
 
-    private ActivityStarter.Request fakeRequest() {
+    @Test
+    public void testAddPersistentActivityLaunch() {
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
+                (WindowContainerToken) null);  // 2nd call
+
+        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
+        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        // Recreate ActivityRecord to initialize Intent without Extra.
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+
+        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mMapTaskDisplayArea);
+    }
+
+    @Test
+    public void testDeletePersistentActivityLaunch() {
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
+                (WindowContainerToken) null,   // 2nd call
+                (WindowContainerToken) null);  // 3rd call
+
+        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
+        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        mActivityRecordActivity.intent.putExtra(
+                CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_DELETE);
+
+        // In 2nd call, let CarLaunchParamsModifier delete the info for the Activity.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+
+        // In 3rd call, make sure that CarLaunchParamsModifier didn't have the TDA info.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testNoPersistentActivityLaunchAfterUserSwitching() {
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
+                (WindowContainerToken) null);  // 2nd call
+
+        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
+        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        int newDriverId = 22;
+        mModifier.handleCurrentUserSwitching(newDriverId);
+
+        // Recreate ActivityRecord to initialize Intent without Extra.
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testSinglePersistentActivityPerTDA() {
+        mActivityRecordActivity = buildActivityRecord("testMapPackageA", "testMapActivityA");
+        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 2st call
+                (WindowContainerToken) null,   // 3rd call
+                (WindowContainerToken) null);  // 4th call
+
+        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair (MapA, MapTda).
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity = buildActivityRecord("testMapPackageB", "testMapActivityB");
+        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        // In 2nd call, expect that CarLaunchParamsModifier memorizes the 2nd pair (MapB, MapTda)
+        // and forget the 1st pair (MapA, MapTda).
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity = buildActivityRecord("testMapPackageA", "testMapActivityA");
+        // In 3nd call with MapA, expect that CarLaunchParamsModifier does nothing.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity = buildActivityRecord("testMapPackageB", "testMapActivityB");
+        // In 4th call with MapB, expect that CarLaunchParamsModifier assigns MapTda.
+        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mMapTaskDisplayArea);
+    }
+
+    private static ActivityStarter.Request fakeRequest() {
         ActivityStarter.Request request = new ActivityStarter.Request();
         request.realCallingPid = 1324;
         request.realCallingUid = 235;
