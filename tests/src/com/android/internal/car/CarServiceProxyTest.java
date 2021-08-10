@@ -24,13 +24,13 @@ import static org.mockito.Mockito.anyInt;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
+import android.car.ICarResultReceiver;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.test.util.UserTestingHelper.UserInfoBuilder;
 import android.content.pm.UserInfo;
 import android.os.RemoteException;
 
 import com.android.car.internal.ICarSystemServerClient;
-import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService.TargetUser;
 
 import org.junit.Before;
@@ -45,10 +45,10 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     private ICarSystemServerClient mCarService;
 
     @Mock
-    private IResultReceiver mFactoryResetCallback1;
+    private ICarResultReceiver mFactoryResetCallback1;
 
     @Mock
-    private IResultReceiver mFactoryResetCallback2;
+    private ICarResultReceiver mFactoryResetCallback2;
 
     private final TargetUser mFromUser = new TargetUser(new UserInfo(101, "fromUser", 0));
     private final TargetUser mToUser = new TargetUser(new UserInfo(102, "toUser", 0));
@@ -179,7 +179,7 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.onUserRemoved(mRemovedUser3);
     }
 
-    private void callOnFactoryReset(IResultReceiver callback) {
+    private void callOnFactoryReset(ICarResultReceiver callback) {
         mCarServiceProxy.onFactoryReset(callback);
     }
 
@@ -210,11 +210,11 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         verify(mCarService, never()).onUserRemoved(any());
     }
 
-    private void verifyOnFactoryResetCalled(IResultReceiver callback) throws RemoteException {
+    private void verifyOnFactoryResetCalled(ICarResultReceiver callback) throws RemoteException {
         verify(mCarService).onFactoryReset(callback);
     }
 
-    private void verifyOnFactoryResetNotCalled(IResultReceiver callback) throws RemoteException {
+    private void verifyOnFactoryResetNotCalled(ICarResultReceiver callback) throws RemoteException {
         verify(mCarService, never()).onFactoryReset(callback);
     }
 
