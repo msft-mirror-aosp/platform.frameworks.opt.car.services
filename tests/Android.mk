@@ -33,7 +33,6 @@ LOCAL_STATIC_JAVA_LIBRARIES := \
     android.car.watchdoglib \
     androidx.test.ext.junit \
     androidx.test.rules \
-    com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
     services.core \
     testng \
