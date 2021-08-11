@@ -205,7 +205,8 @@ public class CarServiceHelperService extends SystemService
         this(context,
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
-                null
+                /* carServiceOperationManager= */ null,
+                /* carDevicePolicySafetyChecker= */ null
         );
     }
 
@@ -214,7 +215,8 @@ public class CarServiceHelperService extends SystemService
             Context context,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
-            CarServiceProxy carServiceOperationManager) {
+            @Nullable CarServiceProxy carServiceOperationManager,
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
         super(context);
 
         mContext = context;
@@ -241,7 +243,9 @@ public class CarServiceHelperService extends SystemService
         } else {
             Slogf.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
         }
-        mCarDevicePolicySafetyChecker = new CarDevicePolicySafetyChecker(this);
+        mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
+                ? new CarDevicePolicySafetyChecker(this)
+                : carDevicePolicySafetyChecker;
     }
     @Override
     public void onBootPhase(int phase) {
