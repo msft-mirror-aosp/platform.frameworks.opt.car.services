@@ -36,6 +36,7 @@ import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
+import android.car.ICarResultReceiver;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -247,6 +248,7 @@ public class CarServiceHelperService extends SystemService
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
     }
+
     @Override
     public void onBootPhase(int phase) {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_BOOT_PHASE, phase);
@@ -420,7 +422,7 @@ public class CarServiceHelperService extends SystemService
     public void onFactoryReset(IResultReceiver callback) {
         if (DBG) Slogf.d(TAG, "onFactoryReset: %s", callback);
 
-        mCarServiceProxy.onFactoryReset(callback);
+        mCarServiceProxy.onFactoryReset(new ConvertIResultReceiverToICarResultReceiver(callback));
     }
 
     @VisibleForTesting
@@ -780,7 +782,7 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private final class CarServiceConnectedCallback extends IResultReceiver.Stub {
+    private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
         @Override
         public void send(int resultCode, Bundle resultData) {
             mHandler.removeMessages(WHAT_SERVICE_UNRESPONSIVE);
@@ -795,6 +797,25 @@ public class CarServiceHelperService extends SystemService
 
             ICarSystemServerClient carService = ICarSystemServerClient.Stub.asInterface(binder);
             mCarServiceProxy.handleCarServiceConnection(carService);
+        }
+    }
+
+    @VisibleForTesting
+    static final class ConvertIResultReceiverToICarResultReceiver extends ICarResultReceiver.Stub {
+
+        private IResultReceiver mReceiver;
+
+        ConvertIResultReceiverToICarResultReceiver(IResultReceiver receiver) {
+            mReceiver = receiver;
+        }
+
+        @Override
+        public void send(int resultCode, Bundle resultData) {
+            try {
+                mReceiver.send(resultCode, resultData);
+            } catch (RemoteException e) {
+                Slogf.w(TAG, "Callback to DevicePolicySafetyChecker threw RemoteException");
+            }
         }
     }
 }

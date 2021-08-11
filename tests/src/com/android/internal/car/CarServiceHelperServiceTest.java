@@ -33,16 +33,19 @@ import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.ArgumentMatchers.notNull;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.spy;
 
 import android.annotation.UserIdInt;
+import android.car.ICarResultReceiver;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
 import android.os.Binder;
+import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.ServiceManager;
@@ -50,6 +53,7 @@ import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.internal.os.IResultReceiver;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -219,6 +223,18 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyInitBootUser();
+    }
+
+    @Test
+    public void testConvertIResultReceiverToICarResultReceiver() throws Exception {
+        IResultReceiver receiver = mock(IResultReceiver.class);
+        ICarResultReceiver carReceiver =
+                new CarServiceHelperService.ConvertIResultReceiverToICarResultReceiver(receiver);
+        Bundle bundle = new Bundle();
+
+        carReceiver.send(1, bundle);
+
+        verify(receiver).send(1, bundle);
     }
 
     private TargetUser newTargetUser(int userId) {
