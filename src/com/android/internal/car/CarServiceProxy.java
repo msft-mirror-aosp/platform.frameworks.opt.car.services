@@ -27,6 +27,7 @@ import android.annotation.IntDef;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.car.ICarResultReceiver;
 import android.content.pm.UserInfo;
 import android.os.RemoteException;
 import android.os.Trace;
@@ -40,7 +41,6 @@ import android.util.SparseIntArray;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.internal.annotations.GuardedBy;
-import com.android.internal.os.IResultReceiver;
 import com.android.internal.util.Preconditions;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.utils.TimingsTraceAndSlog;
@@ -240,7 +240,7 @@ final class CarServiceProxy {
     /**
      * Callback to ask user to confirm if it's ok to factory reset the device.
      */
-    void onFactoryReset(@NonNull IResultReceiver callback) {
+    void onFactoryReset(@NonNull ICarResultReceiver callback) {
         if (DBG) Slog.d(TAG, "onFactoryReset(): " + callback);
 
         saveOrRun(PO_ON_FACTORY_RESET, callback);
@@ -354,7 +354,7 @@ final class CarServiceProxy {
                 }
                 break;
             case PO_ON_FACTORY_RESET:
-                mCarService.onFactoryReset((IResultReceiver) value);
+                mCarService.onFactoryReset((ICarResultReceiver) value);
                 break;
             default:
                 Slog.wtf(TAG, "Invalid Operation. OperationId -" + operationId);
