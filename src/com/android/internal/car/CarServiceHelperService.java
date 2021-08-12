@@ -36,6 +36,7 @@ import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
+import android.car.ICarResultReceiver;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -205,7 +206,8 @@ public class CarServiceHelperService extends SystemService
         this(context,
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
-                null
+                /* carServiceOperationManager= */ null,
+                /* carDevicePolicySafetyChecker= */ null
         );
     }
 
@@ -214,7 +216,8 @@ public class CarServiceHelperService extends SystemService
             Context context,
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
-            CarServiceProxy carServiceOperationManager) {
+            @Nullable CarServiceProxy carServiceOperationManager,
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
         super(context);
 
         mContext = context;
@@ -241,8 +244,11 @@ public class CarServiceHelperService extends SystemService
         } else {
             Slogf.e(TAG, "UserManagerInternal not available - should only happen on unit tests");
         }
-        mCarDevicePolicySafetyChecker = new CarDevicePolicySafetyChecker(this);
+        mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
+                ? new CarDevicePolicySafetyChecker(this)
+                : carDevicePolicySafetyChecker;
     }
+
     @Override
     public void onBootPhase(int phase) {
         EventLog.writeEvent(EventLogTags.CAR_HELPER_BOOT_PHASE, phase);
@@ -416,7 +422,7 @@ public class CarServiceHelperService extends SystemService
     public void onFactoryReset(IResultReceiver callback) {
         if (DBG) Slogf.d(TAG, "onFactoryReset: %s", callback);
 
-        mCarServiceProxy.onFactoryReset(callback);
+        mCarServiceProxy.onFactoryReset(new ConvertIResultReceiverToICarResultReceiver(callback));
     }
 
     @VisibleForTesting
@@ -776,7 +782,7 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private final class CarServiceConnectedCallback extends IResultReceiver.Stub {
+    private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
         @Override
         public void send(int resultCode, Bundle resultData) {
             mHandler.removeMessages(WHAT_SERVICE_UNRESPONSIVE);
@@ -791,6 +797,25 @@ public class CarServiceHelperService extends SystemService
 
             ICarSystemServerClient carService = ICarSystemServerClient.Stub.asInterface(binder);
             mCarServiceProxy.handleCarServiceConnection(carService);
+        }
+    }
+
+    @VisibleForTesting
+    static final class ConvertIResultReceiverToICarResultReceiver extends ICarResultReceiver.Stub {
+
+        private IResultReceiver mReceiver;
+
+        ConvertIResultReceiverToICarResultReceiver(IResultReceiver receiver) {
+            mReceiver = receiver;
+        }
+
+        @Override
+        public void send(int resultCode, Bundle resultData) {
+            try {
+                mReceiver.send(resultCode, resultData);
+            } catch (RemoteException e) {
+                Slogf.w(TAG, "Callback to DevicePolicySafetyChecker threw RemoteException");
+            }
         }
     }
 }
