@@ -664,7 +664,7 @@ public class CarServiceHelperService extends SystemService
         }
 
         @Override
-        public UserInfo createUserEvenWhenDisallowed(String name, String userType, int flags) {
+        public UserHandle createUserEvenWhenDisallowed(String name, String userType, int flags) {
             if (DBG) {
                 Slogf.d(TAG, "createUserEvenWhenDisallowed(): name=%s, type=%s, flags=%s",
                         UserHelperLite.safeName(name), userType, UserInfo.flagsToString(flags));
@@ -677,7 +677,7 @@ public class CarServiceHelperService extends SystemService
                     Slogf.d(TAG, "User created: %s", (user == null ? "null" : user.toFullString()));
                 }
                 // TODO(b/172691310): decide if user should be affiliated when DeviceOwner is set
-                return user;
+                return user.getUserHandle();
             } catch (UserManager.CheckedUserOperationException e) {
                 Slogf.e(TAG, "Error creating user", e);
                 return null;
