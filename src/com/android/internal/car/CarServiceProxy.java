@@ -367,7 +367,7 @@ final class CarServiceProxy {
                 "Invalid value for ON_USER_REMOVED: %s", value);
         UserInfo user = (UserInfo) value;
         if (DBG) Slog.d(TAG, "Sending onUserRemoved(): " + user.toFullString());
-        mCarService.onUserRemoved(user);
+        mCarService.onUserRemoved(user.getUserHandle());
     }
 
     /**

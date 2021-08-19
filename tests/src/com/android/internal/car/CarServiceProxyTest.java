@@ -201,9 +201,9 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void verifyOnUserRemovedCalled() throws RemoteException {
-        verify(mCarService).onUserRemoved(mRemovedUser1);
-        verify(mCarService).onUserRemoved(mRemovedUser2);
-        verify(mCarService).onUserRemoved(mRemovedUser3);
+        verify(mCarService).onUserRemoved(mRemovedUser1.getUserHandle());
+        verify(mCarService).onUserRemoved(mRemovedUser2.getUserHandle());
+        verify(mCarService).onUserRemoved(mRemovedUser3.getUserHandle());
     }
 
     private void verifyOnUserRemovedNeverCalled() throws RemoteException {
