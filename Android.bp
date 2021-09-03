@@ -8,6 +8,7 @@ java_library {
     libs: [
         "services",
         "android.car",
+        "android.car.builtin",  // Will remove once split is complete
         "android.hardware.automotive.vehicle-V2.0-java",
     ],
     required: ["libcar-framework-service-jni"],
@@ -18,6 +19,21 @@ java_library {
         "android.car.watchdoglib",
         "android.automotive.watchdog.internal-java",
     ],
+}
+
+java_library {
+    name: "car-frameworks-service-module",
+    installable: true,
+    libs: [
+            "android.car",
+            "android.car.builtin",
+            "framework-annotations-lib",
+    ],
+    srcs: [
+        "src/com/android/internal/car/UserMetrics.java",
+    ],
+
+    sdk_version: "module_current",
 }
 
 cc_library_shared {
