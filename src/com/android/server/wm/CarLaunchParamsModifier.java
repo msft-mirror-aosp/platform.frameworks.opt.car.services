@@ -24,8 +24,10 @@ import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
 import android.content.ComponentName;
 import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.hardware.display.DisplayManager;
+import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
 import android.os.UserHandle;
@@ -304,9 +306,17 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayArea targetDisplayArea = null;
         int extraLaunchPersistent = LAUNCH_PERSISTENT_INVALID;
-        if (activity != null && activity.intent != null) {
-            extraLaunchPersistent = activity.intent.getIntExtra(CAR_EXTRA_LAUNCH_PERSISTENT,
-                    LAUNCH_PERSISTENT_INVALID);
+        if (activity != null && activity.intent != null
+                && activity.intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
+            // If the Bundle requires custom class loader and getIntExtra() will try to read it,
+            // then it will fail and clear out the whole Extra, so we should use the copied Bundle
+            // in order to keep the contents even for the custom Parcel Bundle.
+            Bundle extras = activity.intent.getExtras();  // getExtras() will create an copy.
+            if (extras != null) {
+                extraLaunchPersistent = extras.getInt(CAR_EXTRA_LAUNCH_PERSISTENT,
+                        LAUNCH_PERSISTENT_INVALID);
+
+            }
         }
         if (DBG) {
             Slog.d(TAG, "onCalculate, userId:" + userId

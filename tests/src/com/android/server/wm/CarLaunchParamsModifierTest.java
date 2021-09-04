@@ -47,6 +47,10 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
+import android.os.BaseBundle;
+import android.os.Bundle;
+import android.os.Parcel;
+import android.os.Parcelable;
 import android.os.UserHandle;
 import android.view.Display;
 import android.view.SurfaceControl;
@@ -143,6 +147,40 @@ public class CarLaunchParamsModifierTest {
     private LaunchParamsController.LaunchParams mCurrentParams;
     @Mock
     private LaunchParamsController.LaunchParams mOutParams;
+
+    private static class CustomParcel implements Parcelable {
+        private final int mValue;
+
+        CustomParcel() {
+            mValue = 42;  // random initial value
+        }
+
+        protected CustomParcel(Parcel in) {
+            mValue = in.readInt();
+        }
+
+        @Override
+        public void writeToParcel(Parcel dest, int flags) {
+            dest.writeInt(mValue);
+        }
+
+        @Override
+        public int describeContents() {
+            return 0;
+        }
+
+        public static final Creator<CustomParcel> CREATOR = new Creator<CustomParcel>() {
+            @Override
+            public CustomParcel createFromParcel(Parcel in) {
+                return new CustomParcel(in);
+            }
+
+            @Override
+            public CustomParcel[] newArray(int size) {
+                return new CustomParcel[size];
+            }
+        };
+    }
 
     private void mockDisplay(Display display, TaskDisplayArea defaultTaskDisplayArea,
             int displayId, int flags, int type) {
@@ -671,9 +709,10 @@ public class CarLaunchParamsModifierTest {
     }
 
     @Test
-    public void testAddPersistentActivityLaunch() {
+    public void testAddPersistentActivityLaunchFromLauncher() {
         mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
         when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
                 mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
                 (WindowContainerToken) null);  // 2nd call
@@ -689,9 +728,56 @@ public class CarLaunchParamsModifierTest {
     }
 
     @Test
+    public void testIgnorePersistentActivityLaunchFromNonLauncher() {
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        mActivityRecordActivity.intent  // No CATEGORY_LAUNCHER
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
+                (WindowContainerToken) null);  // 2nd call
+
+        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
+        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        // Recreate ActivityRecord to initialize Intent without Extra.
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+    }
+
+    @Test
+    public void testCustomParcelDoNotClearExtra() {
+        // System server's default and triggers to clear out when BadParcelableException.
+        BaseBundle.setShouldDefuse(true);
+        String extraCustomKey = "CustomSExtra";
+        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD)
+                .putExtra(extraCustomKey, new CustomParcel());
+
+        // Parcel the Bundle, since the BadParcelableException happens in unparcel().
+        Parcel parcel = Parcel.obtain();
+        mActivityRecordActivity.intent.getExtras().writeToParcel(parcel, 0);
+        parcel.setDataPosition(0);
+        mActivityRecordActivity.intent.replaceExtras(new Bundle(parcel));
+
+        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
+                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken());
+
+        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+
+        mActivityRecordActivity.intent.setExtrasClassLoader(CustomParcel.class.getClassLoader());
+        CustomParcel parcelData = mActivityRecordActivity.intent.getParcelableExtra(extraCustomKey);
+        assertThat(parcelData).isNotNull();
+    }
+
+    @Test
     public void testDeletePersistentActivityLaunch() {
         mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
         when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
                 mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
                 (WindowContainerToken) null,   // 2nd call
@@ -702,8 +788,9 @@ public class CarLaunchParamsModifierTest {
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
 
         mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.putExtra(
-                CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_DELETE);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_DELETE);
+
 
         // In 2nd call, let CarLaunchParamsModifier delete the info for the Activity.
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
@@ -717,7 +804,8 @@ public class CarLaunchParamsModifierTest {
     @Test
     public void testNoPersistentActivityLaunchAfterUserSwitching() {
         mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
         when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
                 mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
                 (WindowContainerToken) null);  // 2nd call
@@ -738,7 +826,8 @@ public class CarLaunchParamsModifierTest {
     @Test
     public void testSinglePersistentActivityPerTDA() {
         mActivityRecordActivity = buildActivityRecord("testMapPackageA", "testMapActivityA");
-        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
         when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
                 mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
                 mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 2st call
@@ -749,7 +838,8 @@ public class CarLaunchParamsModifierTest {
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
 
         mActivityRecordActivity = buildActivityRecord("testMapPackageB", "testMapActivityB");
-        mActivityRecordActivity.intent.putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
+        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
+                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
         // In 2nd call, expect that CarLaunchParamsModifier memorizes the 2nd pair (MapB, MapTda)
         // and forget the 1st pair (MapA, MapTda).
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
