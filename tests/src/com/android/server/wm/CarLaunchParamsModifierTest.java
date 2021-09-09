@@ -75,7 +75,7 @@ import java.util.Arrays;
 /**
  * Tests for {@link CarLaunchParamsModifier}
  * Build/Install/Run:
- *  atest CarServicesTest:CarLaunchParamsModifierTest
+ *  atest FrameworkOptCarServicesTest:CarLaunchParamsModifierTest
  */
 @RunWith(AndroidJUnit4.class)
 public class CarLaunchParamsModifierTest {
