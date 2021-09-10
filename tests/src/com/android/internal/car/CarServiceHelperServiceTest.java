@@ -255,7 +255,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     private void mockRegisterReceiver() {
-        when(mMockContext.registerReceiverForAllUsers(any(), any(), any(), any()))
+        when(mMockContext.registerReceiverForAllUsers(any(), any(), any(), any(), anyInt()))
                 .thenReturn(new Intent());
     }
 
