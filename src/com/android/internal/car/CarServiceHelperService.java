@@ -281,7 +281,9 @@ public class CarServiceHelperService extends SystemService
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
         filter.addAction(Intent.ACTION_SHUTDOWN);
-        mContext.registerReceiverForAllUsers(mShutdownEventReceiver, filter, null, null);
+        mContext.registerReceiverForAllUsers(mShutdownEventReceiver, filter,
+                /* broadcastPermission= */ null, /* scheduler= */ null,
+                Context.RECEIVER_NOT_EXPORTED);
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         Intent intent = new Intent();
