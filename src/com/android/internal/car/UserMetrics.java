@@ -26,13 +26,13 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.util.IndentingPrintWriter;
-import android.util.LocalLog;
-import android.util.Slog;
+import android.car.builtin.util.Slog;
+import android.car.builtin.util.TimeUtils;
 import android.util.SparseArray;
-import android.util.TimeUtils;
 
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
+import com.android.car.internal.util.IndentingPrintWriter;
+import com.android.car.internal.util.LocalLog;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 

@@ -486,7 +486,7 @@ final class CarServiceProxy {
      * Dump User metrics
      */
     void dumpUserMetrics(IndentingPrintWriter writer) {
-        mUserMetrics.dump(writer);
+        mUserMetrics.dump(new com.android.car.internal.util.IndentingPrintWriter(writer));
     }
 
     private final class PendingOperation {
