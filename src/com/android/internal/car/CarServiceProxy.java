@@ -28,22 +28,20 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.car.ICarResultReceiver;
-import android.content.pm.UserInfo;
+import android.car.builtin.os.UserManagerHelper;
+import android.car.builtin.util.Slog;
+import android.car.builtin.util.TimingsTraceLog;
 import android.os.RemoteException;
-import android.os.Trace;
 import android.os.UserHandle;
-import android.util.DebugUtils;
-import android.util.IndentingPrintWriter;
-import android.util.Slog;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
+import com.android.car.internal.util.DebugUtils;
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.util.Preconditions;
-import com.android.server.SystemService.TargetUser;
-import com.android.server.utils.TimingsTraceAndSlog;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -89,10 +87,11 @@ final class CarServiceProxy {
     @Retention(RetentionPolicy.SOURCE)
     public @interface PendingOperationId{}
 
+    private static final long TRACE_TAG_SYSTEM_SERVER = 1L << 19;
     private static final boolean DBG = false;
     private static final String TAG = CarServiceProxy.class.getSimpleName();
 
-    private static final long LIFECYCLE_TIMESTAMP_IGNORE = 0;
+    private static final int USER_SYSTEM = UserHandle.SYSTEM.getIdentifier();
 
     private final Object mLock = new Object();
 
@@ -100,10 +99,10 @@ final class CarServiceProxy {
     private boolean mCarServiceCrashed;
     @UserIdInt
     @GuardedBy("mLock")
-    private int mLastSwitchedUser = UserHandle.USER_NULL;
+    private int mLastSwitchedUser = UserManagerHelper.USER_NULL;
     @UserIdInt
     @GuardedBy("mLock")
-    private int mPreviousUserOfLastSwitchedUser = UserHandle.USER_NULL;
+    private int mPreviousUserOfLastSwitchedUser = UserManagerHelper.USER_NULL;
     // Key: user id, value: life-cycle
     @GuardedBy("mLock")
     private final SparseIntArray mLastUserLifecycle = new SparseIntArray();
@@ -126,7 +125,7 @@ final class CarServiceProxy {
      */
     void handleCarServiceConnection(ICarSystemServerClient carService) {
         Slog.i(TAG, "CarService connected.");
-        TimingsTraceAndSlog t = newTimingsTraceAndSlog();
+        TimingsTraceLog t = newTimingsTraceLog();
         t.traceBegin("handleCarServiceConnection");
         synchronized (mLock) {
             mCarService = carService;
@@ -161,13 +160,14 @@ final class CarServiceProxy {
         }
 
         // Send user0 events first
-        int user0Lifecycle = lastUserLifecycle.get(UserHandle.USER_SYSTEM);
-        boolean user0IsCurrent = lastSwitchedUser == UserHandle.USER_SYSTEM;
+        int user0Lifecycle = lastUserLifecycle.get(USER_SYSTEM);
+        boolean user0IsCurrent = lastSwitchedUser == USER_SYSTEM;
         // If user0Lifecycle is 0, then no life-cycle event received yet.
         if (user0Lifecycle != 0) {
-            sendAllLifecyleToUser(UserHandle.USER_SYSTEM, user0Lifecycle, user0IsCurrent);
+            sendAllLifecyleToUser(USER_SYSTEM, user0Lifecycle,
+                    user0IsCurrent);
         }
-        lastUserLifecycle.delete(UserHandle.USER_SYSTEM);
+        lastUserLifecycle.delete(USER_SYSTEM);
 
         // Send current user events next
         if (!user0IsCurrent) {
@@ -195,25 +195,25 @@ final class CarServiceProxy {
             Slog.d(TAG, "sendAllLifecyleToUser, user:" + userId + " lifecycle:" + lifecycle);
         }
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_STARTING) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING, UserHandle.USER_NULL,
-                    userId);
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_STARTING,
+                    UserManagerHelper.USER_NULL, userId);
         }
 
-        if (isCurrentUser && userId != UserHandle.USER_SYSTEM) {
+        if (isCurrentUser && userId != USER_SYSTEM) {
             synchronized (mLock) {
-                sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
+                sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
                         mPreviousUserOfLastSwitchedUser, userId);
             }
         }
 
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_UNLOCKING) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, UserHandle.USER_NULL,
-                    userId);
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING,
+                    UserManagerHelper.USER_NULL, userId);
         }
 
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_UNLOCKED) {
-            sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED, UserHandle.USER_NULL,
-                    userId);
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED,
+                    UserManagerHelper.USER_NULL, userId);
         }
     }
 
@@ -230,8 +230,8 @@ final class CarServiceProxy {
     /**
      * Callback to indifcate the given user was removed.
      */
-    void onUserRemoved(@NonNull UserInfo user) {
-        if (DBG) Slog.d(TAG, "onUserRemoved(): " + user.toFullString());
+    void onUserRemoved(@NonNull UserHandle user) {
+        if (DBG) Slog.d(TAG, "onUserRemoved(): " + user);
 
         saveOrRun(PO_ON_USER_REMOVED, user);
     }
@@ -303,12 +303,12 @@ final class CarServiceProxy {
         }
         switch (operationId) {
             case PO_ON_USER_REMOVED:
-                Preconditions.checkArgument((value instanceof UserInfo),
+                Preconditions.checkArgument((value instanceof UserHandle),
                         "invalid value passed to ON_USER_REMOVED", value);
                 if (pendingOperation.value instanceof ArrayList) {
                     if (DBG) Slog.d(TAG, "Adding " + value + " to existing " + pendingOperation);
                     ((ArrayList) pendingOperation.value).add(value);
-                } else if (pendingOperation.value instanceof UserInfo) {
+                } else if (pendingOperation.value instanceof UserHandle) {
                     ArrayList<Object> list = new ArrayList<>(2);
                     list.add(pendingOperation.value);
                     list.add(value);
@@ -363,46 +363,44 @@ final class CarServiceProxy {
 
     @GuardedBy("mLock")
     private void onUserRemovedLocked(@NonNull Object value) throws RemoteException {
-        Preconditions.checkArgument((value instanceof UserInfo),
+        Preconditions.checkArgument((value instanceof UserHandle),
                 "Invalid value for ON_USER_REMOVED: %s", value);
-        UserInfo user = (UserInfo) value;
-        if (DBG) Slog.d(TAG, "Sending onUserRemoved(): " + user.toFullString());
-        mCarService.onUserRemoved(user.getUserHandle());
+        UserHandle user = (UserHandle) value;
+        if (DBG) Slog.d(TAG, "Sending onUserRemoved(): " + user);
+        mCarService.onUserRemoved(user);
     }
 
     /**
      * Sends user life-cycle events to CarService.
      */
-    void sendUserLifecycleEvent(@UserLifecycleEventType int eventType, @Nullable TargetUser from,
-            @NonNull TargetUser to) {
+    void sendUserLifecycleEvent(@UserLifecycleEventType int eventType, @UserIdInt int fromId,
+            @UserIdInt int toId) {
         long now = System.currentTimeMillis();
-        int fromId = from == null ? UserHandle.USER_NULL : from.getUserIdentifier();
-        int toId = to.getUserIdentifier();
         mUserMetrics.onEvent(eventType, now, fromId, toId);
 
         synchronized (mLock) {
             if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
-                mLastSwitchedUser = to.getUserIdentifier();
-                mPreviousUserOfLastSwitchedUser = from.getUserIdentifier();
-                mLastUserLifecycle.put(to.getUserIdentifier(), eventType);
+                mLastSwitchedUser = toId;
+                mPreviousUserOfLastSwitchedUser = fromId;
+                mLastUserLifecycle.put(toId, eventType);
             } else if (eventType == USER_LIFECYCLE_EVENT_TYPE_STOPPING
                     || eventType == USER_LIFECYCLE_EVENT_TYPE_STOPPED) {
-                mLastUserLifecycle.delete(to.getUserIdentifier());
+                mLastUserLifecycle.delete(toId);
             } else {
-                mLastUserLifecycle.put(to.getUserIdentifier(), eventType);
+                mLastUserLifecycle.put(toId, eventType);
             }
             if (mCarService == null) {
                 if (DBG) {
                     Slog.d(TAG, "CarService null. sendUserLifecycleEvent() deferred for lifecycle"
-                            + " event " + eventType + " for user " + to);
+                            + " event " + eventType + " for user " + toId);
                 }
                 return;
             }
         }
-        sendUserLifecycleEvent(eventType, fromId, toId);
+        sendUserLifecycleEventInternal(eventType, fromId, toId);
     }
 
-    private void sendUserLifecycleEvent(@UserLifecycleEventType int eventType,
+    private void sendUserLifecycleEventInternal(@UserLifecycleEventType int eventType,
             @UserIdInt int fromId, @UserIdInt int toId) {
         if (DBG) {
             Slog.d(TAG, "sendUserLifecycleEvent():" + " eventType=" + eventType + ", fromId="
@@ -428,8 +426,8 @@ final class CarServiceProxy {
         mCarServiceHelperService.handleCarServiceCrash();
     }
 
-    private TimingsTraceAndSlog newTimingsTraceAndSlog() {
-        return new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
+    private TimingsTraceLog newTimingsTraceLog() {
+        return new TimingsTraceLog(TAG, TRACE_TAG_SYSTEM_SERVER);
     }
 
     @GuardedBy("mLock")
@@ -452,31 +450,33 @@ final class CarServiceProxy {
     void dump(IndentingPrintWriter writer) {
         writer.println("CarServiceProxy");
         writer.increaseIndent();
-        writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
-        writer.printf("mLastUserLifecycle:\n");
-        int user0Lifecycle = mLastUserLifecycle.get(UserHandle.USER_SYSTEM, 0);
-        if (user0Lifecycle != 0) {
-            writer.printf("SystemUser Lifecycle Event:%s\n", user0Lifecycle);
-        } else {
-            writer.println("SystemUser not initialized");
-        }
-
-        int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
-        if (mLastSwitchedUser != UserHandle.USER_SYSTEM && user0Lifecycle != 0) {
-            writer.printf("last user (%s) Lifecycle Event:%s\n",
-                    mLastSwitchedUser, lastUserLifecycle);
-        }
-
-        int size = mPendingOperations.size();
-        if (size == 0) {
-            writer.println("No pending operations");
-        } else {
-            writer.printf("%d pending operation%s:\n", size, size == 1 ? "" : "s");
-            writer.increaseIndent();
-            for (int i = 0; i < size; i++) {
-                writer.println(mPendingOperations.valueAt(i));
+        synchronized (mLock) {
+            writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
+            writer.printf("mLastUserLifecycle:\n");
+            int user0Lifecycle = mLastUserLifecycle.get(USER_SYSTEM, 0);
+            if (user0Lifecycle != 0) {
+                writer.printf("SystemUser Lifecycle Event:%s\n", user0Lifecycle);
+            } else {
+                writer.println("SystemUser not initialized");
             }
-            writer.decreaseIndent();
+
+            int lastUserLifecycle = mLastUserLifecycle.get(mLastSwitchedUser, 0);
+            if (mLastSwitchedUser != USER_SYSTEM && user0Lifecycle != 0) {
+                writer.printf("last user (%s) Lifecycle Event:%s\n",
+                        mLastSwitchedUser, lastUserLifecycle);
+            }
+
+            int size = mPendingOperations.size();
+            if (size == 0) {
+                writer.println("No pending operations");
+            } else {
+                writer.printf("%d pending operation%s:\n", size, size == 1 ? "" : "s");
+                writer.increaseIndent();
+                for (int i = 0; i < size; i++) {
+                    writer.println(mPendingOperations.valueAt(i));
+                }
+                writer.decreaseIndent();
+            }
         }
         writer.decreaseIndent();
         dumpUserMetrics(writer);
@@ -486,7 +486,7 @@ final class CarServiceProxy {
      * Dump User metrics
      */
     void dumpUserMetrics(IndentingPrintWriter writer) {
-        mUserMetrics.dump(new com.android.car.internal.util.IndentingPrintWriter(writer));
+        mUserMetrics.dump(writer);
     }
 
     private final class PendingOperation {
