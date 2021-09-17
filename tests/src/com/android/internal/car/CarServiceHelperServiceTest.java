@@ -292,14 +292,8 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     private void verifyICarOnUserLifecycleEventCalled(int eventType,
             @UserIdInt int fromId, @UserIdInt int toId) throws Exception {
-        verify(mCarServiceProxy).sendUserLifecycleEvent(eq(eventType),
-                isTargetUser(fromId), isTargetUser(toId));
-    }
-
-    private static TargetUser isTargetUser(@UserIdInt int userId) {
-        return argThat((user) -> {
-            return user == null || user.getUserIdentifier() == userId;
-        });
+        verify(mCarServiceProxy).sendUserLifecycleEvent(eventType,
+                fromId, toId);
     }
 
     private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {

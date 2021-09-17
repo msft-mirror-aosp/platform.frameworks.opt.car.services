@@ -170,13 +170,14 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void callSendLifecycleEvent(int eventType) {
-        mCarServiceProxy.sendUserLifecycleEvent(eventType, mFromUser, mToUser);
+        mCarServiceProxy.sendUserLifecycleEvent(eventType, mFromUser.getUserIdentifier(),
+                mToUser.getUserIdentifier());
     }
 
     private void callOnUserRemoved() {
-        mCarServiceProxy.onUserRemoved(mRemovedUser1);
-        mCarServiceProxy.onUserRemoved(mRemovedUser2);
-        mCarServiceProxy.onUserRemoved(mRemovedUser3);
+        mCarServiceProxy.onUserRemoved(mRemovedUser1.getUserHandle());
+        mCarServiceProxy.onUserRemoved(mRemovedUser2.getUserHandle());
+        mCarServiceProxy.onUserRemoved(mRemovedUser3.getUserHandle());
     }
 
     private void callOnFactoryReset(ICarResultReceiver callback) {
