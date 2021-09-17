@@ -1,0 +1,24 @@
+// Signature format: 2.0
+package com.android.internal.car {
+
+  public interface CarServiceHelperInterface {
+    method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
+    method public void dumpServiceStacks();
+    method public int forceSuspend(int);
+    method public void setDisplayAllowlistForUser(@NonNull android.os.UserHandle, int[]);
+    method public void setPassengerDisplays(int[]);
+    method public void setSafetyMode(boolean);
+    method public void setSourcePreferredComponents(boolean, @Nullable java.util.List<android.content.ComponentName>);
+  }
+
+  public interface CarServiceHelperServiceUpdatable {
+    method public void dump(@NonNull java.io.PrintWriter, @Nullable String[]);
+    method public void initBootUser();
+    method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
+    method public void onStart();
+    method public void onUserRemoved(@NonNull android.os.UserHandle);
+    method public void sendUserLifecycleEvent(int, @Nullable android.os.UserHandle, @NonNull android.os.UserHandle);
+  }
+
+}
+
