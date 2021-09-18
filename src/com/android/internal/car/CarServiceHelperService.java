@@ -36,6 +36,7 @@ import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
+import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
@@ -51,7 +52,6 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
-import android.os.Parcel;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.SystemClock;
@@ -133,7 +133,7 @@ public class CarServiceHelperService extends SystemService
     private final Context mContext;
     private final Object mLock = new Object();
     @GuardedBy("mLock")
-    private IBinder mCarServiceBinder;
+    private ICar mCarServiceBinder;
     @GuardedBy("mLock")
     private boolean mSystemBootCompleted;
 
@@ -238,7 +238,7 @@ public class CarServiceHelperService extends SystemService
                 @Override
                 public void onUserRemoved(UserInfo user) {
                     if (DBG) Slogf.d(TAG, "onUserRemoved(): $s", user.toFullString());
-                    mCarServiceProxy.onUserRemoved(user);
+                    mCarServiceProxy.onUserRemoved(user.getUserHandle());
                 }
             });
         } else {
@@ -303,13 +303,14 @@ public class CarServiceHelperService extends SystemService
             pw.print("First unlocked user duration: ");
             TimeUtils.formatDuration(mFirstUnlockedUserDuration, pw); pw.println();
             pw.printf("Queued tasks: %d\n", mProcessTerminator.mQueuedTask);
-            mCarServiceProxy.dump(pw);
+            mCarServiceProxy.dump(new com.android.car.internal.util.IndentingPrintWriter(pw));
             mCarDevicePolicySafetyChecker.dump(pw);
             return;
         }
 
         if ("--user-metrics-only".equals(args[0])) {
-            mCarServiceProxy.dumpUserMetrics(pw);
+            mCarServiceProxy
+                    .dumpUserMetrics(new com.android.car.internal.util.IndentingPrintWriter(pw));
             return;
         }
 
@@ -402,7 +403,7 @@ public class CarServiceHelperService extends SystemService
         if (DBG) Slogf.d(TAG, "onUserSwitching(%s>>%s)", from, to);
 
         mCarServiceProxy.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING,
-                from, to);
+                from.getUserIdentifier(), to.getUserIdentifier());
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
     }
@@ -444,11 +445,11 @@ public class CarServiceHelperService extends SystemService
     @VisibleForTesting
     void handleCarServiceConnection(IBinder iBinder) {
         synchronized (mLock) {
-            if (mCarServiceBinder == iBinder) {
+            if (mCarServiceBinder == ICar.Stub.asInterface(iBinder)) {
                 return; // already connected.
             }
             Slogf.i(TAG, "car service binder changed, was %s new: %s", mCarServiceBinder, iBinder);
-            mCarServiceBinder = iBinder;
+            mCarServiceBinder = ICar.Stub.asInterface(iBinder);
             Slogf.i(TAG, "**CarService connected**");
         }
 
@@ -481,34 +482,25 @@ public class CarServiceHelperService extends SystemService
     }
 
     private void sendSetSystemServerConnectionsCall() {
-        Parcel data = Parcel.obtain();
-        data.writeInterfaceToken(CAR_SERVICE_INTERFACE);
-        data.writeStrongBinder(mHelper.asBinder());
-        data.writeStrongBinder(mCarServiceConnectedCallback.asBinder());
-        IBinder binder;
+        ICar binder;
         synchronized (mLock) {
             binder = mCarServiceBinder;
         }
-        int code = IBinder.FIRST_CALL_TRANSACTION;
         try {
-            if (VERBOSE) Slogf.v(TAG, "calling one-way binder transaction with code %d", code);
-            // oneway void setSystemServerConnections(in IBinder helper, in IBinder receiver) = 0;
-            binder.transact(code, data, null, Binder.FLAG_ONEWAY);
-            if (VERBOSE) Slogf.v(TAG, "finished one-way binder transaction with code %d", code);
+            binder.setSystemServerConnections(mHelper, mCarServiceConnectedCallback);
         } catch (RemoteException e) {
             Slogf.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
         } catch (RuntimeException e) {
-            Slogf.wtf(TAG, e, "Exception calling binder transaction (real code: %d)", code);
+            Slogf.wtf(TAG, e, "Exception calling setSystemServerConnections");
             throw e;
-        } finally {
-            data.recycle();
         }
     }
 
     private void sendUserLifecycleEvent(@UserLifecycleEventType int eventType,
             @NonNull TargetUser user) {
-        mCarServiceProxy.sendUserLifecycleEvent(eventType, /* from= */ null, user);
+        mCarServiceProxy.sendUserLifecycleEvent(eventType, UserHandle.USER_NULL,
+                user.getUserIdentifier());
     }
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
