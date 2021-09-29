@@ -29,7 +29,7 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
-import android.car.builtin.util.Slog;
+import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
 import android.os.RemoteException;
 import android.os.UserHandle;
@@ -124,7 +124,7 @@ final class CarServiceProxy {
      * Handles new CarService Connection.
      */
     void handleCarServiceConnection(ICarSystemServerClient carService) {
-        Slog.i(TAG, "CarService connected.");
+        Slogf.i(TAG, "CarService connected.");
         TimingsTraceLog t = newTimingsTraceLog();
         t.traceBegin("handleCarServiceConnection");
         synchronized (mLock) {
@@ -146,7 +146,7 @@ final class CarServiceProxy {
             return;
         }
         if (DBG) {
-            Slog.d(TAG, "No queued operation of type " + pendingOperationToString(operationId));
+            Slogf.d(TAG, "No queued operation of type " + pendingOperationToString(operationId));
         }
     }
 
@@ -192,7 +192,7 @@ final class CarServiceProxy {
     private void sendAllLifecyleToUser(@UserIdInt int userId, int lifecycle,
             boolean isCurrentUser) {
         if (DBG) {
-            Slog.d(TAG, "sendAllLifecyleToUser, user:" + userId + " lifecycle:" + lifecycle);
+            Slogf.d(TAG, "sendAllLifecyleToUser, user:" + userId + " lifecycle:" + lifecycle);
         }
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_STARTING) {
             sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_STARTING,
@@ -221,7 +221,7 @@ final class CarServiceProxy {
      * Initializes boot user.
      */
     void initBootUser() {
-        if (DBG) Slog.d(TAG, "initBootUser()");
+        if (DBG) Slogf.d(TAG, "initBootUser()");
 
         saveOrRun(PO_INIT_BOOT_USER);
     }
@@ -231,7 +231,7 @@ final class CarServiceProxy {
      * Callback to indifcate the given user was removed.
      */
     void onUserRemoved(@NonNull UserHandle user) {
-        if (DBG) Slog.d(TAG, "onUserRemoved(): " + user);
+        if (DBG) Slogf.d(TAG, "onUserRemoved(): " + user);
 
         saveOrRun(PO_ON_USER_REMOVED, user);
     }
@@ -241,7 +241,7 @@ final class CarServiceProxy {
      * Callback to ask user to confirm if it's ok to factory reset the device.
      */
     void onFactoryReset(@NonNull ICarResultReceiver callback) {
-        if (DBG) Slog.d(TAG, "onFactoryReset(): " + callback);
+        if (DBG) Slogf.d(TAG, "onFactoryReset(): " + callback);
 
         saveOrRun(PO_ON_FACTORY_RESET, callback);
     }
@@ -254,7 +254,7 @@ final class CarServiceProxy {
         synchronized (mLock) {
             if (mCarService == null) {
                 if (DBG) {
-                    Slog.d(TAG, "CarService null. Operation "
+                    Slogf.d(TAG, "CarService null. Operation "
                             + pendingOperationToString(operationId)
                             + (value == null ? "" : "(" + value + ")") + " deferred.");
                 }
@@ -272,20 +272,22 @@ final class CarServiceProxy {
 
     @GuardedBy("mLock")
     private void runLocked(@PendingOperationId int operationId, @Nullable Object value) {
-        if (DBG) Slog.d(TAG, "runLocked(): " + pendingOperationToString(operationId) + "/" + value);
+        if (DBG) {
+            Slogf.d(TAG, "runLocked(): " + pendingOperationToString(operationId) + "/" + value);
+        }
         try {
             if (isServiceCrashedLoggedLocked(operationId)) {
                 return;
             }
             sendCarServiceActionLocked(operationId, value);
             if (operationId == PO_ON_FACTORY_RESET) {
-                if (DBG) Slog.d(TAG, "NOT removing " + pendingOperationToString(operationId));
+                if (DBG) Slogf.d(TAG, "NOT removing " + pendingOperationToString(operationId));
                 return;
             }
-            if (DBG) Slog.d(TAG, "removing " + pendingOperationToString(operationId));
+            if (DBG) Slogf.d(TAG, "removing " + pendingOperationToString(operationId));
             mPendingOperations.delete(operationId);
         } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
+            Slogf.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
         }
     }
@@ -297,7 +299,7 @@ final class CarServiceProxy {
 
         if (pendingOperation == null) {
             pendingOperation = new PendingOperation(operationId, value);
-            if (DBG) Slog.d(TAG, "Created " + pendingOperation);
+            if (DBG) Slogf.d(TAG, "Created " + pendingOperation);
             mPendingOperations.put(operationId, pendingOperation);
             return;
         }
@@ -306,13 +308,13 @@ final class CarServiceProxy {
                 Preconditions.checkArgument((value instanceof UserHandle),
                         "invalid value passed to ON_USER_REMOVED", value);
                 if (pendingOperation.value instanceof ArrayList) {
-                    if (DBG) Slog.d(TAG, "Adding " + value + " to existing " + pendingOperation);
+                    if (DBG) Slogf.d(TAG, "Adding " + value + " to existing " + pendingOperation);
                     ((ArrayList) pendingOperation.value).add(value);
                 } else if (pendingOperation.value instanceof UserHandle) {
                     ArrayList<Object> list = new ArrayList<>(2);
                     list.add(pendingOperation.value);
                     list.add(value);
-                    if (DBG) Slog.d(TAG, "Converting " + pendingOperation.value + " to " + list);
+                    if (DBG) Slogf.d(TAG, "Converting " + pendingOperation.value + " to " + list);
                     pendingOperation.value = list;
                 } else {
                     throw new IllegalStateException("Invalid value for ON_USER_REMOVED: " + value);
@@ -320,12 +322,12 @@ final class CarServiceProxy {
                 break;
             case PO_ON_FACTORY_RESET:
                 PendingOperation newOperation = new PendingOperation(operationId, value);
-                if (DBG) Slog.d(TAG, "Replacing " + pendingOperation + " by " + newOperation);
+                if (DBG) Slogf.d(TAG, "Replacing " + pendingOperation + " by " + newOperation);
                 mPendingOperations.put(operationId, newOperation);
                 break;
             default:
                 if (DBG) {
-                    Slog.d(TAG, "Already saved operation of type "
+                    Slogf.d(TAG, "Already saved operation of type "
                             + pendingOperationToString(operationId));
                 }
         }
@@ -335,7 +337,7 @@ final class CarServiceProxy {
     private void sendCarServiceActionLocked(@PendingOperationId int operationId,
             @Nullable Object value) throws RemoteException {
         if (DBG) {
-            Slog.d(TAG, "sendCarServiceActionLocked: Operation "
+            Slogf.d(TAG, "sendCarServiceActionLocked: Operation "
                     + pendingOperationToString(operationId));
         }
         switch (operationId) {
@@ -345,7 +347,7 @@ final class CarServiceProxy {
             case PO_ON_USER_REMOVED:
                 if (value instanceof ArrayList) {
                     ArrayList<Object> list = (ArrayList<Object>) value;
-                    if (DBG) Slog.d(TAG, "Sending " + list.size() + " onUserRemoved() calls");
+                    if (DBG) Slogf.d(TAG, "Sending " + list.size() + " onUserRemoved() calls");
                     for (Object user: list) {
                         onUserRemovedLocked(user);
                     }
@@ -357,7 +359,7 @@ final class CarServiceProxy {
                 mCarService.onFactoryReset((ICarResultReceiver) value);
                 break;
             default:
-                Slog.wtf(TAG, "Invalid Operation. OperationId -" + operationId);
+                Slogf.wtf(TAG, "Invalid Operation. OperationId -" + operationId);
         }
     }
 
@@ -366,7 +368,7 @@ final class CarServiceProxy {
         Preconditions.checkArgument((value instanceof UserHandle),
                 "Invalid value for ON_USER_REMOVED: %s", value);
         UserHandle user = (UserHandle) value;
-        if (DBG) Slog.d(TAG, "Sending onUserRemoved(): " + user);
+        if (DBG) Slogf.d(TAG, "Sending onUserRemoved(): " + user);
         mCarService.onUserRemoved(user);
     }
 
@@ -391,7 +393,7 @@ final class CarServiceProxy {
             }
             if (mCarService == null) {
                 if (DBG) {
-                    Slog.d(TAG, "CarService null. sendUserLifecycleEvent() deferred for lifecycle"
+                    Slogf.d(TAG, "CarService null. sendUserLifecycleEvent() deferred for lifecycle"
                             + " event " + eventType + " for user " + toId);
                 }
                 return;
@@ -403,7 +405,7 @@ final class CarServiceProxy {
     private void sendUserLifecycleEventInternal(@UserLifecycleEventType int eventType,
             @UserIdInt int fromId, @UserIdInt int toId) {
         if (DBG) {
-            Slog.d(TAG, "sendUserLifecycleEvent():" + " eventType=" + eventType + ", fromId="
+            Slogf.d(TAG, "sendUserLifecycleEvent():" + " eventType=" + eventType + ", fromId="
                     + fromId + ", toId=" + toId);
         }
         try {
@@ -412,7 +414,7 @@ final class CarServiceProxy {
                 mCarService.onUserLifecycleEvent(eventType, fromId, toId);
             }
         } catch (RemoteException e) {
-            Slog.w(TAG, "RemoteException from car service", e);
+            Slogf.w(TAG, "RemoteException from car service", e);
             handleCarServiceCrash();
         }
     }
@@ -422,7 +424,7 @@ final class CarServiceProxy {
             mCarServiceCrashed = true;
             mCarService = null;
         }
-        Slog.w(TAG, "CarServiceCrashed. No more car service calls before reconnection.");
+        Slogf.w(TAG, "CarServiceCrashed. No more car service calls before reconnection.");
         mCarServiceHelperService.handleCarServiceCrash();
     }
 
@@ -438,7 +440,8 @@ final class CarServiceProxy {
     @GuardedBy("mLock")
     private boolean isServiceCrashedLoggedLocked(@NonNull String operation) {
         if (mCarServiceCrashed) {
-            Slog.w(TAG, "CarServiceCrashed. " + operation + " will be executed after reconnection");
+            Slogf.w(TAG, "CarServiceCrashed. " + operation + " will be executed after "
+                    + "reconnection");
             return true;
         }
         return false;
