@@ -26,7 +26,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
-import android.car.builtin.util.Slog;
+import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimeUtils;
 import android.util.SparseArray;
 
@@ -105,7 +105,7 @@ final class UserMetrics {
                     onUserStoppedEventLocked(timestampMs, toUserId);
                     return;
                 default:
-                    Slog.w(TAG, "Invalid event: " + eventType);
+                    Slogf.w(TAG, "Invalid event: " + eventType);
             }
         }
     }
@@ -131,7 +131,7 @@ final class UserMetrics {
 
         UserStartingMetric existingMetrics = mUserStartingMetrics.get(userId);
         if (existingMetrics != null) {
-            Slog.w(TAG, "user re-started: " + existingMetrics);
+            Slogf.w(TAG, "user re-started: " + existingMetrics);
             finishUserStartingLocked(existingMetrics, /* removeMetric= */ false);
         }
 
@@ -169,7 +169,7 @@ final class UserMetrics {
         }
         UserStoppingMetric existingMetrics = mUserStoppingMetrics.get(userId);
         if (existingMetrics != null) {
-            Slog.w(TAG, "user re-stopped: " + existingMetrics);
+            Slogf.w(TAG, "user re-stopped: " + existingMetrics);
             finishUserStoppingLocked(existingMetrics, /* removeMetric= */ false);
         }
         mUserStoppingMetrics.put(userId, new UserStoppingMetric(userId, timestampMs));
@@ -187,14 +187,15 @@ final class UserMetrics {
     private <T extends BaseUserMetric> T getExistingMetricsLocked(
             @NonNull SparseArray<? extends BaseUserMetric> metrics, @UserIdInt int userId) {
         if (metrics == null) {
-            Slog.w(TAG, "getExistingMetricsLocked() should not pass null metrics, except on tests");
+            Slogf.w(TAG, "getExistingMetricsLocked() should not pass null metrics, except on "
+                    + "tests");
             return null;
         }
         @SuppressWarnings("unchecked")
         T metric = (T) metrics.get(userId);
         if (metric == null) {
             String name = metrics == mUserStartingMetrics ? "starting" : "stopping";
-            Slog.w(TAG, "no " + name + " metrics for user " + userId);
+            Slogf.w(TAG, "no " + name + " metrics for user " + userId);
         }
         return metric;
     }
