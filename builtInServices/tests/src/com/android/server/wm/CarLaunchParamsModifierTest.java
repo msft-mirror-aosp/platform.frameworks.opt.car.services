@@ -25,6 +25,7 @@ import static androidx.test.platform.app.InstrumentationRegistry.getInstrumentat
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 import static com.android.server.wm.CarLaunchParamsModifier.CAR_EXTRA_LAUNCH_PERSISTENT;
 import static com.android.server.wm.CarLaunchParamsModifier.LAUNCH_PERSISTENT_ADD;
@@ -34,6 +35,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 
 import android.annotation.UserIdInt;
@@ -61,6 +63,8 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.internal.policy.AttributeCache;
 import com.android.server.LocalServices;
 import com.android.server.display.color.ColorDisplayService;
+import com.android.server.input.InputManagerService;
+import com.android.server.policy.WindowManagerPolicy;
 
 import org.junit.After;
 import org.junit.Before;
@@ -87,8 +91,10 @@ public class CarLaunchParamsModifierTest {
 
     private CarLaunchParamsModifier mModifier;
 
-    @Mock
     private Context mContext;
+    private WindowManagerService mWindowManagerService;
+    private final WindowManagerGlobalLock mWindowManagerGlobalLock = new WindowManagerGlobalLock();
+
     @Mock
     private DisplayManager mDisplayManager;
     @Mock
@@ -98,8 +104,6 @@ public class CarLaunchParamsModifierTest {
     @Mock
     private RecentTasks mRecentTasks;
     @Mock
-    private WindowManagerService mWindowManagerService;
-    @Mock
     private ColorDisplayService.ColorDisplayServiceInternal mColorDisplayServiceInternal;
     @Mock
     private RootWindowContainer mRootWindowContainer;
@@ -107,6 +111,8 @@ public class CarLaunchParamsModifierTest {
     private LaunchParamsController mLaunchParamsController;
     @Mock
     private PackageConfigPersister mPackageConfigPersister;
+    @Mock
+    private InputManagerService mInputManagerService;
 
     @Mock
     private Display mDisplay0ForDriver;
@@ -205,15 +211,26 @@ public class CarLaunchParamsModifierTest {
                 .mockStatic(ActivityTaskManager.class)
                 .strictness(Strictness.LENIENT)
                 .startMocking();
-        when(mContext.getSystemService(DisplayManager.class)).thenReturn(mDisplayManager);
+        mContext = getInstrumentation().getTargetContext();
+        spyOn(mContext);
+        doReturn(mDisplayManager).when(mContext).getSystemService(eq(DisplayManager.class));
+
         doReturn(mActivityTaskManagerService).when(() -> ActivityTaskManager.getService());
         mActivityTaskManagerService.mTaskSupervisor = mActivityTaskSupervisor;
         when(mActivityTaskSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
         mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
-        mActivityTaskManagerService.mWindowManager = mWindowManagerService;
+        mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
         when(mActivityTaskManagerService.getRecentTasks()).thenReturn(mRecentTasks);
-        mWindowManagerService.mTransactionFactory = () -> new SurfaceControl.Transaction();
+        when(mActivityTaskManagerService.getGlobalLock()).thenReturn(mWindowManagerGlobalLock);
+
+        mWindowManagerService = WindowManagerService.main(
+                mContext, mInputManagerService, /* showBootMsgs= */ false, /* onlyCore= */ false,
+                /* policy= */ null, mActivityTaskManagerService,
+                /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
+                /* surfaceFactory= */ null, /* surfaceControlFactory= */ null);
+        mActivityTaskManagerService.mWindowManager = mWindowManagerService;
+
         AttributeCache.init(getInstrumentation().getTargetContext());
         LocalServices.addService(ColorDisplayService.ColorDisplayServiceInternal.class,
                 mColorDisplayServiceInternal);
@@ -230,7 +247,6 @@ public class CarLaunchParamsModifierTest {
                 FLAG_PRIVATE, /* type= */ 0);
         DisplayContent defaultDc = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
         when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDc);
-        mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
         mMapTaskDisplayArea.mRemoteToken = new WindowContainer.RemoteToken(mMapTaskDisplayArea);
 
         mModifier = new CarLaunchParamsModifier(mContext);
@@ -239,6 +255,8 @@ public class CarLaunchParamsModifierTest {
 
     @After
     public void tearDown() {
+        LocalServices.removeServiceForTest(WindowManagerInternal.class);
+        LocalServices.removeServiceForTest(WindowManagerPolicy.class);
         LocalServices.removeServiceForTest(ColorDisplayService.ColorDisplayServiceInternal.class);
         mMockingSession.finishMocking();
     }
