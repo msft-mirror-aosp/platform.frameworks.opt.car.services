@@ -22,19 +22,20 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
+import android.content.ActivityNotFoundException;
 import android.content.ComponentName;
 import android.content.Context;
-import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.hardware.display.DisplayManager;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.Slog;
 import android.util.SparseIntArray;
 import android.view.Display;
+import android.window.DisplayAreaOrganizer;
 import android.window.WindowContainerToken;
 
 import com.android.internal.annotations.GuardedBy;
@@ -60,17 +61,14 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     private static final String TAG = "CAR.LAUNCH";
     private static final boolean DBG = false;
 
+    // The following constants come from android.car.app.CarActivityManager.
+    /** Indicates that the operation was successful. */
+    @VisibleForTesting static final int RESULT_SUCCESS = 0;
     /**
-     * See {@link android.car.Car.CAR_EXTRA_LAUNCH_PERSISTENT} for the detail.
+     * Internal error code for throwing {@link ActivityNotFoundException} from service.
+     * @hide
      */
-    @VisibleForTesting
-    static final String CAR_EXTRA_LAUNCH_PERSISTENT =
-            "android.car.intent.extra.launchparams.PERSISTENT";
-    private static final int LAUNCH_PERSISTENT_INVALID = -1;
-    @VisibleForTesting
-    static final int LAUNCH_PERSISTENT_DELETE = 0;
-    @VisibleForTesting
-    static final int LAUNCH_PERSISTENT_ADD = 1;
+    public static final int ERROR_CODE_ACTIVITY_NOT_FOUND = -101;
 
     private final Context mContext;
 
@@ -185,7 +183,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
             mCurrentDriverUser = newUserId;
             mDefaultDisplayForProfileUser.clear();
             mDisplayToProfileUserMapping.clear();
-            mPersistentActivities.clear();
         }
     }
 
@@ -305,24 +302,10 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         TaskDisplayArea originalDisplayArea = currentParams.mPreferredTaskDisplayArea;
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayArea targetDisplayArea = null;
-        int extraLaunchPersistent = LAUNCH_PERSISTENT_INVALID;
-        if (activity != null && activity.intent != null
-                && activity.intent.hasCategory(Intent.CATEGORY_LAUNCHER)) {
-            // If the Bundle requires custom class loader and getIntExtra() will try to read it,
-            // then it will fail and clear out the whole Extra, so we should use the copied Bundle
-            // in order to keep the contents even for the custom Parcel Bundle.
-            Bundle extras = activity.intent.getExtras();  // getExtras() will create an copy.
-            if (extras != null) {
-                extraLaunchPersistent = extras.getInt(CAR_EXTRA_LAUNCH_PERSISTENT,
-                        LAUNCH_PERSISTENT_INVALID);
-
-            }
-        }
         if (DBG) {
             Slog.d(TAG, "onCalculate, userId:" + userId
                     + " original displayArea:" + originalDisplayArea
-                    + " ActivityOptions:" + options
-                    + " extraLaunchPersistent=" + extraLaunchPersistent);
+                    + " ActivityOptions:" + options);
         }
         ComponentName activityName = null;
         if (activity != null && activity.info != null) {
@@ -330,9 +313,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         }
         decision:
         synchronized (mLock) {
-            if (extraLaunchPersistent == LAUNCH_PERSISTENT_DELETE) {
-                deleteLaunchPersistentInfoLocked(activityName);
-            }
             // If originalDisplayArea is set, respect that before ActivityOptions check.
             if (originalDisplayArea == null) {
                 if (options != null) {
@@ -340,9 +320,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                     if (daToken != null) {
                         originalDisplayArea = (TaskDisplayArea) WindowContainer.fromBinder(
                                 daToken.asBinder());
-                        if (extraLaunchPersistent == LAUNCH_PERSISTENT_ADD) {
-                            addLaunchPersistentInfoLocked(activityName, originalDisplayArea);
-                        }
                     } else {
                         int originalDisplayId = options.getLaunchDisplayId();
                         if (originalDisplayId != Display.INVALID_DISPLAY) {
@@ -418,21 +395,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         } else {
             return RESULT_SKIP;
         }
-    }
-
-    @GuardedBy("mLock")
-    private void addLaunchPersistentInfoLocked(ComponentName activityName, TaskDisplayArea tda) {
-        // Remove the existing Activity on the given TDA.
-        int index = mPersistentActivities.indexOfValue(tda);
-        if (index >= 0) {
-            mPersistentActivities.removeAt(index);
-        }
-        mPersistentActivities.put(activityName, tda);
-    }
-
-    @GuardedBy("mLock")
-    private void deleteLaunchPersistentInfoLocked(ComponentName activityName) {
-        mPersistentActivities.remove(activityName);
     }
 
     @Nullable
@@ -547,4 +509,41 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         return null;
     }
 
+    private TaskDisplayArea findTaskDisplayArea(DisplayContent display, int featureId) {
+        return display.getItemFromTaskDisplayAreas(
+                displayArea -> displayArea.mFeatureId == featureId ? displayArea : null);
+    }
+
+    /**
+     * See {@code CarActivityManager#setPersistentActivity(android.content.ComponentName,int, int)}
+     */
+    public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
+        if (DBG) {
+            Slog.d(TAG, "setPersistentActivity: activity=" + activity + ", displayId=" + displayId
+                    + ", featureId=" + featureId);
+        }
+        if (featureId == DisplayAreaOrganizer.FEATURE_UNDEFINED) {
+            synchronized (mLock) {
+                TaskDisplayArea removed = mPersistentActivities.remove(activity);
+                if (removed == null) {
+                    throw new ServiceSpecificException(
+                            ERROR_CODE_ACTIVITY_NOT_FOUND,
+                            "Failed to remove " + activity.toShortString());
+                }
+                return RESULT_SUCCESS;
+            }
+        }
+        DisplayContent display = mAtm.mRootWindowContainer.getDisplayContentOrCreate(displayId);
+        if (display == null) {
+            throw new IllegalArgumentException("Unknown display=" + displayId);
+        }
+        TaskDisplayArea tda = findTaskDisplayArea(display, featureId);
+        if (tda == null) {
+            throw new IllegalArgumentException("Unknown feature=" + featureId);
+        }
+        synchronized (mLock) {
+            mPersistentActivities.put(activity, tda);
+        }
+        return RESULT_SUCCESS;
+    }
 }
