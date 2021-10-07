@@ -7,6 +7,7 @@ package com.android.internal.car {
     method public int forceSuspend(int);
     method public void setDisplayAllowlistForUser(@NonNull android.os.UserHandle, int[]);
     method public void setPassengerDisplays(int[]);
+    method public int setPersistentActivity(android.content.ComponentName, int, int);
     method public void setSafetyMode(boolean);
     method public void setSourcePreferredComponents(boolean, @Nullable java.util.List<android.content.ComponentName>);
   }
