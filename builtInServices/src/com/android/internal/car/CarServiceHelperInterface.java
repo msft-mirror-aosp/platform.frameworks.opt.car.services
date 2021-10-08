@@ -56,6 +56,12 @@ public interface CarServiceHelperInterface {
             @Nullable List<ComponentName> sourcePreferredComponents);
 
     /**
+     * Designates the given {@code activity} to be launched in {@code TaskDisplayArea} of
+     * {@code featureId} in the display of {@code displayId}.
+     */
+    int setPersistentActivity(ComponentName activity, int displayId, int featureId);
+
+    /**
      * Sets safety mode
      */
     void setSafetyMode(boolean safe);

@@ -267,6 +267,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
+        public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
+            return mCarServiceHelperInterface.setPersistentActivity(activity, displayId, featureId);
+        }
+
+        @Override
         public void setSafetyMode(boolean safe) {
             mCarServiceHelperInterface.setSafetyMode(safe);
         }
