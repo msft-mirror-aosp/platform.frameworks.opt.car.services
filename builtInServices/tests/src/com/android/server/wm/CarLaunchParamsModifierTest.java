@@ -27,21 +27,22 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.spyOn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
-import static com.android.server.wm.CarLaunchParamsModifier.CAR_EXTRA_LAUNCH_PERSISTENT;
-import static com.android.server.wm.CarLaunchParamsModifier.LAUNCH_PERSISTENT_ADD;
-import static com.android.server.wm.CarLaunchParamsModifier.LAUNCH_PERSISTENT_DELETE;
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
+import static org.testng.Assert.assertThrows;
 
 import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
+import android.car.app.CarActivityManager;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -49,14 +50,13 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
-import android.os.BaseBundle;
-import android.os.Bundle;
 import android.os.Parcel;
 import android.os.Parcelable;
+import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.view.Display;
 import android.view.SurfaceControl;
-import android.window.WindowContainerToken;
+import android.window.DisplayAreaOrganizer;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -75,6 +75,7 @@ import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
 import java.util.Arrays;
+import java.util.function.Function;
 
 /**
  * Tests for {@link CarLaunchParamsModifier}
@@ -86,6 +87,7 @@ public class CarLaunchParamsModifierTest {
     private static final int PASSENGER_DISPLAY_ID_10 = 10;
     private static final int PASSENGER_DISPLAY_ID_11 = 11;
     private static final int VIRTUAL_DISPLAY_ID_2 = 2;
+    private static final int FEATURE_MAP_ID = 1111;
 
     private MockitoSession mMockingSession;
 
@@ -134,7 +136,6 @@ public class CarLaunchParamsModifierTest {
     private Display mDisplay2Virtual;
     @Mock
     private TaskDisplayArea mDisplayArea2Virtual;
-    @Mock
     private TaskDisplayArea mMapTaskDisplayArea;
 
     // All mocks from here before CarLaunchParamsModifier are arguments for
@@ -221,6 +222,9 @@ public class CarLaunchParamsModifierTest {
                 mLaunchParamsController);
         mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
         mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
+        mActivityTaskManagerService.mWindowOrganizerController =
+                new WindowOrganizerController(mActivityTaskManagerService);
+        when(mActivityTaskManagerService.getTransitionController()).thenCallRealMethod();
         when(mActivityTaskManagerService.getRecentTasks()).thenReturn(mRecentTasks);
         when(mActivityTaskManagerService.getGlobalLock()).thenReturn(mWindowManagerGlobalLock);
 
@@ -230,6 +234,7 @@ public class CarLaunchParamsModifierTest {
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
                 /* surfaceFactory= */ null, /* surfaceControlFactory= */ null);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
+        mRootWindowContainer.mWindowManager = mWindowManagerService;
 
         AttributeCache.init(getInstrumentation().getTargetContext());
         LocalServices.addService(ColorDisplayService.ColorDisplayServiceInternal.class,
@@ -237,6 +242,15 @@ public class CarLaunchParamsModifierTest {
         when(mActivityOptions.getLaunchDisplayId()).thenReturn(INVALID_DISPLAY);
         mockDisplay(mDisplay0ForDriver, mDisplayArea0ForDriver, DEFAULT_DISPLAY,
                 FLAG_TRUSTED, /* type= */ 0);
+        DisplayContent defaultDC = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
+        mMapTaskDisplayArea = new TaskDisplayArea(
+                defaultDC, mWindowManagerService, "MapTDA", FEATURE_MAP_ID);
+        doAnswer((invocation) -> {
+            Function<TaskDisplayArea, TaskDisplayArea> callback = invocation.getArgument(0);
+            return callback.apply(mMapTaskDisplayArea);
+        }).when(defaultDC).getItemFromTaskDisplayAreas(any());
+        when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDC);
+
         mockDisplay(mDisplay10ForPassenger, mDisplayArea10ForPassenger, PASSENGER_DISPLAY_ID_10,
                 FLAG_TRUSTED, /* type= */ 0);
         mockDisplay(mDisplay11ForPassenger, mDisplayArea11ForPassenger, PASSENGER_DISPLAY_ID_11,
@@ -245,9 +259,6 @@ public class CarLaunchParamsModifierTest {
                 FLAG_TRUSTED | FLAG_PRIVATE, /* type= */ 0);
         mockDisplay(mDisplay2Virtual, mDisplayArea2Virtual, VIRTUAL_DISPLAY_ID_2,
                 FLAG_PRIVATE, /* type= */ 0);
-        DisplayContent defaultDc = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
-        when(mActivityRecordSource.getDisplayContent()).thenReturn(defaultDc);
-        mMapTaskDisplayArea.mRemoteToken = new WindowContainer.RemoteToken(mMapTaskDisplayArea);
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mModifier.init();
@@ -324,6 +335,10 @@ public class CarLaunchParamsModifierTest {
                 .setActivityInfo(info)
                 .setConfiguration(new Configuration())
                 .build();
+    }
+
+    private ActivityRecord buildActivityRecord(ComponentName componentName) {
+        return buildActivityRecord(componentName.getPackageName(), componentName.getClassName());
     }
 
     @Test
@@ -727,148 +742,58 @@ public class CarLaunchParamsModifierTest {
     }
 
     @Test
-    public void testAddPersistentActivityLaunchFromLauncher() {
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
-                (WindowContainerToken) null);  // 2nd call
+    public void testSetPersistentActivityThrowsExceptionForInvalidDisplayId() {
+        ComponentName mapActivity = new ComponentName("testMapPkg", "mapActivity");
+        int invalidDisplayId = 999990;
 
-        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
-        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
+        assertThrows(IllegalArgumentException.class,
+                () -> mModifier.setPersistentActivity(mapActivity,
+                        invalidDisplayId, DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER));
+    }
 
-        // Recreate ActivityRecord to initialize Intent without Extra.
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+    @Test
+    public void testSetPersistentActivityThrowsExceptionForInvalidFeatureId() {
+        ComponentName mapActivity = new ComponentName("testMapPkg", "mapActivity");
+        int invalidFeatureId = 999990;
+
+        assertThrows(IllegalArgumentException.class,
+                () -> mModifier.setPersistentActivity(mapActivity,
+                        DEFAULT_DISPLAY, invalidFeatureId));
+    }
+
+    @Test
+    public void testPersistentActivityOverridesTDA() {
+        ComponentName mapActivityName = new ComponentName("testMapPkg", "mapActivity");
+        mActivityRecordActivity = buildActivityRecord(mapActivityName);
+
+        int ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
+        assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
 
         assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mMapTaskDisplayArea);
     }
 
     @Test
-    public void testIgnorePersistentActivityLaunchFromNonLauncher() {
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent  // No CATEGORY_LAUNCHER
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
-                (WindowContainerToken) null);  // 2nd call
+    public void testRemovePersistentActivity() {
+        ComponentName mapActivityName = new ComponentName("testMapPkg", "mapActivity");
+        mActivityRecordActivity = buildActivityRecord(mapActivityName);
 
-        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
-        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        // Recreate ActivityRecord to initialize Intent without Extra.
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+        int ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
+        assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
+        // Removes the existing persistent Activity assignment.
+        ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY,
+                DisplayAreaOrganizer.FEATURE_UNDEFINED);
+        assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
 
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
     }
 
     @Test
-    public void testCustomParcelDoNotClearExtra() {
-        // System server's default and triggers to clear out when BadParcelableException.
-        BaseBundle.setShouldDefuse(true);
-        String extraCustomKey = "CustomSExtra";
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
+    public void testRemoveUnknownPersistentActivityThrowsException() {
+        ComponentName mapActivity = new ComponentName("testMapPkg", "mapActivity");
 
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD)
-                .putExtra(extraCustomKey, new CustomParcel());
-
-        // Parcel the Bundle, since the BadParcelableException happens in unparcel().
-        Parcel parcel = Parcel.obtain();
-        mActivityRecordActivity.intent.getExtras().writeToParcel(parcel, 0);
-        parcel.setDataPosition(0);
-        mActivityRecordActivity.intent.replaceExtras(new Bundle(parcel));
-
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken());
-
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity.intent.setExtrasClassLoader(CustomParcel.class.getClassLoader());
-        CustomParcel parcelData = mActivityRecordActivity.intent.getParcelableExtra(extraCustomKey);
-        assertThat(parcelData).isNotNull();
-    }
-
-    @Test
-    public void testDeletePersistentActivityLaunch() {
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
-                (WindowContainerToken) null,   // 2nd call
-                (WindowContainerToken) null);  // 3rd call
-
-        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
-        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_DELETE);
-
-
-        // In 2nd call, let CarLaunchParamsModifier delete the info for the Activity.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-
-        // In 3rd call, make sure that CarLaunchParamsModifier didn't have the TDA info.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-    }
-
-    @Test
-    public void testNoPersistentActivityLaunchAfterUserSwitching() {
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
-                (WindowContainerToken) null);  // 2nd call
-
-        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair.
-        // For LaunchTaskDisplayArea, the actual TDA assignment happens in TaskLaunchParamsModifier.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        int newDriverId = 22;
-        mModifier.handleCurrentUserSwitching(newDriverId);
-
-        // Recreate ActivityRecord to initialize Intent without Extra.
-        mActivityRecordActivity = buildActivityRecord("testMapPackage", "testMapActivity");
-
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-    }
-
-    @Test
-    public void testSinglePersistentActivityPerTDA() {
-        mActivityRecordActivity = buildActivityRecord("testMapPackageA", "testMapActivityA");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        when(mActivityOptions.getLaunchTaskDisplayArea()).thenReturn(
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 1st call
-                mMapTaskDisplayArea.mRemoteToken.toWindowContainerToken(),  // 2st call
-                (WindowContainerToken) null,   // 3rd call
-                (WindowContainerToken) null);  // 4th call
-
-        // In 1st call, let CarLaunchParamsModifier memorize Activity TDA pair (MapA, MapTda).
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity = buildActivityRecord("testMapPackageB", "testMapActivityB");
-        mActivityRecordActivity.intent.addCategory(Intent.CATEGORY_LAUNCHER)
-                .putExtra(CAR_EXTRA_LAUNCH_PERSISTENT, LAUNCH_PERSISTENT_ADD);
-        // In 2nd call, expect that CarLaunchParamsModifier memorizes the 2nd pair (MapB, MapTda)
-        // and forget the 1st pair (MapA, MapTda).
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity = buildActivityRecord("testMapPackageA", "testMapActivityA");
-        // In 3nd call with MapA, expect that CarLaunchParamsModifier does nothing.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mActivityRecordActivity = buildActivityRecord("testMapPackageB", "testMapActivityB");
-        // In 4th call with MapB, expect that CarLaunchParamsModifier assigns MapTda.
-        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mMapTaskDisplayArea);
+        assertThrows(ServiceSpecificException.class,
+                () -> mModifier.setPersistentActivity(mapActivity, DEFAULT_DISPLAY,
+                        DisplayAreaOrganizer.FEATURE_UNDEFINED));
     }
 
     private static ActivityStarter.Request fakeRequest() {

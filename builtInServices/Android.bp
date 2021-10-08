@@ -4,7 +4,6 @@ package {
 
 java_sdk_library {
     name: "car-frameworks-service",
-    installable: true,
     libs: [
         "services",
         "android.car",
@@ -22,6 +21,12 @@ java_sdk_library {
     api_lint: {
         enabled: true,
     },
+
+    min_sdk_version: "31",
+    apex_available: [
+        "//apex_available:platform",
+        "com.android.car.framework"
+    ],
 
     unsafe_ignore_missing_latest_api: true,
 
