@@ -657,6 +657,11 @@ public class CarServiceHelperService extends SystemService
         }
 
         @Override
+        public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
+            return mCarLaunchParamsModifier.setPersistentActivity(activity, displayId, featureId);
+        }
+
+        @Override
         public void setSafetyMode(boolean safe) {
             mCarDevicePolicySafetyChecker.setSafe(safe);
         }
