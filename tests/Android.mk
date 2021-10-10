@@ -25,17 +25,18 @@ LOCAL_PROGUARD_ENABLED := disabled
 LOCAL_JAVA_LIBRARIES += \
     android.test.runner \
     android.test.base \
-    android.hardware.automotive.vehicle-V2.0-java
+    android.hardware.automotive.vehicle-V2.0-java \
+    com.android.car.internal.common
 
 LOCAL_STATIC_JAVA_LIBRARIES := \
-    android.car.internal.event-log-tags \
     android.car.test.utils \
-    android.car.userlib \
     android.car.watchdoglib \
     androidx.test.ext.junit \
     androidx.test.rules \
+    com.android.car.internal.system \
     mockito-target-extended-minus-junit4 \
     services.core \
+    testng \
     truth-prebuilt
 
 # mockito-target-extended dependencies
