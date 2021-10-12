@@ -5,21 +5,19 @@ package {
 java_library {
     name: "car-frameworks-service",
     installable: true,
-
     libs: [
         "services",
-        "android.car.internal.event-log-tags",
+        "android.hardware.automotive.vehicle-V2.0-java",
+        "com.android.car.internal.common",
     ],
     required: ["libcar-framework-service-jni"],
     srcs: [
         "src/**/*.java",
-        "src/com/android/internal/car/ICarServiceHelper.aidl",
     ],
     static_libs: [
-        "android.hardware.automotive.vehicle-V2.0-java",
-        "android.car.userlib",
         "android.car.watchdoglib",
-        "carwatchdog_aidl_interface-V2-java",
+        "com.android.car.internal.system",
+        "android.automotive.watchdog.internal-java",
     ],
 }
 
