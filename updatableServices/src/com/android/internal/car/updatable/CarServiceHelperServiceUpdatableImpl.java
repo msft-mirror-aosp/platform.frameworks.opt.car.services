@@ -280,6 +280,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         public UserHandle createUserEvenWhenDisallowed(String name, String userType, int flags) {
             return mCarServiceHelperInterface.createUserEvenWhenDisallowed(name, userType, flags);
         }
+
+        @Override
+        public void sendInitialUser(UserHandle user) {
+            mCarServiceProxy.saveInitialUser(user);
+        }
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
