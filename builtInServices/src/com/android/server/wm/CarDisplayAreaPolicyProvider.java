@@ -66,6 +66,11 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
      */
     private static final int FEATURE_TITLE_BAR = FEATURE_VENDOR_FIRST + 5;
 
+    /**
+    * Feature to display voice plate.
+    */
+    private static final int FEATURE_VOICE_PLATE = FEATURE_VENDOR_FIRST + 6;
+
     @Override
     public DisplayAreaPolicy instantiate(WindowManagerService wmService, DisplayContent content,
             RootDisplayArea root, DisplayArea.Tokens imeContainer) {
@@ -81,7 +86,11 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
         TaskDisplayArea controlBarDisplayArea = new TaskDisplayArea(content, wmService,
                 "ControlBarTaskDisplayArea", CONTROL_BAR_DISPLAY_AREA);
 
-        List<TaskDisplayArea> backgroundTdaList = new ArrayList<>();
+        TaskDisplayArea voicePlateTaskDisplayArea = new TaskDisplayArea(content, wmService,
+                "VoicePlateTaskDisplayArea", FEATURE_VOICE_PLATE);
+
+        List<TaskDisplayArea> backgroundTdaList = new ArrayList<>(3);
+        backgroundTdaList.add(voicePlateTaskDisplayArea);
         backgroundTdaList.add(backgroundTaskDisplayArea);
         backgroundTdaList.add(controlBarDisplayArea);
 
