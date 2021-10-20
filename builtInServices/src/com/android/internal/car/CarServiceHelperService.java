@@ -507,6 +507,13 @@ public class CarServiceHelperService extends SystemService
     private void registerMonitorToWatchdogDaemon() {
         try {
             mCarWatchdogDaemonHelper.registerMonitor(mCarWatchdogMonitor);
+            synchronized (mLock) {
+                if (!mSystemBootCompleted) {
+                    return;
+                }
+            }
+            mCarWatchdogDaemonHelper.notifySystemStateChange(
+                    StateType.BOOT_PHASE, SystemService.PHASE_BOOT_COMPLETED, /* arg2= */ 0);
         } catch (RemoteException | RuntimeException e) {
             Slogf.w(TAG, "Cannot register to car watchdog daemon: %s", e);
         }
