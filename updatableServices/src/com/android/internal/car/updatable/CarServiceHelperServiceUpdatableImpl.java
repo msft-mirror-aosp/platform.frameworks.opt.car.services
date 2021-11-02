@@ -54,7 +54,6 @@ import java.util.function.BiConsumer;
 /**
  * Implementation of the abstract class CarServiceHelperUpdatable
  */
-// TODO(b/190458000): Add unit test
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
