@@ -242,10 +242,6 @@ public final class CarServiceHelperServiceUpdatableImpl
     }
 
     private final class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
-        @Override
-        public int forceSuspend(int timeoutMs) {
-            return mCarServiceHelperInterface.forceSuspend(timeoutMs);
-        }
 
         @Override
         public void setDisplayAllowlistForUser(int userId, int[] displayIds) {

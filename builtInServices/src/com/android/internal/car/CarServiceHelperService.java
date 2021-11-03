@@ -275,7 +275,6 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
-        loadNativeLibrary();
     }
 
     @Override
@@ -420,11 +419,6 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    @VisibleForTesting
-    void loadNativeLibrary() {
-        System.loadLibrary("car-framework-service-jni");
-    }
-
     private boolean isPreCreated(@NonNull TargetUser user, @UserLifecycleEventType int eventType) {
         if (!user.isPreCreated()) return false;
 
@@ -544,24 +538,6 @@ public class CarServiceHelperService extends SystemService
             Slogf.w(TAG, "Cannot read %s", filename);
             return unknownProcessName;
         }
-    }
-
-    private static native int nativeForceSuspend(int timeoutMs);
-
-    // TODO(b/173664653): it's missing unit tests (for example, to make sure that
-    // when its setSafetyMode() is called, mCarDevicePolicySafetyChecker is updated).
-    @Override
-    public int forceSuspend(int timeoutMs) {
-        int retVal;
-        mContext.enforceCallingOrSelfPermission(android.Manifest.permission.DEVICE_POWER,
-                "forceSuspend");
-        final long ident = Binder.clearCallingIdentity();
-        try {
-            retVal = nativeForceSuspend(timeoutMs);
-        } finally {
-            Binder.restoreCallingIdentity(ident);
-        }
-        return retVal;
     }
 
     @Override
