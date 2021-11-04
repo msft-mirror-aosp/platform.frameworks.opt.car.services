@@ -115,6 +115,8 @@ final class CarServiceProxy {
 
     private final CarServiceHelperServiceUpdatableImpl mCarServiceHelperServiceUpdatableImpl;
     private final UserMetrics mUserMetrics = new UserMetrics();
+    @GuardedBy("mLock")
+    private UserHandle mInitialUser;
 
     CarServiceProxy(CarServiceHelperServiceUpdatableImpl carServiceHelperServiceUpdatableImpl) {
         mCarServiceHelperServiceUpdatableImpl = carServiceHelperServiceUpdatableImpl;
@@ -135,7 +137,35 @@ final class CarServiceProxy {
             runQueuedOperationLocked(PO_ON_FACTORY_RESET);
         }
         sendLifeCycleEvents();
+        sendInitialUser();
         t.traceEnd();
+    }
+
+    private void sendInitialUser() {
+        UserHandle initialUser;
+        ICarSystemServerClient carService;
+        synchronized (mLock) {
+            initialUser = mInitialUser;
+            carService = mCarService;
+        }
+        if (initialUser != null && carService != null) {
+            try {
+                carService.setInitialUser(initialUser);
+            } catch (RemoteException e) {
+                Slogf.w(TAG, "RemoteException from car service while calling setInitialUser.", e);
+            }
+        } else {
+            Slogf.i(TAG, "Didn't send Initial User, User: %s, CarService: %s", initialUser,
+                    carService);
+        }
+    }
+
+    void saveInitialUser(UserHandle user) {
+        synchronized (mLock) {
+            if (user != null || user.getIdentifier() != UserManagerHelper.USER_NULL) {
+                mInitialUser = user;
+            }
+        }
     }
 
     @GuardedBy("mLock")
@@ -455,6 +485,7 @@ final class CarServiceProxy {
         writer.increaseIndent();
         synchronized (mLock) {
             writer.printf("mLastSwitchedUser=%s\n", mLastSwitchedUser);
+            writer.printf("mInitialUser=%s\n", mInitialUser);
             writer.printf("mLastUserLifecycle:\n");
             int user0Lifecycle = mLastUserLifecycle.get(USER_SYSTEM, 0);
             if (user0Lifecycle != 0) {
