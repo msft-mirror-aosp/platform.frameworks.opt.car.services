@@ -10,7 +10,6 @@ java_sdk_library {
         "android.car.builtin",  // Will remove once split is complete
         "android.hardware.automotive.vehicle-V2.0-java",
     ],
-    required: ["libcar-framework-service-jni"],
     srcs: [
         "src/**/*.java",
     ],
@@ -41,17 +40,4 @@ java_sdk_library {
         enabled: true,
         sdk_version: "module_current",
     },
-}
-
-cc_library_shared {
-    name: "libcar-framework-service-jni",
-    shared_libs: [
-        "libandroid_runtime",
-        "libhidlbase",
-        "liblog",
-        "libnativehelper",
-        "libsuspend",
-        "libutils",
-    ],
-    srcs: ["src/jni/com_android_internal_car_CarServiceHelperService.cpp"],
 }

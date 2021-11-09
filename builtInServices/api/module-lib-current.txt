@@ -4,7 +4,6 @@ package com.android.internal.car {
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method public void dumpServiceStacks();
-    method public int forceSuspend(int);
     method public void setDisplayAllowlistForUser(@NonNull android.os.UserHandle, int[]);
     method public void setPassengerDisplays(int[]);
     method public int setPersistentActivity(android.content.ComponentName, int, int);
