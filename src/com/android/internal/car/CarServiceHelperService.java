@@ -693,6 +693,11 @@ public class CarServiceHelperService extends SystemService
                 return null;
             }
         }
+
+        @Override
+        public void sendInitialUser(UserHandle user) {
+            mCarServiceProxy.saveInitialUser(user);
+        }
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
