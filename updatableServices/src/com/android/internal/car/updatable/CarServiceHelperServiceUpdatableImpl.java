@@ -23,6 +23,7 @@ import android.annotation.UserIdInt;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
+import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
 import android.content.Context;
@@ -173,6 +174,8 @@ public final class CarServiceHelperServiceUpdatableImpl
             mCarServiceBinder = ICar.Stub.asInterface(iBinder);
             Slogf.i(TAG, "**CarService connected**");
         }
+
+        EventLogHelper.writeCarHelperServiceConnected();
 
         sendSetSystemServerConnectionsCall();
 
