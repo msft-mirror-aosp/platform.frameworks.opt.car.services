@@ -34,6 +34,7 @@ import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
 import android.car.builtin.os.UserManagerHelper;
+import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
 import android.content.ComponentName;
@@ -52,12 +53,10 @@ import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.EventLog;
 import android.util.IndentingPrintWriter;
 import android.util.TimeUtils;
 
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
-import com.android.car.internal.common.EventLogTags;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -239,7 +238,7 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onBootPhase(int phase) {
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_BOOT_PHASE, phase);
+        EventLogHelper.writeCarHelperBootPhase(phase);
         if (DBG) Slogf.d(TAG, "onBootPhase: %d", phase);
 
         TimingsTraceAndSlog t = newTimingsTraceAndSlog();
@@ -265,7 +264,7 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onStart() {
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_START);
+        EventLogHelper.writeCarHelperStart();
 
         IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
         filter.addAction(Intent.ACTION_SHUTDOWN);
@@ -319,7 +318,7 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void onUserUnlocking(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) return;
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKING, user.getUserIdentifier());
+        EventLogHelper.writeCarHelperUserUnlocking(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserUnlocking(%s)", user);
 
         mCarServiceHelperServiceUpdatable
@@ -331,7 +330,7 @@ public class CarServiceHelperService extends SystemService
     public void onUserUnlocked(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)) return;
         int userId = user.getUserIdentifier();
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_UNLOCKED, userId);
+        EventLogHelper.writeCarHelperUserUnlocked(userId);
         if (DBG) Slogf.d(TAG, "onUserUnlocked(%s)", user);
 
         if (mFirstUnlockedUserDuration == 0 && !UserHelperLite.isHeadlessSystemUser(userId)) {
@@ -347,7 +346,7 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void onUserStarting(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STARTING)) return;
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STARTING, user.getUserIdentifier());
+        EventLogHelper.writeCarHelperUserStarting(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStarting(%s)", user);
 
         mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING,
@@ -357,7 +356,7 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void onUserStopping(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPING)) return;
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPING, user.getUserIdentifier());
+        EventLogHelper.writeCarHelperUserStopping(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopping(%s)", user);
 
         mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPING,
@@ -369,7 +368,7 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void onUserStopped(@NonNull TargetUser user) {
         if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) return;
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_STOPPED, user.getUserIdentifier());
+        EventLogHelper.writeCarHelperUserStopped(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopped(%s)", user);
 
         mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STOPPED,
@@ -379,7 +378,7 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
         if (isPreCreated(to, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) return;
-        EventLog.writeEvent(EventLogTags.CAR_HELPER_USER_SWITCHING,
+        EventLogHelper.writeCarHelperUserSwitching(
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
                 to.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserSwitching(%s>>%s)", from, to);
