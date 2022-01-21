@@ -44,6 +44,7 @@ import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.car.CarServiceHelperConfig;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 
@@ -282,6 +283,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void sendInitialUser(UserHandle user) {
             mCarServiceProxy.saveInitialUser(user);
+        }
+
+        @Override
+        public int getServiceHelperBuiltinMinorVersion() {
+            return CarServiceHelperConfig.VERSION_MINOR_INT;
         }
     }
 

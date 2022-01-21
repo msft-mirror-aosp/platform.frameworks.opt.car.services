@@ -1,6 +1,10 @@
 // Signature format: 2.0
 package com.android.internal.car {
 
+  public final class CarServiceHelperConfig {
+    field public static final int VERSION_MINOR_INT = 0; // 0x0
+  }
+
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method public void dumpServiceStacks();
