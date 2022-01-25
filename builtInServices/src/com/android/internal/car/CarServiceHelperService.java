@@ -25,7 +25,6 @@ import static com.android.internal.util.function.pooled.PooledLambda.obtainMessa
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
-import android.annotation.UserIdInt;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
@@ -33,7 +32,6 @@ import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.StateType;
-import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
@@ -43,8 +41,6 @@ import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.UserInfo;
 import android.hidl.manager.V1_0.IServiceManager;
-import android.os.Binder;
-import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
@@ -70,6 +66,7 @@ import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
+import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -77,7 +74,6 @@ import java.io.FileReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
-import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -214,6 +210,11 @@ public class CarServiceHelperService extends SystemService
             Process.killProcess(Process.myPid());
             System.exit(10);
         }
+        // TODO: CarLaunchParamsModifierUpdatable will get from CarServiceHelperServiceUpdatable
+        //  in the consecutive CL.
+        mCarLaunchParamsModifier.setUpdatable(
+                new CarLaunchParamsModifierUpdatable(
+                        mCarLaunchParamsModifier.getBuiltinInterface()));
 
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
         if (umi != null) {

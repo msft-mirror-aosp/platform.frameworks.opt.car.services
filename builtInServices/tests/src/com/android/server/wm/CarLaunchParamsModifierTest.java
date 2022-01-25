@@ -92,6 +92,8 @@ public class CarLaunchParamsModifierTest {
     private MockitoSession mMockingSession;
 
     private CarLaunchParamsModifier mModifier;
+    private CarLaunchParamsModifierUpdatable mUpdatable;
+    private CarLaunchParamsModifierInterface mBuiltin;
 
     private Context mContext;
     private WindowManagerService mWindowManagerService;
@@ -155,40 +157,6 @@ public class CarLaunchParamsModifierTest {
     @Mock
     private LaunchParamsController.LaunchParams mOutParams;
 
-    private static class CustomParcel implements Parcelable {
-        private final int mValue;
-
-        CustomParcel() {
-            mValue = 42;  // random initial value
-        }
-
-        protected CustomParcel(Parcel in) {
-            mValue = in.readInt();
-        }
-
-        @Override
-        public void writeToParcel(Parcel dest, int flags) {
-            dest.writeInt(mValue);
-        }
-
-        @Override
-        public int describeContents() {
-            return 0;
-        }
-
-        public static final Creator<CustomParcel> CREATOR = new Creator<CustomParcel>() {
-            @Override
-            public CustomParcel createFromParcel(Parcel in) {
-                return new CustomParcel(in);
-            }
-
-            @Override
-            public CustomParcel[] newArray(int size) {
-                return new CustomParcel[size];
-            }
-        };
-    }
-
     private void mockDisplay(Display display, TaskDisplayArea defaultTaskDisplayArea,
             int displayId, int flags, int type) {
         when(mDisplayManager.getDisplay(displayId)).thenReturn(display);
@@ -199,6 +167,7 @@ public class CarLaunchParamsModifierTest {
         // Return the same id as the display for simplicity
         DisplayContent dc = mock(DisplayContent.class);
         defaultTaskDisplayArea.mDisplayContent = dc;
+        when(defaultTaskDisplayArea.getDisplayContent()).thenReturn(dc);
         when(mRootWindowContainer.getDisplayContentOrCreate(displayId)).thenReturn(dc);
         when(dc.getDisplay()).thenReturn(display);
         when(dc.getDefaultTaskDisplayArea()).thenReturn(defaultTaskDisplayArea);
@@ -220,6 +189,7 @@ public class CarLaunchParamsModifierTest {
         mActivityTaskManagerService.mTaskSupervisor = mActivityTaskSupervisor;
         when(mActivityTaskSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
+        mActivityTaskManagerService.mSupportsMultiDisplay = true;
         mActivityTaskManagerService.mRootWindowContainer = mRootWindowContainer;
         mActivityTaskManagerService.mPackageConfigPersister = mPackageConfigPersister;
         mActivityTaskManagerService.mWindowOrganizerController =
@@ -261,6 +231,9 @@ public class CarLaunchParamsModifierTest {
                 FLAG_PRIVATE, /* type= */ 0);
 
         mModifier = new CarLaunchParamsModifier(mContext);
+        mBuiltin = mModifier.getBuiltinInterface();
+        mUpdatable = new CarLaunchParamsModifierUpdatable(mBuiltin);
+        mModifier.setUpdatable(mUpdatable);
         mModifier.init();
     }
 
@@ -274,8 +247,8 @@ public class CarLaunchParamsModifierTest {
 
     private void assertDisplayIsAllowed(@UserIdInt int userId, Display display) {
         mTask.mUserId = userId;
-        mCurrentParams.mPreferredTaskDisplayArea = mModifier
-                .getDefaultTaskDisplayAreaOnDisplay(display.getDisplayId());
+        mCurrentParams.mPreferredTaskDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                display.getDisplayId()).getTaskDisplayArea();
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
                 mOutParams))
@@ -286,10 +259,10 @@ public class CarLaunchParamsModifierTest {
             Display displayAssigned) {
         assertThat(displayRequested.getDisplayId()).isNotEqualTo(displayAssigned.getDisplayId());
         mTask.mUserId = userId;
-        TaskDisplayArea requestedTaskDisplayArea = mModifier
-                .getDefaultTaskDisplayAreaOnDisplay(displayRequested.getDisplayId());
-        TaskDisplayArea assignedTaskDisplayArea = mModifier
-                .getDefaultTaskDisplayAreaOnDisplay(displayAssigned.getDisplayId());
+        TaskDisplayArea requestedTaskDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                displayRequested.getDisplayId()).getTaskDisplayArea();
+        TaskDisplayArea assignedTaskDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                displayAssigned.getDisplayId()).getTaskDisplayArea();
         mCurrentParams.mPreferredTaskDisplayArea = requestedTaskDisplayArea;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
@@ -477,7 +450,7 @@ public class CarLaunchParamsModifierTest {
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
 
-        mModifier.mDisplayListener.onDisplayRemoved(mDisplay11ForPassenger.getDisplayId());
+        mUpdatable.getDisplayListener().onDisplayRemoved(mDisplay11ForPassenger.getDisplayId());
 
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
         assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
