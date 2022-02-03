@@ -53,7 +53,7 @@ import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
 import android.os.UserManager;
-import android.util.IndentingPrintWriter;
+import android.util.Dumpable;
 import android.util.TimeUtils;
 
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
@@ -61,7 +61,6 @@ import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.os.IResultReceiver;
-import com.android.server.Dumpable;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
@@ -76,6 +75,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -277,7 +277,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public void dump(IndentingPrintWriter pw, String[] args) {
+    public void dump(PrintWriter pw, String[] args) {
         // Usage: adb shell dumpsys system_server_dumper --name CarServiceHelper
         if (args == null || args.length == 0 || args[0].equals("-a")) {
             pw.printf("System boot completed: %b\n", mSystemBootCompleted);
