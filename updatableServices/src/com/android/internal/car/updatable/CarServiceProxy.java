@@ -481,6 +481,7 @@ final class CarServiceProxy {
      * Dump
      */
     void dump(IndentingPrintWriter writer) {
+        // Do not change the next line, Used in cts test: testCarServiceHelperServiceDump
         writer.println("CarServiceProxy");
         writer.increaseIndent();
         synchronized (mLock) {
