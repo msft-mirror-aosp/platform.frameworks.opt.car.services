@@ -18,10 +18,10 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.annotation.UserIdInt;
 import android.content.ComponentName;
 import android.os.UserHandle;
 
+import java.io.File;
 import java.util.List;
 
 /**
@@ -68,9 +68,9 @@ public interface CarServiceHelperInterface {
     UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
             int flags);
 
-    // TODO(b/190458000): Investigate if it can be removed.
     /**
-     * Dumos service stack
+     * Dumps service stacks
      */
-    void dumpServiceStacks();
+    @Nullable
+    File dumpServiceStacks();
 }

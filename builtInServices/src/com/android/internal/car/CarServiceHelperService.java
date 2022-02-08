@@ -76,6 +76,7 @@ import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileReader;
 import java.io.IOException;
+import java.io.PrintWriter;
 import java.lang.ref.WeakReference;
 import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
@@ -307,6 +308,12 @@ public class CarServiceHelperService extends SystemService
                     DevicePolicyManager.operationSafetyReasonToString(reason));
             return;
         }
+
+        if ("--user-metrics-only".equals(args[0]) || "--dump-service-stacks".equals(args[0])) {
+            mCarServiceHelperServiceUpdatable.dump(pw, args);
+            return;
+        }
+
         pw.printf("Invalid args: %s\n", Arrays.toString(args));
     }
 
@@ -485,11 +492,13 @@ public class CarServiceHelperService extends SystemService
      * Dumps service stack
      */
     // Borrowed from Watchdog.java.  Create an ANR file from the call stacks.
-    public void dumpServiceStacks() {
+    @Override
+    @Nullable
+    public File dumpServiceStacks() {
         ArrayList<Integer> pids = new ArrayList<>();
         pids.add(Process.myPid());
 
-        ActivityManagerService.dumpStackTraces(
+        return ActivityManagerService.dumpStackTraces(
                 pids, null, null, getInterestingNativePids(), null);
     }
 
