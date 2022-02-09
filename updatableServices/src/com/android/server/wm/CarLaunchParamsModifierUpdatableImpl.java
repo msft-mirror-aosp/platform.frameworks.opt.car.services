@@ -145,6 +145,11 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
     }
 
+    /** Notifies user starting. */
+    public void handleUserStarting(int startingUser) {
+       // Do nothing
+    }
+
     /** Notifies user switching. */
     public void handleCurrentUserSwitching(@UserIdInt int newUserId) {
         synchronized (mLock) {

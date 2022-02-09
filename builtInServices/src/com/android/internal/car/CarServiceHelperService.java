@@ -35,7 +35,6 @@ import android.automotive.watchdog.internal.StateType;
 import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.BroadcastReceiver;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -66,7 +65,7 @@ import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
-import com.android.server.wm.CarLaunchParamsModifierUpdatable;
+import com.android.server.wm.CarLaunchParamsModifierInterface;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -194,8 +193,10 @@ public class CarServiceHelperService extends SystemService
             if (carServiceHelperServiceUpdatable == null) {
                 mCarServiceHelperServiceUpdatable = (CarServiceHelperServiceUpdatable) Class
                         .forName(CSHS_UPDATABLE_CLASSNAME_STRING)
-                        .getConstructor(Context.class, CarServiceHelperInterface.class)
-                        .newInstance(mContext, this);
+                        .getConstructor(Context.class, CarServiceHelperInterface.class,
+                                CarLaunchParamsModifierInterface.class)
+                        .newInstance(mContext, this,
+                                mCarLaunchParamsModifier.getBuiltinInterface());
                 Slogf.d(TAG, "CarServiceHelperServiceUpdatable created via reflection.");
             } else {
                 mCarServiceHelperServiceUpdatable = carServiceHelperServiceUpdatable;
@@ -210,11 +211,8 @@ public class CarServiceHelperService extends SystemService
             Process.killProcess(Process.myPid());
             System.exit(10);
         }
-        // TODO: CarLaunchParamsModifierUpdatable will get from CarServiceHelperServiceUpdatable
-        //  in the consecutive CL.
         mCarLaunchParamsModifier.setUpdatable(
-                new CarLaunchParamsModifierUpdatable(
-                        mCarLaunchParamsModifier.getBuiltinInterface()));
+                mCarServiceHelperServiceUpdatable.getCarLaunchParamsModifierUpdatable());
 
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
         if (umi != null) {
@@ -358,6 +356,8 @@ public class CarServiceHelperService extends SystemService
 
         mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING,
                 /* userFrom= */ null, user.getUserHandle());
+        int userId = user.getUserIdentifier();
+        mCarLaunchParamsModifier.handleUserStarting(userId);
     }
 
     @Override
@@ -546,28 +546,6 @@ public class CarServiceHelperService extends SystemService
             Slogf.w(TAG, "Cannot read %s", filename);
             return unknownProcessName;
         }
-    }
-
-    @Override
-    public void setDisplayAllowlistForUser(@NonNull UserHandle user, int[] displayIds) {
-        mCarLaunchParamsModifier.setDisplayAllowListForUser(user.getIdentifier(), displayIds);
-    }
-
-    @Override
-    public void setPassengerDisplays(int[] displayIdsForPassenger) {
-        mCarLaunchParamsModifier.setPassengerDisplays(displayIdsForPassenger);
-    }
-
-    @Override
-    public void setSourcePreferredComponents(boolean enableSourcePreferred,
-            @Nullable List<ComponentName> sourcePreferredComponents) {
-        mCarLaunchParamsModifier.setSourcePreferredComponents(
-                enableSourcePreferred, sourcePreferredComponents);
-    }
-
-    @Override
-    public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-        return mCarLaunchParamsModifier.setPersistentActivity(activity, displayId, featureId);
     }
 
     @Override

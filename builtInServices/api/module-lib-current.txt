@@ -8,15 +8,12 @@ package com.android.internal.car {
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
-    method public void setDisplayAllowlistForUser(@NonNull android.os.UserHandle, int[]);
-    method public void setPassengerDisplays(int[]);
-    method public int setPersistentActivity(android.content.ComponentName, int, int);
     method public void setSafetyMode(boolean);
-    method public void setSourcePreferredComponents(boolean, @Nullable java.util.List<android.content.ComponentName>);
   }
 
   public interface CarServiceHelperServiceUpdatable {
     method public void dump(@NonNull java.io.PrintWriter, @Nullable String[]);
+    method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
     method public void initBootUser();
     method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
     method public void onStart();
@@ -63,16 +60,12 @@ package com.android.server.wm {
     method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@NonNull com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
   }
 
-  public final class CarLaunchParamsModifierUpdatable {
-    ctor public CarLaunchParamsModifierUpdatable(com.android.server.wm.CarLaunchParamsModifierInterface);
+  public interface CarLaunchParamsModifierUpdatable {
     method public int calculate(com.android.server.wm.CalculateParams);
     method public android.hardware.display.DisplayManager.DisplayListener getDisplayListener();
     method public void handleCurrentUserSwitching(int);
+    method public void handleUserStarting(int);
     method public void handleUserStopped(int);
-    method public void setDisplayAllowListForUser(int, int[]);
-    method public void setPassengerDisplays(int[]);
-    method public int setPersistentActivity(android.content.ComponentName, int, int);
-    method public void setSourcePreferredComponents(boolean, @Nullable java.util.List<android.content.ComponentName>);
   }
 
   public final class LaunchParamsWrapper {

@@ -80,10 +80,10 @@ import java.util.function.Function;
 /**
  * Tests for {@link CarLaunchParamsModifier}
  * Build/Install/Run:
- *  atest FrameworkOptCarServicesTest:CarLaunchParamsModifierTest
+ *  atest FrameworkOptCarServicesUpdatableTest:CarLaunchParamsModifierUpdatableTest
  */
 @RunWith(AndroidJUnit4.class)
-public class CarLaunchParamsModifierTest {
+public class CarLaunchParamsModifierUpdatableTest {
     private static final int PASSENGER_DISPLAY_ID_10 = 10;
     private static final int PASSENGER_DISPLAY_ID_11 = 11;
     private static final int VIRTUAL_DISPLAY_ID_2 = 2;
@@ -92,7 +92,7 @@ public class CarLaunchParamsModifierTest {
     private MockitoSession mMockingSession;
 
     private CarLaunchParamsModifier mModifier;
-    private CarLaunchParamsModifierUpdatable mUpdatable;
+    private CarLaunchParamsModifierUpdatableImpl mUpdatable;
     private CarLaunchParamsModifierInterface mBuiltin;
 
     private Context mContext;
@@ -232,7 +232,7 @@ public class CarLaunchParamsModifierTest {
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mBuiltin = mModifier.getBuiltinInterface();
-        mUpdatable = new CarLaunchParamsModifierUpdatable(mBuiltin);
+        mUpdatable = new CarLaunchParamsModifierUpdatableImpl(mBuiltin);
         mModifier.setUpdatable(mUpdatable);
         mModifier.init();
     }
@@ -336,7 +336,7 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testAllowAllForDriverDuringBoot() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
 
         // USER_SYSTEM should be allowed always
@@ -345,7 +345,7 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testAllowAllForDriverAfterUserSwitching() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
 
         final int driver1 = 10;
@@ -361,11 +361,11 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerAllowed() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId,
                 new int[]{mDisplay10ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
@@ -373,17 +373,17 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerChange() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         int passengerUserId1 = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId1,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId1,
                 new int[]{mDisplay11ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId1, mDisplay11ForPassenger);
 
         int passengerUserId2 = 101;
-        mModifier.setDisplayAllowListForUser(passengerUserId2,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId2,
                 new int[]{mDisplay11ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId2, mDisplay11ForPassenger);
@@ -393,11 +393,11 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerNotAllowed() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(
+        mUpdatable.setDisplayAllowListForUser(
                 passengerUserId, new int[]{mDisplay10ForPassenger.getDisplayId()});
 
         assertDisplayIsReassigned(passengerUserId, mDisplay0ForDriver, mDisplay10ForPassenger);
@@ -406,11 +406,11 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerNotAllowedAfterUserSwitch() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(
+        mUpdatable.setDisplayAllowListForUser(
                 passengerUserId, new int[]{mDisplay11ForPassenger.getDisplayId()});
         assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
 
@@ -422,15 +422,15 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerNotAllowedAfterAssigningCurrentUser() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(
+        mUpdatable.setDisplayAllowListForUser(
                 passengerUserId, new int[]{mDisplay11ForPassenger.getDisplayId()});
         assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
 
-        mModifier.setDisplayAllowListForUser(
+        mUpdatable.setDisplayAllowListForUser(
                 UserHandle.USER_SYSTEM, new int[]{mDisplay11ForPassenger.getDisplayId()});
 
         assertDisplayIsReassigned(passengerUserId, mDisplay0ForDriver, mDisplay10ForPassenger);
@@ -439,11 +439,11 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerDisplayRemoved() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId,
                 new int[]{mDisplay10ForPassenger.getDisplayId(),
                         mDisplay11ForPassenger.getDisplayId()});
 
@@ -458,18 +458,18 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testPassengerDisplayRemovedFromSetPassengerDisplays() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId,
                 new int[]{mDisplay10ForPassenger.getDisplayId(),
                         mDisplay11ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passengerUserId, mDisplay11ForPassenger);
 
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId()});
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId()});
 
         assertDisplayIsAllowed(passengerUserId, mDisplay10ForPassenger);
         assertDisplayIsReassigned(passengerUserId, mDisplay11ForPassenger, mDisplay10ForPassenger);
@@ -477,11 +477,11 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testIgnorePrivateDisplay() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId,
                 new int[]{mDisplay10ForPassenger.getDisplayId(),
                         mDisplay10ForPassenger.getDisplayId()});
 
@@ -490,13 +490,13 @@ public class CarLaunchParamsModifierTest {
 
     @Test
     public void testDriverPassengerSwap() {
-        mModifier.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
 
         final int wasDriver = 10;
         final int wasPassenger = 11;
         mModifier.handleCurrentUserSwitching(wasDriver);
-        mModifier.setDisplayAllowListForUser(wasPassenger,
+        mUpdatable.setDisplayAllowListForUser(wasPassenger,
                 new int[]{mDisplay10ForPassenger.getDisplayId(),
                         mDisplay11ForPassenger.getDisplayId()});
 
@@ -510,7 +510,7 @@ public class CarLaunchParamsModifierTest {
         final int driver = wasPassenger;
         final int passenger = wasDriver;
         mModifier.handleCurrentUserSwitching(driver);
-        mModifier.setDisplayAllowListForUser(passenger,
+        mUpdatable.setDisplayAllowListForUser(passenger,
                 new int[]{mDisplay10ForPassenger.getDisplayId(),
                         mDisplay11ForPassenger.getDisplayId()});
 
@@ -529,22 +529,23 @@ public class CarLaunchParamsModifierTest {
         // When no sourcePreferredComponents is set, it doesn't set the display for system user.
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
 
-        mModifier.setSourcePreferredComponents(true, null);
+        mUpdatable.setSourcePreferredComponents(true, null);
         assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
     }
 
     @Test
     public void testPreferSourceForPassenger() {
-        mModifier.setPassengerDisplays(new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
         int passengerUserId = 100;
-        mModifier.setDisplayAllowListForUser(passengerUserId,
+        mUpdatable.setDisplayAllowListForUser(passengerUserId,
                 new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
         when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea11ForPassenger);
 
         // When no sourcePreferredComponents is set, it returns the default passenger display.
         assertDisplayIsAssigned(passengerUserId, mDisplayArea10ForPassenger);
 
-        mModifier.setSourcePreferredComponents(true, null);
+        mUpdatable.setSourcePreferredComponents(true, null);
         assertDisplayIsAssigned(passengerUserId, mDisplayArea11ForPassenger);
     }
 
@@ -553,7 +554,7 @@ public class CarLaunchParamsModifierTest {
         when(mActivityOptions.getLaunchDisplayId()).thenReturn(PASSENGER_DISPLAY_ID_10);
         when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
 
-        mModifier.setSourcePreferredComponents(true, null);
+        mUpdatable.setSourcePreferredComponents(true, null);
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
     }
 
@@ -561,7 +562,7 @@ public class CarLaunchParamsModifierTest {
     public void testPreferSourceForSpecifiedActivity() {
         when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
         mActivityRecordActivity = buildActivityRecord("testPackage", "testActivity");
-        mModifier.setSourcePreferredComponents(true,
+        mUpdatable.setSourcePreferredComponents(true,
                 Arrays.asList(new ComponentName("testPackage", "testActivity")));
 
         assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
@@ -571,7 +572,7 @@ public class CarLaunchParamsModifierTest {
     public void testPreferSourceDoNotAssignDisplayForNonSpecifiedActivity() {
         when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
         mActivityRecordActivity = buildActivityRecord("placeholderPackage", "placeholderActivity");
-        mModifier.setSourcePreferredComponents(true,
+        mUpdatable.setSourcePreferredComponents(true,
                 Arrays.asList(new ComponentName("testPackage", "testActivity")));
 
         assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
@@ -621,9 +622,9 @@ public class CarLaunchParamsModifierTest {
                 .thenReturn(processName);
         when(mActivityRecordActivity.getUid())
                 .thenReturn(processUid);
-        mModifier.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
-        mModifier.setDisplayAllowListForUser(userId,
+        mUpdatable.setDisplayAllowListForUser(userId,
                 new int[]{mDisplay10ForPassenger.getDisplayId()});
         WindowProcessController controller = mock(WindowProcessController.class);
         when(mActivityTaskManagerService.getProcessController(processName, processUid))
@@ -649,9 +650,9 @@ public class CarLaunchParamsModifierTest {
                 .thenReturn(launchedFromPid);
         when(mActivityRecordActivity.getLaunchedFromUid())
                 .thenReturn(launchedFromUid);
-        mModifier.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
-        mModifier.setDisplayAllowListForUser(userId,
+        mUpdatable.setDisplayAllowListForUser(userId,
                 new int[]{mDisplay10ForPassenger.getDisplayId()});
         WindowProcessController controller = mock(WindowProcessController.class);
         when(mActivityTaskManagerService.getProcessController(launchedFromPid, launchedFromUid))
@@ -672,9 +673,9 @@ public class CarLaunchParamsModifierTest {
     public void testSourceDisplayFromCallingDisplayIfAvailable() {
         int userId = 10;
         ActivityStarter.Request request = fakeRequest();
-        mModifier.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
-        mModifier.setDisplayAllowListForUser(userId,
+        mUpdatable.setDisplayAllowListForUser(userId,
                 new int[]{mDisplay10ForPassenger.getDisplayId()});
         WindowProcessController controller = mock(WindowProcessController.class);
         when(mActivityTaskManagerService.getProcessController(request.realCallingPid,
@@ -695,7 +696,7 @@ public class CarLaunchParamsModifierTest {
     @Test
     public void testSourceDisplayIgnoredIfNotInAllowList() {
         ActivityStarter.Request request = fakeRequest();
-        mModifier.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
         WindowProcessController controller = mock(WindowProcessController.class);
         when(mActivityTaskManagerService.getProcessController(anyString(), anyInt()))
@@ -720,7 +721,7 @@ public class CarLaunchParamsModifierTest {
         int invalidDisplayId = 999990;
 
         assertThrows(IllegalArgumentException.class,
-                () -> mModifier.setPersistentActivity(mapActivity,
+                () -> mUpdatable.setPersistentActivity(mapActivity,
                         invalidDisplayId, DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER));
     }
 
@@ -730,7 +731,7 @@ public class CarLaunchParamsModifierTest {
         int invalidFeatureId = 999990;
 
         assertThrows(IllegalArgumentException.class,
-                () -> mModifier.setPersistentActivity(mapActivity,
+                () -> mUpdatable.setPersistentActivity(mapActivity,
                         DEFAULT_DISPLAY, invalidFeatureId));
     }
 
@@ -739,7 +740,8 @@ public class CarLaunchParamsModifierTest {
         ComponentName mapActivityName = new ComponentName("testMapPkg", "mapActivity");
         mActivityRecordActivity = buildActivityRecord(mapActivityName);
 
-        int ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
+        int ret = mUpdatable.setPersistentActivity(
+                mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
         assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
 
         assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mMapTaskDisplayArea);
@@ -750,10 +752,11 @@ public class CarLaunchParamsModifierTest {
         ComponentName mapActivityName = new ComponentName("testMapPkg", "mapActivity");
         mActivityRecordActivity = buildActivityRecord(mapActivityName);
 
-        int ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
+        int ret = mUpdatable.setPersistentActivity(
+                mapActivityName, DEFAULT_DISPLAY, FEATURE_MAP_ID);
         assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
         // Removes the existing persistent Activity assignment.
-        ret = mModifier.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY,
+        ret = mUpdatable.setPersistentActivity(mapActivityName, DEFAULT_DISPLAY,
                 DisplayAreaOrganizer.FEATURE_UNDEFINED);
         assertThat(ret).isEqualTo(CarActivityManager.RESULT_SUCCESS);
 
@@ -765,7 +768,7 @@ public class CarLaunchParamsModifierTest {
         ComponentName mapActivity = new ComponentName("testMapPkg", "mapActivity");
 
         assertThrows(ServiceSpecificException.class,
-                () -> mModifier.setPersistentActivity(mapActivity, DEFAULT_DISPLAY,
+                () -> mUpdatable.setPersistentActivity(mapActivity, DEFAULT_DISPLAY,
                         DisplayAreaOrganizer.FEATURE_UNDEFINED));
     }
 

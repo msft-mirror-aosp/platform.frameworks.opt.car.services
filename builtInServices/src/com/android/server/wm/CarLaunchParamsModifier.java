@@ -23,15 +23,12 @@ import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.app.ActivityOptions;
 import android.app.ActivityTaskManager;
-import android.content.ComponentName;
 import android.content.Context;
 import android.content.pm.ActivityInfo;
 import android.hardware.display.DisplayManager;
 import android.os.Handler;
 import android.os.Looper;
 import android.view.Display;
-
-import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -88,18 +85,9 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                 new Handler(Looper.getMainLooper()));
     }
 
-    /**
-     * Sets sourcePreferred configuration. When sourcePreferred is enabled and there is no pre-
-     * assigned display for the Activity, CarLauncherParamsModifier will launch the Activity in
-     * the display of the source. When sourcePreferredComponents isn't null the sourcePreferred
-     * is applied for the sourcePreferredComponents only.
-     *
-     * @param enableSourcePreferred whether to enable sourcePreferred mode
-     * @param sourcePreferredComponents null for all components, or the list of components to apply
-     */
-    public void setSourcePreferredComponents(boolean enableSourcePreferred,
-            @Nullable List<ComponentName> sourcePreferredComponents) {
-        mUpdatable.setSourcePreferredComponents(enableSourcePreferred, sourcePreferredComponents);
+    /** Notifies user switching. */
+    public void handleUserStarting(@UserIdInt int startingUserId) {
+        mUpdatable.handleUserStarting(startingUserId);
     }
 
     /** Notifies user switching. */
@@ -110,29 +98,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
     /** Notifies user stopped. */
     public void handleUserStopped(@UserIdInt int stoppedUser) {
         mUpdatable.handleUserStopped(stoppedUser);
-    }
-
-    /**
-     * Sets display allowlist for the userId. For passenger user, activity will be always launched
-     * to a display in the allowlist. If requested display is not in the allowlist, the 1st display
-     * in the allowlist will be selected as target display.
-     *
-     * <p>The allowlist is kept only for profile user. Assigning the current user unassigns users
-     * for the given displays.
-     */
-    public void setDisplayAllowListForUser(@UserIdInt int userId, int[] displayIds) {
-        mUpdatable.setDisplayAllowListForUser(userId, displayIds);
-    }
-
-    /**
-     * Sets displays assigned to passenger. All other displays will be treated as assigned to
-     * driver.
-     *
-     * <p>The 1st display in the array will be considered as a default display to assign
-     * for any non-driver user if there is no display assigned for the user. </p>
-     */
-    public void setPassengerDisplays(int[] displayIdsForPassenger) {
-        mUpdatable.setPassengerDisplays(displayIdsForPassenger);
     }
 
     /**
@@ -219,13 +184,6 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
                     TaskDisplayAreaWrapper.create(displayAreaFromSourceProcess));
         }
         return mFallBackDisplayAreaList;
-    }
-
-    /**
-     * See {@link CarActivityManager#setPersistentActivity(android.content.ComponentName,int, int)}
-     */
-    public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-        return mUpdatable.setPersistentActivity(activity, displayId, featureId);
     }
 
     @Nullable
