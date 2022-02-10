@@ -47,7 +47,7 @@ import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperConfig;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
-
+import java.io.File;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -239,6 +239,16 @@ public final class CarServiceHelperServiceUpdatableImpl
     public void dump(PrintWriter writer,  String[] args) {
         if (args != null && args.length > 0 && "--user-metrics-only".equals(args[0])) {
             mCarServiceProxy.dumpUserMetrics(new IndentingPrintWriter(writer));
+            return;
+        }
+
+        if (args != null && args.length > 0 && "--dump-service-stacks".equals(args[0])) {
+            File file = mCarServiceHelperInterface.dumpServiceStacks();
+            if (file != null) {
+                writer.printf("dumpServiceStacks ANR file path=%s\n", file.getAbsolutePath());
+            } else {
+                writer.printf("dumpServiceStacks no ANR file.\n");
+            }
             return;
         }
 
