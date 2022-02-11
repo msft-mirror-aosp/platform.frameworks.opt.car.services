@@ -26,7 +26,6 @@ android_test {
         "android.test.runner",
         "android.test.base",
         "android.hardware.automotive.vehicle-V2.0-java",
-        "car-frameworks-service",
     ],
 
     static_libs: [
@@ -34,6 +33,7 @@ android_test {
         "android.car.watchdoglib",
         "androidx.test.ext.junit",
         "androidx.test.rules",
+        "car-frameworks-service.impl",
         "car-frameworks-service-module",
         "mockito-target-extended-minus-junit4",
         "services.core",
