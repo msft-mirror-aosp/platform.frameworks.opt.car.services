@@ -21,6 +21,8 @@ import android.annotation.SystemApi;
 import android.os.Bundle;
 import android.os.UserHandle;
 
+import com.android.server.wm.CarLaunchParamsModifierUpdatable;
+
 import java.io.PrintWriter;
 import java.util.function.BiConsumer;
 
@@ -45,4 +47,6 @@ public interface CarServiceHelperServiceUpdatable {
     void onFactoryReset(@NonNull BiConsumer<Integer, Bundle> processFactoryReset);
 
     void initBootUser();
+
+    CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
 }

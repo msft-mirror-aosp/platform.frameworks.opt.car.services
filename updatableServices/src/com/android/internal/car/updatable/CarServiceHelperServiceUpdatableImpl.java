@@ -48,6 +48,10 @@ import com.android.internal.car.CarServiceHelperConfig;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import java.io.File;
+import com.android.server.wm.CarLaunchParamsModifierInterface;
+import com.android.server.wm.CarLaunchParamsModifierUpdatable;
+import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
+
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -92,19 +96,26 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarServiceHelperInterface mCarServiceHelperInterface;
 
+    private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
+
     public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface) {
-        this(context, carServiceHelperInterface, /* carServiceProxy= */ null);
+            CarServiceHelperInterface carServiceHelperInterface,
+            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface) {
+        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
+                /* carServiceProxy= */ null);
     }
 
     @VisibleForTesting
     CarServiceHelperServiceUpdatableImpl(Context context,
             CarServiceHelperInterface carServiceHelperInterface,
+            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
             @Nullable CarServiceProxy carServiceProxy) {
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarServiceHelperInterface = carServiceHelperInterface;
+        mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
+                carLaunchParamsModifierInterface);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -160,6 +171,11 @@ public final class CarServiceHelperServiceUpdatableImpl
     @Override
     public void initBootUser() {
         mCarServiceProxy.initBootUser();
+    }
+
+    @Override
+    public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
+        return mCarLaunchParamsModifierUpdatable;
     }
 
     @VisibleForTesting
@@ -259,25 +275,25 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setDisplayAllowlistForUser(int userId, int[] displayIds) {
-            mCarServiceHelperInterface.setDisplayAllowlistForUser(UserHandle.of(userId),
-                    displayIds);
+            mCarLaunchParamsModifierUpdatable.setDisplayAllowListForUser(userId, displayIds);
         }
 
         @Override
         public void setPassengerDisplays(int[] displayIdsForPassenger) {
-            mCarServiceHelperInterface.setPassengerDisplays(displayIdsForPassenger);
+            mCarLaunchParamsModifierUpdatable.setPassengerDisplays(displayIdsForPassenger);
         }
 
         @Override
         public void setSourcePreferredComponents(boolean enableSourcePreferred,
                 @Nullable List<ComponentName> sourcePreferredComponents) {
-            mCarServiceHelperInterface.setSourcePreferredComponents(
+            mCarLaunchParamsModifierUpdatable.setSourcePreferredComponents(
                     enableSourcePreferred, sourcePreferredComponents);
         }
 
         @Override
         public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-            return mCarServiceHelperInterface.setPersistentActivity(activity, displayId, featureId);
+            return mCarLaunchParamsModifierUpdatable.setPersistentActivity(
+                    activity, displayId, featureId);
         }
 
         @Override
