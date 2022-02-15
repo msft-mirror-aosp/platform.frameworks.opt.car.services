@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2021 The Android Open Source Project
+ * Copyright (C) 2022 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,37 +13,33 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package com.android.internal.car;
 
-import android.annotation.NonNull;
+package com.android.server.wm;
+
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.os.UserHandle;
-
-import java.io.File;
+import android.content.pm.ActivityInfo;
 
 /**
- * Interface implemented by CarServiceHelperService.
+ * Wrapper of {@link android.content.pm.ActivityInfo.WindowLayout}.
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public interface CarServiceHelperInterface {
+public final class WindowLayoutWrapper {
+    private final ActivityInfo.WindowLayout mLayout;
 
-    /**
-     * Sets safety mode
-     */
-    void setSafetyMode(boolean safe);
+    private WindowLayoutWrapper(ActivityInfo.WindowLayout layout) {
+        mLayout = layout;
+    }
 
-    /**
-     * Creates user even when disallowed
-     */
-    @Nullable
-    UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
-            int flags);
+    /** @hide */
+    public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
+        if (layout == null) return null;
+        return new WindowLayoutWrapper(layout);
+    }
 
-    /**
-     * Dumps service stacks
-     */
-    @Nullable
-    File dumpServiceStacks();
+    @Override
+    public String toString() {
+        return mLayout.toString();
+    }
 }
