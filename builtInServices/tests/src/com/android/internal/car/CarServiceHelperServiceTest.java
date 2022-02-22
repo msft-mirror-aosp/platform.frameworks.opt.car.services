@@ -74,6 +74,10 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Mock
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
+    public CarServiceHelperServiceTest() {
+        super(CarServiceHelperService.TAG);
+    }
+
     /**
      * Initialize objects and setup testing environment.
      */
