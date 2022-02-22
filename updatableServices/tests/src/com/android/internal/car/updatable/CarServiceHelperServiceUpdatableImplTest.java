@@ -68,6 +68,10 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
     private CarServiceHelperServiceUpdatableImpl mCarServiceHelperServiceUpdatableImpl;
 
+    public CarServiceHelperServiceUpdatableImplTest() {
+        super(CarServiceHelperServiceUpdatableImpl.TAG);
+    }
+
     @Before
     public void setTestFixtures() {
         mCarServiceHelperServiceUpdatableImpl = new CarServiceHelperServiceUpdatableImpl(
