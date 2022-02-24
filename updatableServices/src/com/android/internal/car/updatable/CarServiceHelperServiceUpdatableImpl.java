@@ -63,7 +63,8 @@ import java.util.function.BiConsumer;
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
-    private static final String TAG = "CarServiceHelper";
+    @VisibleForTesting
+    static final String TAG = "CarServiceHelper";
 
     private static final boolean DBG = false;
 
