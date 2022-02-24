@@ -92,7 +92,8 @@ import java.util.concurrent.Executors;
 public class CarServiceHelperService extends SystemService
         implements Dumpable, DevicePolicySafetyChecker, CarServiceHelperInterface {
 
-    private static final String TAG = "CarServiceHelper";
+    @VisibleForTesting
+    static final String TAG = "CarServiceHelper";
 
     // TODO(b/154033860): STOPSHIP if they're still true
     private static final boolean DBG = true;
