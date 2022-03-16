@@ -195,11 +195,16 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         EventLogHelper.writeCarHelperServiceConnected();
 
-        sendSetSystemServerConnectionsCall();
-
+        // Post mCallbackForCarServiceUnresponsiveness before setting system server connection
+        // because CarService may respond before the sendSetSystemServerConnectionsCall call
+        // returns and try to remove mCallbackForCarServiceUnresponsiveness from the handler.
+        // Thus, posting this callback after setting system server connection may result in a race
+        // condition where the callback is never removed from the handler.
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
         mHandler.postDelayed(mCallbackForCarServiceUnresponsiveness,
                 CAR_SERVICE_BINDER_CALL_TIMEOUT_MS);
+
+        sendSetSystemServerConnectionsCall();
     }
 
     @VisibleForTesting
