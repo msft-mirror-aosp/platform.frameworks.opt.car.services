@@ -15,6 +15,9 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_STARTING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -397,6 +400,32 @@ public class CarServiceHelperService extends SystemService
                 to.getUserHandle());
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
+    }
+
+    @Override
+    public void onUserCompletedEvent(TargetUser user, UserCompletedEventType eventType) {
+        if (user.isPreCreated()) {
+            if (DBG) {
+                Slogf.d(TAG, "Ignoring USER_COMPLETED event %s for pre-created user %s",
+                        eventType, user);
+            }
+            return;
+        }
+
+        UserHandle handle = user.getUserHandle();
+
+        if (eventType.includesOnUserStarting()) {
+            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
+                    USER_LIFECYCLE_EVENT_TYPE_POST_STARTING, /* userFrom= */ null, handle);
+        }
+        if (eventType.includesOnUserSwitching()) {
+            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
+                    USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING, /* userFrom= */ null, handle);
+        }
+        if (eventType.includesOnUserUnlocked()) {
+            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
+                    USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, /* userFrom= */ null, handle);
+        }
     }
 
     @Override // from DevicePolicySafetyChecker
