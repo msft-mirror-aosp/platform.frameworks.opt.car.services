@@ -15,8 +15,6 @@
  */
 package com.android.internal.car;
 
-import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_STARTING;
-import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -413,15 +411,6 @@ public class CarServiceHelperService extends SystemService
         }
 
         UserHandle handle = user.getUserHandle();
-
-        if (eventType.includesOnUserStarting()) {
-            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
-                    USER_LIFECYCLE_EVENT_TYPE_POST_STARTING, /* userFrom= */ null, handle);
-        }
-        if (eventType.includesOnUserSwitching()) {
-            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
-                    USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING, /* userFrom= */ null, handle);
-        }
         if (eventType.includesOnUserUnlocked()) {
             mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
                     USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, /* userFrom= */ null, handle);

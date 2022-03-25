@@ -67,8 +67,8 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
     private static final int FEATURE_TITLE_BAR = FEATURE_VENDOR_FIRST + 5;
 
     /**
-    * Feature to display voice plate.
-    */
+     * Feature to display voice plate.
+     */
     private static final int FEATURE_VOICE_PLATE = FEATURE_VENDOR_FIRST + 6;
 
     @Override
@@ -81,15 +81,18 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
         }
 
         TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(content, wmService,
-                "BackgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER);
+                "BackgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER,
+                /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
 
         TaskDisplayArea controlBarDisplayArea = new TaskDisplayArea(content, wmService,
-                "ControlBarTaskDisplayArea", CONTROL_BAR_DISPLAY_AREA);
+                "ControlBarTaskDisplayArea", CONTROL_BAR_DISPLAY_AREA,
+                /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
 
         TaskDisplayArea voicePlateTaskDisplayArea = new TaskDisplayArea(content, wmService,
-                "VoicePlateTaskDisplayArea", FEATURE_VOICE_PLATE);
+                "VoicePlateTaskDisplayArea", FEATURE_VOICE_PLATE,
+                /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
 
-        List<TaskDisplayArea> backgroundTdaList = new ArrayList<>(3);
+        List<TaskDisplayArea> backgroundTdaList = new ArrayList<>();
         backgroundTdaList.add(voicePlateTaskDisplayArea);
         backgroundTdaList.add(backgroundTaskDisplayArea);
         backgroundTdaList.add(controlBarDisplayArea);
