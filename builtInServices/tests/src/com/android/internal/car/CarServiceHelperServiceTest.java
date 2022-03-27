@@ -16,8 +16,6 @@
 
 package com.android.internal.car;
 
-import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_STARTING;
-import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -193,47 +191,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserCompletedEvent_notifiesPostStartingEvent() throws Exception {
-        int userId = 10;
-
-        mHelper.onUserCompletedEvent(newTargetUser(userId), newUserCompletedEventTypeForTest(
-                UserCompletedEventType.EVENT_TYPE_USER_STARTING));
-
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_STARTING, userId);
-    }
-
-    @Test
-    public void testOnUserCompletedEvent_notifiesPostSwitchingEvent() throws Exception {
-        int userId = 10;
-
-        mHelper.onUserCompletedEvent(newTargetUser(userId), newUserCompletedEventTypeForTest(
-                UserCompletedEventType.EVENT_TYPE_USER_SWITCHING));
-
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING, userId);
-    }
-
-    @Test
     public void testOnUserCompletedEvent_notifiesPostUnlockedEvent() throws Exception {
         int userId = 10;
 
         mHelper.onUserCompletedEvent(newTargetUser(userId), newUserCompletedEventTypeForTest(
                 UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED));
 
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, userId);
-    }
-
-    @Test
-    public void testOnUserCompletedEvent_notifiesAllSubtypes() throws Exception {
-        int userId = 10;
-        UserCompletedEventType userCompletedEventType = newUserCompletedEventTypeForTest(
-                UserCompletedEventType.EVENT_TYPE_USER_STARTING
-                        | UserCompletedEventType.EVENT_TYPE_USER_SWITCHING
-                        | UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED);
-
-        mHelper.onUserCompletedEvent(newTargetUser(userId), userCompletedEventType);
-
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_STARTING, userId);
-        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_SWITCHING, userId);
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, userId);
     }
 
