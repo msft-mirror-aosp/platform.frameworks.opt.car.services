@@ -15,6 +15,7 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -31,6 +32,7 @@ import android.app.admin.DevicePolicyManager.OperationSafetyReason;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.PowerCycle;
+import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.StateType;
 import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
@@ -398,6 +400,23 @@ public class CarServiceHelperService extends SystemService
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
     }
 
+    @Override
+    public void onUserCompletedEvent(TargetUser user, UserCompletedEventType eventType) {
+        if (user.isPreCreated()) {
+            if (DBG) {
+                Slogf.d(TAG, "Ignoring USER_COMPLETED event %s for pre-created user %s",
+                        eventType, user);
+            }
+            return;
+        }
+
+        UserHandle handle = user.getUserHandle();
+        if (eventType.includesOnUserUnlocked()) {
+            mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
+                    USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, /* userFrom= */ null, handle);
+        }
+    }
+
     @Override // from DevicePolicySafetyChecker
     @OperationSafetyReason
     public int getUnsafeOperationReason(@DevicePolicyOperation int operation) {
@@ -503,8 +522,8 @@ public class CarServiceHelperService extends SystemService
                 pids, null, null, getInterestingNativePids(), null);
     }
 
-    private void handleClientsNotResponding(@NonNull int[] pids) {
-        mProcessTerminator.requestTerminateProcess(pids);
+    private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
+        mProcessTerminator.requestTerminateProcess(processIdentifiers);
     }
 
     private void registerMonitorToWatchdogDaemon() {
@@ -522,12 +541,14 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private void killProcessAndReportToMonitor(int pid) {
-        String processName = getProcessName(pid);
-        Process.killProcess(pid);
-        Slogf.w(TAG, "carwatchdog killed %s (pid: %d)", processName, pid);
+    private void killProcessAndReportToMonitor(ProcessIdentifier processIdentifier) {
+        String processName = getProcessName(processIdentifier.pid);
+        // TODO(b/213939034): Use processIdentifier.startTimeMillis to verify the PID
+        //  before killing.
+        Process.killProcess(processIdentifier.pid);
+        Slogf.w(TAG, "carwatchdog killed %s (pid: %d)", processName, processIdentifier.pid);
         try {
-            mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, pid);
+            mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, processIdentifier);
         } catch (RemoteException | RuntimeException e) {
             Slogf.w(TAG, "Cannot report monitor result to car watchdog daemon: %s", e);
         }
@@ -583,12 +604,12 @@ public class CarServiceHelperService extends SystemService
         }
 
         @Override
-        public void onClientsNotResponding(int[] pids) {
+        public void onClientsNotResponding(List<ProcessIdentifier> processIdentifiers) {
             CarServiceHelperService service = mService.get();
-            if (service == null || pids == null || pids.length == 0) {
+            if (service == null || processIdentifiers == null || processIdentifiers.isEmpty()) {
                 return;
             }
-            service.handleClientsNotResponding(pids);
+            service.handleClientsNotResponding(processIdentifiers);
         }
     }
 
@@ -601,7 +622,7 @@ public class CarServiceHelperService extends SystemService
         @GuardedBy("mProcessLock")
         private int mQueuedTask;
 
-        public void requestTerminateProcess(@NonNull int[] pids) {
+        public void requestTerminateProcess(@NonNull List<ProcessIdentifier> processIdentifiers) {
             synchronized (mProcessLock) {
                 // If there is a running thread, we re-use it instead of starting a new thread.
                 if (mExecutor == null) {
@@ -610,8 +631,10 @@ public class CarServiceHelperService extends SystemService
                 mQueuedTask++;
             }
             mExecutor.execute(() -> {
-                for (int pid : pids) {
-                    dumpAndKillProcess(pid);
+                for (int i = 0; i < processIdentifiers.size(); i++) {
+                    // TODO(b/213939034): Use processIdentifier.startTimeMillis to verify the PID
+                    //  before dumping and killing.
+                    dumpAndKillProcess(processIdentifiers.get(i));
                 }
                 // mExecutor will be stopped from the main thread, if there is no queued task.
                 mHandler.sendMessage(obtainMessage(ProcessTerminator::postProcessing, this)
@@ -629,17 +652,17 @@ public class CarServiceHelperService extends SystemService
             }
         }
 
-        private void dumpAndKillProcess(int pid) {
+        private void dumpAndKillProcess(ProcessIdentifier processIdentifier) {
             if (DBG) {
-                Slogf.d(TAG, "Dumping and killing process(pid: %d)", pid);
+                Slogf.d(TAG, "Dumping and killing process(pid: %d)", processIdentifier.pid);
             }
             ArrayList<Integer> javaPids = new ArrayList<>(1);
             ArrayList<Integer> nativePids = new ArrayList<>();
             try {
-                if (isJavaApp(pid)) {
-                    javaPids.add(pid);
+                if (isJavaApp(processIdentifier.pid)) {
+                    javaPids.add(processIdentifier.pid);
                 } else {
-                    nativePids.add(pid);
+                    nativePids.add(processIdentifier.pid);
                 }
             } catch (IOException e) {
                 Slogf.w(TAG, "Cannot get process information: %s", e);
@@ -656,10 +679,10 @@ public class CarServiceHelperService extends SystemService
             if (dumpTime < ONE_SECOND_MS) {
                 mHandler.sendMessageDelayed(obtainMessage(
                         CarServiceHelperService::killProcessAndReportToMonitor,
-                        CarServiceHelperService.this, pid).setWhat(WHAT_PROCESS_KILL),
+                        CarServiceHelperService.this, processIdentifier).setWhat(WHAT_PROCESS_KILL),
                         ONE_SECOND_MS - dumpTime);
             } else {
-                killProcessAndReportToMonitor(pid);
+                killProcessAndReportToMonitor(processIdentifier);
             }
         }
 
