@@ -1,23 +1,18 @@
-package {
-    default_applicable_licenses: ["Android-Apache-2.0"],
-}
-
 java_library {
     name: "car-frameworks-service",
     installable: true,
-    libs: [
-        "services",
-        "android.hardware.automotive.vehicle-V2.0-java",
-        "com.android.car.internal.common",
-    ],
+    libs: ["services"],
     required: ["libcar-framework-service-jni"],
     srcs: [
         "src/**/*.java",
+        "src/com/android/internal/car/ICarServiceHelper.aidl",
     ],
     static_libs: [
+        "android.hardware.automotive.vehicle-V2.0-java",
+        "android.car.internal.event-log-tags",
+        "android.car.userlib",
         "android.car.watchdoglib",
-        "com.android.car.internal.system",
-        "android.automotive.watchdog.internal-java",
+        "carwatchdog_aidl_interface-java",
     ],
 }
 
