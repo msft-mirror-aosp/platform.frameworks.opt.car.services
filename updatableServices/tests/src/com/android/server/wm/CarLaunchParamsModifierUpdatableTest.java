@@ -199,8 +199,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         when(mActivityTaskManagerService.getGlobalLock()).thenReturn(mWindowManagerGlobalLock);
 
         mWindowManagerService = WindowManagerService.main(
-                mContext, mInputManagerService, /* showBootMsgs= */ false, /* onlyCore= */ false,
-                /* policy= */ null, mActivityTaskManagerService,
+                mContext, mInputManagerService, /* showBootMsgs= */ false, /* policy= */ null,
+                mActivityTaskManagerService,
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
                 /* surfaceControlFactory= */ null);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
