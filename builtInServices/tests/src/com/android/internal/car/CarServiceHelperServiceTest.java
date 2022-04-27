@@ -16,11 +16,13 @@
 
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
@@ -43,6 +45,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
+import com.android.server.SystemService.UserCompletedEventType;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -185,6 +188,29 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
 
         verifyInitBootUser();
+    }
+
+    @Test
+    public void testOnUserCompletedEvent_notifiesPostUnlockedEvent() throws Exception {
+        int userId = 10;
+
+        mHelper.onUserCompletedEvent(newTargetUser(userId), newUserCompletedEventTypeForTest(
+                UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED));
+
+        verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, userId);
+    }
+
+    @Test
+    public void testOnUserCompletedEvent_preCreatedUserDoesNotNotifyICar() throws Exception {
+        UserCompletedEventType userCompletedEventType = newUserCompletedEventTypeForTest(
+                UserCompletedEventType.EVENT_TYPE_USER_STARTING
+                | UserCompletedEventType.EVENT_TYPE_USER_SWITCHING
+                | UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED);
+
+        mHelper.onUserCompletedEvent(newTargetUser(10, /* preCreated= */true),
+                userCompletedEventType);
+
+        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     private TargetUser newTargetUser(int userId) {

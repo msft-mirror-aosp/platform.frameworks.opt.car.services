@@ -19,7 +19,6 @@ import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 
 import android.annotation.Nullable;
-import android.annotation.UserIdInt;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
@@ -40,11 +39,9 @@ import android.os.UserHandle;
 
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.CarServiceHelperConfig;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import java.io.File;
@@ -195,11 +192,16 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         EventLogHelper.writeCarHelperServiceConnected();
 
-        sendSetSystemServerConnectionsCall();
-
+        // Post mCallbackForCarServiceUnresponsiveness before setting system server connection
+        // because CarService may respond before the sendSetSystemServerConnectionsCall call
+        // returns and try to remove mCallbackForCarServiceUnresponsiveness from the handler.
+        // Thus, posting this callback after setting system server connection may result in a race
+        // condition where the callback is never removed from the handler.
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
         mHandler.postDelayed(mCallbackForCarServiceUnresponsiveness,
                 CAR_SERVICE_BINDER_CALL_TIMEOUT_MS);
+
+        sendSetSystemServerConnectionsCall();
     }
 
     @VisibleForTesting
@@ -310,11 +312,6 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void sendInitialUser(UserHandle user) {
             mCarServiceProxy.saveInitialUser(user);
-        }
-
-        @Override
-        public int getServiceHelperBuiltinMinorVersion() {
-            return CarServiceHelperConfig.VERSION_MINOR_INT;
         }
     }
 
