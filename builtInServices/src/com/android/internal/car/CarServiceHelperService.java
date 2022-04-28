@@ -31,15 +31,11 @@ import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
-import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.StateType;
 import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.UserInfo;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
@@ -144,30 +140,6 @@ public class CarServiceHelperService extends SystemService
                     registerMonitorToWatchdogDaemon();
                 }
             };
-
-    private final BroadcastReceiver mShutdownEventReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            // Skip immediately if intent is not relevant to device shutdown.
-            // FLAG_RECEIVER_FOREGROUND is checked to ignore the intent from UserController when
-            // a user is stopped.
-            if ((!intent.getAction().equals(Intent.ACTION_REBOOT)
-                    && !intent.getAction().equals(Intent.ACTION_SHUTDOWN))
-                    || (intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
-                return;
-            }
-            int powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
-            try {
-                mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
-                        powerCycle, /* arg2= */ 0);
-                if (DBG) {
-                    Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)", powerCycle);
-                }
-            } catch (RemoteException | RuntimeException e) {
-                Slogf.w(TAG, "Notifying power cycle state change failed: %s", e);
-            }
-        }
-    };
 
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
@@ -277,11 +249,6 @@ public class CarServiceHelperService extends SystemService
     public void onStart() {
         EventLogHelper.writeCarHelperStart();
 
-        IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
-        filter.addAction(Intent.ACTION_SHUTDOWN);
-        mContext.registerReceiverForAllUsers(mShutdownEventReceiver, filter,
-                /* broadcastPermission= */ null, /* scheduler= */ null,
-                Context.RECEIVER_NOT_EXPORTED);
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
@@ -635,6 +602,16 @@ public class CarServiceHelperService extends SystemService
                 return;
             }
             service.handleClientsNotResponding(processIdentifiers);
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return ICarWatchdogMonitor.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ICarWatchdogMonitor.VERSION;
         }
     }
 
