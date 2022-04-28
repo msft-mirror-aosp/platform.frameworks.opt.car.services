@@ -19,7 +19,6 @@ import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 
 import android.annotation.Nullable;
-import android.annotation.UserIdInt;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
@@ -40,13 +39,15 @@ import android.os.UserHandle;
 
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.car.CarServiceHelperConfig;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
+import java.io.File;
+import com.android.server.wm.CarLaunchParamsModifierInterface;
+import com.android.server.wm.CarLaunchParamsModifierUpdatable;
+import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 
 import java.io.PrintWriter;
 import java.util.List;
@@ -59,7 +60,8 @@ import java.util.function.BiConsumer;
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
-    private static final String TAG = "CarServiceHelper";
+    @VisibleForTesting
+    static final String TAG = "CarServiceHelper";
 
     private static final boolean DBG = false;
 
@@ -92,19 +94,26 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarServiceHelperInterface mCarServiceHelperInterface;
 
+    private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
+
     public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface) {
-        this(context, carServiceHelperInterface, /* carServiceProxy= */ null);
+            CarServiceHelperInterface carServiceHelperInterface,
+            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface) {
+        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
+                /* carServiceProxy= */ null);
     }
 
     @VisibleForTesting
     CarServiceHelperServiceUpdatableImpl(Context context,
             CarServiceHelperInterface carServiceHelperInterface,
+            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
             @Nullable CarServiceProxy carServiceProxy) {
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarServiceHelperInterface = carServiceHelperInterface;
+        mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
+                carLaunchParamsModifierInterface);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -162,6 +171,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.initBootUser();
     }
 
+    @Override
+    public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
+        return mCarLaunchParamsModifierUpdatable;
+    }
+
     @VisibleForTesting
     void handleCarServiceConnection(IBinder iBinder) {
         synchronized (mLock) {
@@ -178,11 +192,16 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         EventLogHelper.writeCarHelperServiceConnected();
 
-        sendSetSystemServerConnectionsCall();
-
+        // Post mCallbackForCarServiceUnresponsiveness before setting system server connection
+        // because CarService may respond before the sendSetSystemServerConnectionsCall call
+        // returns and try to remove mCallbackForCarServiceUnresponsiveness from the handler.
+        // Thus, posting this callback after setting system server connection may result in a race
+        // condition where the callback is never removed from the handler.
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
         mHandler.postDelayed(mCallbackForCarServiceUnresponsiveness,
                 CAR_SERVICE_BINDER_CALL_TIMEOUT_MS);
+
+        sendSetSystemServerConnectionsCall();
     }
 
     @VisibleForTesting
@@ -242,6 +261,16 @@ public final class CarServiceHelperServiceUpdatableImpl
             return;
         }
 
+        if (args != null && args.length > 0 && "--dump-service-stacks".equals(args[0])) {
+            File file = mCarServiceHelperInterface.dumpServiceStacks();
+            if (file != null) {
+                writer.printf("dumpServiceStacks ANR file path=%s\n", file.getAbsolutePath());
+            } else {
+                writer.printf("dumpServiceStacks no ANR file.\n");
+            }
+            return;
+        }
+
         mCarServiceProxy.dump(new IndentingPrintWriter(writer));
     }
 
@@ -249,25 +278,25 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setDisplayAllowlistForUser(int userId, int[] displayIds) {
-            mCarServiceHelperInterface.setDisplayAllowlistForUser(UserHandle.of(userId),
-                    displayIds);
+            mCarLaunchParamsModifierUpdatable.setDisplayAllowListForUser(userId, displayIds);
         }
 
         @Override
         public void setPassengerDisplays(int[] displayIdsForPassenger) {
-            mCarServiceHelperInterface.setPassengerDisplays(displayIdsForPassenger);
+            mCarLaunchParamsModifierUpdatable.setPassengerDisplays(displayIdsForPassenger);
         }
 
         @Override
         public void setSourcePreferredComponents(boolean enableSourcePreferred,
                 @Nullable List<ComponentName> sourcePreferredComponents) {
-            mCarServiceHelperInterface.setSourcePreferredComponents(
+            mCarLaunchParamsModifierUpdatable.setSourcePreferredComponents(
                     enableSourcePreferred, sourcePreferredComponents);
         }
 
         @Override
         public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-            return mCarServiceHelperInterface.setPersistentActivity(activity, displayId, featureId);
+            return mCarLaunchParamsModifierUpdatable.setPersistentActivity(
+                    activity, displayId, featureId);
         }
 
         @Override
@@ -283,11 +312,6 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void sendInitialUser(UserHandle user) {
             mCarServiceProxy.saveInitialUser(user);
-        }
-
-        @Override
-        public int getServiceHelperBuiltinMinorVersion() {
-            return CarServiceHelperConfig.VERSION_MINOR_INT;
         }
     }
 

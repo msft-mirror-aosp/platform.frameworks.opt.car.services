@@ -37,6 +37,7 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.internal.car.CarServiceHelperInterface;
+import com.android.server.wm.CarLaunchParamsModifierInterface;
 
 import java.util.function.BiConsumer;
 
@@ -59,17 +60,24 @@ public final class CarServiceHelperServiceUpdatableImplTest
     @Mock
     private CarServiceHelperInterface mCarServiceHelperInterface;
     @Mock
+    private CarLaunchParamsModifierInterface mCarLaunchParamsModifierInterface;
+    @Mock
     private ICar mICarBinder;
     @Mock
     private IBinder mIBinder;
 
     private CarServiceHelperServiceUpdatableImpl mCarServiceHelperServiceUpdatableImpl;
 
+    public CarServiceHelperServiceUpdatableImplTest() {
+        super(CarServiceHelperServiceUpdatableImpl.TAG);
+    }
+
     @Before
     public void setTestFixtures() {
         mCarServiceHelperServiceUpdatableImpl = new CarServiceHelperServiceUpdatableImpl(
                 mMockContext,
                 mCarServiceHelperInterface,
+                mCarLaunchParamsModifierInterface,
                 mCarServiceProxy);
     }
 
