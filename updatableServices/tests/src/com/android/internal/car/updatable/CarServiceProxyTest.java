@@ -57,6 +57,10 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     private CarServiceProxy mCarServiceProxy;
 
+    public CarServiceProxyTest() {
+        super(CarServiceProxy.TAG);
+    }
+
     @Before
     public void setUpMocks() {
         mCarServiceProxy = new CarServiceProxy(mCarServiceHelperServiceUpdatableImpl);
