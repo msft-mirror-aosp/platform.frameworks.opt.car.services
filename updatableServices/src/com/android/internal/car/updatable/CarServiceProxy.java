@@ -41,6 +41,7 @@ import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.DebugUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.Retention;
@@ -87,9 +88,11 @@ final class CarServiceProxy {
     @Retention(RetentionPolicy.SOURCE)
     public @interface PendingOperationId{}
 
+    @VisibleForTesting
+    static final String TAG = CarServiceProxy.class.getSimpleName();
+
     private static final long TRACE_TAG_SYSTEM_SERVER = 1L << 19;
     private static final boolean DBG = false;
-    private static final String TAG = CarServiceProxy.class.getSimpleName();
 
     private static final int USER_SYSTEM = UserHandle.SYSTEM.getIdentifier();
 
