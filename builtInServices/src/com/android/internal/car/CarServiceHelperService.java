@@ -31,15 +31,11 @@ import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
 import android.app.admin.DevicePolicySafetyChecker;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
-import android.automotive.watchdog.internal.PowerCycle;
 import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.StateType;
 import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
-import android.content.BroadcastReceiver;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
 import android.content.pm.UserInfo;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
@@ -84,6 +80,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -119,8 +116,8 @@ public class CarServiceHelperService extends SystemService
     private static final String CSHS_UPDATABLE_CLASSNAME_STRING =
             "com.android.internal.car.updatable.CarServiceHelperServiceUpdatableImpl";
     private static final String PROC_PID_STAT_PATTERN =
-            "([0-9]*)\\s\\((\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}([0-9]*)\\s(?:-?[0-9]*\\s)*"
-                    + "-?[0-9]*";
+            "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
+                    + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
 
     private final Context mContext;
     private final Object mLock = new Object();
@@ -144,30 +141,6 @@ public class CarServiceHelperService extends SystemService
                     registerMonitorToWatchdogDaemon();
                 }
             };
-
-    private final BroadcastReceiver mShutdownEventReceiver = new BroadcastReceiver() {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            // Skip immediately if intent is not relevant to device shutdown.
-            // FLAG_RECEIVER_FOREGROUND is checked to ignore the intent from UserController when
-            // a user is stopped.
-            if ((!intent.getAction().equals(Intent.ACTION_REBOOT)
-                    && !intent.getAction().equals(Intent.ACTION_SHUTDOWN))
-                    || (intent.getFlags() & Intent.FLAG_RECEIVER_FOREGROUND) == 0) {
-                return;
-            }
-            int powerCycle = PowerCycle.POWER_CYCLE_SHUTDOWN_ENTER;
-            try {
-                mCarWatchdogDaemonHelper.notifySystemStateChange(StateType.POWER_CYCLE,
-                        powerCycle, /* arg2= */ 0);
-                if (DBG) {
-                    Slogf.d(TAG, "Notified car watchdog daemon of power cycle(%d)", powerCycle);
-                }
-            } catch (RemoteException | RuntimeException e) {
-                Slogf.w(TAG, "Notifying power cycle state change failed: %s", e);
-            }
-        }
-    };
 
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
@@ -277,11 +250,6 @@ public class CarServiceHelperService extends SystemService
     public void onStart() {
         EventLogHelper.writeCarHelperStart();
 
-        IntentFilter filter = new IntentFilter(Intent.ACTION_REBOOT);
-        filter.addAction(Intent.ACTION_SHUTDOWN);
-        mContext.registerReceiverForAllUsers(mShutdownEventReceiver, filter,
-                /* broadcastPermission= */ null, /* scheduler= */ null,
-                Context.RECEIVER_NOT_EXPORTED);
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
@@ -574,7 +542,7 @@ public class CarServiceHelperService extends SystemService
                 line = line.substring(0, index);
             }
             return Paths.get(line).getFileName().toString();
-        } catch (IOException e) {
+        } catch (IOException | RuntimeException e) {
             Slogf.w(TAG, "Cannot read %s", filename);
             return ProcessInfo.UNKNOWN_PROCESS;
         }
@@ -586,11 +554,14 @@ public class CarServiceHelperService extends SystemService
             String line = reader.readLine().replace('\0', ' ').trim();
             Matcher m = mProcPidStatPattern.matcher(line);
             if (m.find()) {
-                return new ProcessInfo(Integer.parseInt(m.group(1)), m.group(2),
-                        Long.parseLong(m.group(3)));
+                int readPid = Integer.parseInt(Objects.requireNonNull(m.group("pid")));
+                if (readPid == pid) {
+                    return new ProcessInfo(pid, m.group("name"),
+                            Long.parseLong(Objects.requireNonNull(m.group("startClockTicks"))));
+                }
             }
-        } catch (IOException e) {
-            Slogf.w(TAG, "Cannot read %s", filename);
+        } catch (IOException | RuntimeException e) {
+            Slogf.w(TAG, e, "Cannot read %s", filename);
         }
         return new ProcessInfo(pid, ProcessInfo.UNKNOWN_PROCESS, ProcessInfo.INVALID_START_TIME);
     }
@@ -635,6 +606,16 @@ public class CarServiceHelperService extends SystemService
                 return;
             }
             service.handleClientsNotResponding(processIdentifiers);
+        }
+
+        @Override
+        public String getInterfaceHash() {
+            return ICarWatchdogMonitor.HASH;
+        }
+
+        @Override
+        public int getInterfaceVersion() {
+            return ICarWatchdogMonitor.VERSION;
         }
     }
 
@@ -727,7 +708,8 @@ public class CarServiceHelperService extends SystemService
     private static final class ProcessInfo {
         public static final String UNKNOWN_PROCESS = "unknown process";
         public static final int INVALID_START_TIME = -1;
-        public static final long JIFFY_HZ = Os.sysconf(OsConstants._SC_CLK_TCK);
+
+        private static final long MILLIS_PER_JIFFY = 1000L / Os.sysconf(OsConstants._SC_CLK_TCK);
 
         public final int pid;
         public final String name;
@@ -737,10 +719,14 @@ public class CarServiceHelperService extends SystemService
             this.pid = pid;
             this.name = name;
             this.startTimeMillis = startClockTicks != INVALID_START_TIME
-                    ? startClockTicks/JIFFY_HZ : INVALID_START_TIME;
+                    ? startClockTicks * MILLIS_PER_JIFFY : INVALID_START_TIME;
         }
 
         boolean doMatch(int pid, long startTimeMillis) {
+            // Start time reported by the services that monitor the process health will be either
+            // the actual start time of the pid or the elapsed real time when the pid was last seen
+            // alive. Thus, verify whether the given start time is at least the actual start time of
+            // the pid.
             return this.pid == pid && (this.startTimeMillis == INVALID_START_TIME
                     || this.startTimeMillis <= startTimeMillis);
         }
