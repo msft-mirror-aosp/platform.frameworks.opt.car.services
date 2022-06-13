@@ -302,7 +302,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserUnlocking(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) return;
         EventLogHelper.writeCarHelperUserUnlocking(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserUnlocking(%s)", user);
 
@@ -313,7 +312,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserUnlocked(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)) return;
         int userId = user.getUserIdentifier();
         EventLogHelper.writeCarHelperUserUnlocked(userId);
         if (DBG) Slogf.d(TAG, "onUserUnlocked(%s)", user);
@@ -330,7 +328,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStarting(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STARTING)) return;
         EventLogHelper.writeCarHelperUserStarting(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStarting(%s)", user);
 
@@ -342,7 +339,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStopping(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPING)) return;
         EventLogHelper.writeCarHelperUserStopping(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopping(%s)", user);
 
@@ -354,7 +350,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStopped(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) return;
         EventLogHelper.writeCarHelperUserStopped(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopped(%s)", user);
 
@@ -364,7 +359,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
-        if (isPreCreated(to, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) return;
         EventLogHelper.writeCarHelperUserSwitching(
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
                 to.getUserIdentifier());
@@ -379,14 +373,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserCompletedEvent(TargetUser user, UserCompletedEventType eventType) {
-        if (user.isPreCreated()) {
-            if (DBG) {
-                Slogf.d(TAG, "Ignoring USER_COMPLETED event %s for pre-created user %s",
-                        eventType, user);
-            }
-            return;
-        }
-
         UserHandle handle = user.getUserHandle();
         if (eventType.includesOnUserUnlocked()) {
             mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
@@ -422,13 +408,13 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private boolean isPreCreated(@NonNull TargetUser user, @UserLifecycleEventType int eventType) {
-        if (!user.isPreCreated()) return false;
-
-        if (DBG) {
-            Slogf.d(TAG, "Ignoring event of type %d for pre-created user %s", eventType, user);
+    @Override
+    public boolean isUserSupported(TargetUser user) {
+        boolean isPreCreated = user.isPreCreated();
+        if (isPreCreated && DBG) {
+            Slogf.d(TAG, "Not supporting Pre-created user %s", user);
         }
-        return true;
+        return !isPreCreated;
     }
 
     private TimingsTraceAndSlog newTimingsTraceAndSlog() {

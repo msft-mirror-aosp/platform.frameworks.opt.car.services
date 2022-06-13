@@ -101,19 +101,25 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
+    public void testIsUserSupported_preCreatedUserIsNotSupported() throws Exception {
+        expectWithMessage("isUserSupported")
+            .that(mHelper.isUserSupported(newTargetUser(10, /* preCreated= */ true)))
+            .isFalse();
+    }
+
+    @Test
+    public void testIsUserSupported_nonPreCreatedUserIsSupported() throws Exception {
+        expectWithMessage("isUserSupported").that(mHelper.isUserSupported(newTargetUser(11)))
+            .isTrue();
+    }
+
+    @Test
     public void testOnUserStarting_notifiesICar() throws Exception {
         int userId = 10;
 
         mHelper.onUserStarting(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING, userId);
-    }
-
-    @Test
-    public void testOnUserStarting_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -129,26 +135,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserSwitching_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
-    }
-
-    @Test
     public void testOnUserUnlocking_notifiesICar() throws Exception {
         int userId = 10;
 
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, userId);
-    }
-
-    @Test
-    public void testOnUserUnlocking_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -161,26 +153,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserStopping_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
-    }
-
-    @Test
     public void testOnUserStopped_notifiesICar() throws Exception {
         int userId = 10;
 
         mHelper.onUserStopped(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED, userId);
-    }
-
-    @Test
-    public void testOnUserStopped_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -198,19 +176,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, userId);
-    }
-
-    @Test
-    public void testOnUserCompletedEvent_preCreatedUserDoesNotNotifyICar() throws Exception {
-        UserCompletedEventType userCompletedEventType = newUserCompletedEventTypeForTest(
-                UserCompletedEventType.EVENT_TYPE_USER_STARTING
-                | UserCompletedEventType.EVENT_TYPE_USER_SWITCHING
-                | UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED);
-
-        mHelper.onUserCompletedEvent(newTargetUser(10, /* preCreated= */true),
-                userCompletedEventType);
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -247,11 +212,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
             @UserIdInt int userId) throws Exception {
         verify(mCarServiceHelperServiceUpdatable).sendUserLifecycleEvent(eventType,
                 null, UserHandle.of(userId));
-    }
-
-    private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
-        verify(mCarServiceHelperServiceUpdatable, never()).sendUserLifecycleEvent(anyInt(), any(),
-                any());
     }
 
     private void verifyInitBootUser() throws Exception {
