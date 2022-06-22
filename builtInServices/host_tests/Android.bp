@@ -11,4 +11,7 @@ java_test_host {
         "tradefed",
         "truth-prebuilt",
     ],
+    test_suites: [
+        "automotive-tests",
+    ],
 }
