@@ -20,6 +20,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
+import android.car.annotation.AddedIn;
 import android.car.app.CarActivityManager;
 import android.content.ComponentName;
 import android.hardware.display.DisplayManager;
@@ -46,20 +47,25 @@ import java.util.List;
 public interface CarLaunchParamsModifierUpdatable {
 
     /** Returns {@link DisplayManager.DisplayListener} of CarLaunchParamsModifierUpdatable. */
+    @AddedIn(majorVersion = 33)
     DisplayManager.DisplayListener getDisplayListener();
 
     /** Notifies user switching. */
+    @AddedIn(majorVersion = 33)
     void handleCurrentUserSwitching(@UserIdInt int newUserId);
 
     /** Notifies user starting. */
+    @AddedIn(majorVersion = 33)
     void handleUserStarting(@UserIdInt int startingUser);
 
     /** Notifies user stopped. */
+    @AddedIn(majorVersion = 33)
     void handleUserStopped(@UserIdInt int stoppedUser);
 
     /**
      * Calculates {@code outParams} based on the given arguments.
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
      */
+    @AddedIn(majorVersion = 33)
     int calculate(CalculateParams params);
 }

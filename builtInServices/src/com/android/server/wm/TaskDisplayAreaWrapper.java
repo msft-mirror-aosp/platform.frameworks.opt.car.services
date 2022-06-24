@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedIn;
 import android.view.Display;
 
 /**
@@ -33,12 +34,14 @@ public final class TaskDisplayAreaWrapper {
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public static TaskDisplayAreaWrapper create(@Nullable TaskDisplayArea taskDisplayArea) {
         if (taskDisplayArea == null) return null;
         return new TaskDisplayAreaWrapper(taskDisplayArea);
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public TaskDisplayArea getTaskDisplayArea() {
         return mTaskDisplayArea;
     }
@@ -46,11 +49,13 @@ public final class TaskDisplayAreaWrapper {
     /**
      * Gets the display this {@link TaskDisplayAreaWrapper} is on.
      */
+    @AddedIn(majorVersion = 33)
     public Display getDisplay() {
         return mTaskDisplayArea.getDisplayContent().getDisplay();
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mTaskDisplayArea.toString();
     }
