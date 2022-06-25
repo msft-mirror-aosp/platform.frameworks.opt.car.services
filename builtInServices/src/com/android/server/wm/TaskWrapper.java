@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedIn;
 
 /**
  * Wrapper of {@link Task}.
@@ -32,6 +33,7 @@ public final class TaskWrapper {
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public static TaskWrapper create(@Nullable Task task) {
         if (task == null) return null;
         return new TaskWrapper(task);
@@ -40,6 +42,7 @@ public final class TaskWrapper {
     /**
      * Gets the {@code userId} of this {@link Task} is created for
      */
+    @AddedIn(majorVersion = 33)
     public int getUserId() {
         return mTask.mUserId;
     }
@@ -47,6 +50,7 @@ public final class TaskWrapper {
     /**
      * Gets the root {@link TaskWrapper} of the this.
      */
+    @AddedIn(majorVersion = 33)
     public TaskWrapper getRootTask() {
         return create(mTask.getRootTask());
     }
@@ -54,6 +58,7 @@ public final class TaskWrapper {
     /**
      * Gets the {@link TaskDisplayAreaWrapper} this {@link Task} is on.
      */
+    @AddedIn(majorVersion = 33)
     public TaskDisplayAreaWrapper getTaskDisplayArea() {
         return TaskDisplayAreaWrapper.create(mTask.getTaskDisplayArea());
     }
