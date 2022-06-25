@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedIn;
 
 /**
  * Wrapper of {@link com.android.server.wm.ActivityStarter.Request}.
@@ -32,12 +33,14 @@ public final class RequestWrapper {
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public static RequestWrapper create(@Nullable ActivityStarter.Request request) {
         if (request == null) return null;
         return new RequestWrapper(request);
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public ActivityStarter.Request getRequest() {
         return mRequest;
     }

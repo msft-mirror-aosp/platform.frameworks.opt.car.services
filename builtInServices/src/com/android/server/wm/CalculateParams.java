@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
+import android.car.annotation.AddedIn;
 import android.content.pm.ActivityInfo;
 import android.view.WindowLayout;
 
@@ -41,6 +42,7 @@ public final class CalculateParams {
     private CalculateParams() {}
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public static CalculateParams create(Task task, ActivityInfo.WindowLayout layout,
             ActivityRecord actvity, ActivityRecord source,
             ActivityOptions options, ActivityStarter.Request request, int phase,
@@ -64,6 +66,7 @@ public final class CalculateParams {
     /**
      * Gets the {@link TaskWrapper} currently being positioned.
      */
+    @AddedIn(majorVersion = 33)
     public TaskWrapper getTask() {
         return mTask;
     }
@@ -71,6 +74,7 @@ public final class CalculateParams {
     /**
      * Gets the specified {@link WindowLayoutWrapper}.
      */
+    @AddedIn(majorVersion = 33)
     public WindowLayoutWrapper getWindowLayout() {
         return mLayout;
     }
@@ -78,6 +82,7 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityRecordWrapper} currently being positioned.
      */
+    @AddedIn(majorVersion = 33)
     public ActivityRecordWrapper getActivity() {
         return mActivity;
     }
@@ -85,6 +90,7 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityRecordWrapper} from which activity was started from.
      */
+    @AddedIn(majorVersion = 33)
     public ActivityRecordWrapper getSource() {
         return mSource;
     }
@@ -92,6 +98,7 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityOptionsWrapper} specified for the activity.
      */
+    @AddedIn(majorVersion = 33)
     public ActivityOptionsWrapper getOptions() {
         return mOptions;
     }
@@ -99,6 +106,7 @@ public final class CalculateParams {
     /**
      * Gets the optional {@link RequestWrapper} from the activity starter.
      */
+    @AddedIn(majorVersion = 33)
     public RequestWrapper getRequest() {
         return mRequest;
     }
@@ -107,6 +115,7 @@ public final class CalculateParams {
      * Gets the {@link LaunchParamsController.LaunchParamsModifier.Phase} that the resolution should
      * finish.
      */
+    @AddedIn(majorVersion = 33)
     public int getPhase() {
         return mPhase;
     }
@@ -114,6 +123,7 @@ public final class CalculateParams {
     /**
      * Gets the current {@link LaunchParamsWrapper}.
      */
+    @AddedIn(majorVersion = 33)
     public LaunchParamsWrapper getCurrentParams() {
         return mCurrentParams;
     }
@@ -121,6 +131,7 @@ public final class CalculateParams {
     /**
      * Gets the resulting {@link LaunchParamsWrapper}.
      */
+    @AddedIn(majorVersion = 33)
     public LaunchParamsWrapper getOutParams() {
         return mOutParams;
     }
@@ -128,6 +139,7 @@ public final class CalculateParams {
     /**
      * Returns whether the current system supports the multiple display.
      */
+    @AddedIn(majorVersion = 33)
     public boolean supportsMultiDisplay() {
         return mSupportsMultiDisplay;
     }
