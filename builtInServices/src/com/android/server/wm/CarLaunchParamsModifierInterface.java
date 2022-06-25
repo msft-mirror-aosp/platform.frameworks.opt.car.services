@@ -19,6 +19,7 @@ package com.android.server.wm;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedIn;
 import android.graphics.Rect;
 import android.view.Display;
 
@@ -39,16 +40,19 @@ public interface CarLaunchParamsModifierInterface {
      * Returns {@link TaskDisplayAreaWrapper} of the given {@code featureId} in the given
      * {@code displayId}.
      */
+    @AddedIn(majorVersion = 33)
     @Nullable TaskDisplayAreaWrapper findTaskDisplayArea(int displayId, int featureId);
 
     /**
      * Returns the default {@link TaskDisplayAreaWrapper} of the given {@code displayId}.
      */
+    @AddedIn(majorVersion = 33)
     @Nullable TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int displayId);
 
     /**
      * Returns the list of fallback {@link TaskDisplayAreaWrapper} from the source of the request.
      */
+    @AddedIn(majorVersion = 33)
     @NonNull List<TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(
             @NonNull ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request);
 

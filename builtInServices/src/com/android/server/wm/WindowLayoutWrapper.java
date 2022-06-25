@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.annotation.AddedIn;
 import android.content.pm.ActivityInfo;
 
 /**
@@ -33,6 +34,7 @@ public final class WindowLayoutWrapper {
     }
 
     /** @hide */
+    @AddedIn(majorVersion = 33)
     public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
         if (layout == null) return null;
         return new WindowLayoutWrapper(layout);
