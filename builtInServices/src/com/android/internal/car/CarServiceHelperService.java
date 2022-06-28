@@ -481,8 +481,11 @@ public class CarServiceHelperService extends SystemService
         ArrayList<Integer> pids = new ArrayList<>();
         pids.add(Process.myPid());
 
+        // Use the long version used by Watchdog since the short version is removed by the compiler.
         return ActivityManagerService.dumpStackTraces(
-                pids, null, null, getInterestingNativePids(), null);
+                pids, /* processCpuTracker= */ null, /* lastPids= */ null,
+                getInterestingNativePids(), /* logExceptionCreatingFile= */ null,
+                /* subject= */ null, /* criticalEventSection= */ null);
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
