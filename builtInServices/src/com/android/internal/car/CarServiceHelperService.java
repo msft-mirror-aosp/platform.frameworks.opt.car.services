@@ -496,7 +496,9 @@ public class CarServiceHelperService extends SystemService
         pids.add(Process.myPid());
 
         return ActivityManagerService.dumpStackTraces(
-                pids, null, null, getInterestingNativePids(), null);
+                pids, /* processCpuTracker= */ null, /* lastPids= */ null,
+                getInterestingNativePids(), /* logExceptionCreatingFile= */ null,
+                /* subject= */ null, /* criticalEventSection= */ null);
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
