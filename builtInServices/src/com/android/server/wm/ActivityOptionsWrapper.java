@@ -61,6 +61,7 @@ public final class ActivityOptionsWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mOptions.toString();
     }

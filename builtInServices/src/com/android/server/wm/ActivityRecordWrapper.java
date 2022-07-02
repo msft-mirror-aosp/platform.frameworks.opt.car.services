@@ -114,6 +114,7 @@ public final class ActivityRecordWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mActivityRecord.toString();
     }
