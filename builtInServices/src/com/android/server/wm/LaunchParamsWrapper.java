@@ -106,6 +106,7 @@ public final class LaunchParamsWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return "LaunchParams{" +
                 "mPreferredTaskDisplayArea=" + mLaunchParams.mPreferredTaskDisplayArea +

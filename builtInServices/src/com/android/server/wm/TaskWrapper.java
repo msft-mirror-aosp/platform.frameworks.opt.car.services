@@ -64,6 +64,7 @@ public final class TaskWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mTask.toString();
     }
