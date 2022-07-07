@@ -46,6 +46,7 @@ public final class RequestWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mRequest.toString();
     }

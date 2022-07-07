@@ -41,6 +41,7 @@ public final class WindowLayoutWrapper {
     }
 
     @Override
+    @AddedIn(majorVersion = 33)
     public String toString() {
         return mLayout.toString();
     }
