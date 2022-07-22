@@ -4,6 +4,8 @@ package com.android.internal.car {
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
+    method public int getProcessGroup(int);
+    method public void setProcessGroup(int, int);
     method public void setSafetyMode(boolean);
   }
 

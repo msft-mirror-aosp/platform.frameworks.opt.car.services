@@ -19,6 +19,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.car.annotation.AddedIn;
+import android.car.annotation.MinimumPlatformSdkVersion;
 import android.os.UserHandle;
 
 import java.io.File;
@@ -50,4 +51,12 @@ public interface CarServiceHelperInterface {
     @Nullable
     @AddedIn(majorVersion = 33)
     File dumpServiceStacks();
+
+    /** Check {@link android.os.Process#setProcessGroup(int, int)}. */
+    @AddedIn(majorVersion = 34)
+    void setProcessGroup(int pid, int group);
+
+    /** Check {@link android.os.Process#getProcessGroup(int)}. */
+    @AddedIn(majorVersion = 34)
+    int getProcessGroup(int pid);
 }
