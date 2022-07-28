@@ -488,6 +488,16 @@ public class CarServiceHelperService extends SystemService
                 /* subject= */ null, /* criticalEventSection= */ null);
     }
 
+    @Override
+    public void setProcessGroup(int pid, int group) {
+        Process.setProcessGroup(pid, group);
+    }
+
+    @Override
+    public int getProcessGroup(int pid) {
+        return Process.getProcessGroup(pid);
+    }
+
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
         mProcessTerminator.requestTerminateProcess(processIdentifiers);
     }
