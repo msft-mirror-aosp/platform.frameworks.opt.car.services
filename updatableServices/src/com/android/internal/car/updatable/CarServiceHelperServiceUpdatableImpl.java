@@ -323,7 +323,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void setProcessGroup(int pid, int group) {
             if (!isAtLeastU()) {
-                throw new PlatformVersionMismatchException(PlatformApiVersion.UPSIDE_DOWN_CAKE_0);
+                throw new PlatformVersionMismatchException(
+                        PlatformApiVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
             }
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
@@ -331,7 +332,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public int getProcessGroup(int pid) {
             if (!isAtLeastU()) {
-                throw new PlatformVersionMismatchException(PlatformApiVersion.UPSIDE_DOWN_CAKE_0);
+                throw new PlatformVersionMismatchException(
+                        PlatformApiVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
             }
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
