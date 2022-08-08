@@ -16,6 +16,7 @@
 
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -197,7 +198,7 @@ final class CarServiceProxy {
         boolean user0IsCurrent = lastSwitchedUser == USER_SYSTEM;
         // If user0Lifecycle is 0, then no life-cycle event received yet.
         if (user0Lifecycle != 0) {
-            sendAllLifecyleToUser(USER_SYSTEM, user0Lifecycle,
+            sendAllLifecycleToUser(USER_SYSTEM, user0Lifecycle,
                     user0IsCurrent);
         }
         lastUserLifecycle.delete(USER_SYSTEM);
@@ -207,7 +208,7 @@ final class CarServiceProxy {
             int currentUserLifecycle = lastUserLifecycle.get(lastSwitchedUser);
             // If currentUserLifecycle is 0, then no life-cycle event received yet.
             if (currentUserLifecycle != 0) {
-                sendAllLifecyleToUser(lastSwitchedUser, currentUserLifecycle,
+                sendAllLifecycleToUser(lastSwitchedUser, currentUserLifecycle,
                         /* isCurrentUser= */ true);
             }
         }
@@ -218,15 +219,26 @@ final class CarServiceProxy {
         for (int i = 0; i < lastUserLifecycle.size(); i++) {
             int userId = lastUserLifecycle.keyAt(i);
             int lifecycle = lastUserLifecycle.valueAt(i);
-            sendAllLifecyleToUser(userId, lifecycle, /* isCurrentUser= */ false);
+            sendAllLifecycleToUser(userId, lifecycle, /* isCurrentUser= */ false);
         }
     }
 
-    private void sendAllLifecyleToUser(@UserIdInt int userId, int lifecycle,
+    private void sendAllLifecycleToUser(@UserIdInt int userId, int lifecycle,
             boolean isCurrentUser) {
         if (DBG) {
-            Slogf.d(TAG, "sendAllLifecyleToUser, user:" + userId + " lifecycle:" + lifecycle);
+            Slogf.d(TAG, "sendAllLifecycleToUser, user:" + userId + " lifecycle:" + lifecycle);
         }
+
+        // User created is unrelated to the user switching/unlocking flow.
+        // Return early here to prevent it from going into the following logic
+        // that makes assumptions about the sequence of lifecycle event types
+        // following numerical order.
+        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_CREATED) {
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_CREATED,
+                    UserManagerHelper.USER_NULL, userId);
+            return;
+        }
+
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_STARTING) {
             sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_STARTING,
                     UserManagerHelper.USER_NULL, userId);
