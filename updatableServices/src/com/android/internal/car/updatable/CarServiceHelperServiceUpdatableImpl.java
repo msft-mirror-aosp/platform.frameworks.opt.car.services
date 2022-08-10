@@ -25,7 +25,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
-import android.car.PlatformApiVersion;
+import android.car.PlatformVersion;
 import android.car.PlatformVersionMismatchException;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
@@ -324,7 +324,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         public void setProcessGroup(int pid, int group) {
             if (!isAtLeastU()) {
                 throw new PlatformVersionMismatchException(
-                        PlatformApiVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
+                        PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
             }
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
@@ -333,7 +333,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         public int getProcessGroup(int pid) {
             if (!isAtLeastU()) {
                 throw new PlatformVersionMismatchException(
-                        PlatformApiVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
+                        PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
             }
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
