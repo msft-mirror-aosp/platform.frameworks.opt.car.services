@@ -47,6 +47,7 @@ import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.Keep;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
@@ -63,6 +64,7 @@ import java.util.function.BiConsumer;
 /**
  * Implementation of the abstract class CarServiceHelperUpdatable
  */
+@Keep
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
