@@ -15,18 +15,16 @@
  */
 package com.android.internal.car.updatable;
 
-import static android.os.Build.VERSION.CODENAME;
-import static android.os.Build.VERSION.SDK_INT;
+import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
-import android.car.PlatformVersion;
-import android.car.PlatformVersionMismatchException;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
@@ -47,6 +45,7 @@ import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.Keep;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
@@ -63,6 +62,7 @@ import java.util.function.BiConsumer;
 /**
  * Implementation of the abstract class CarServiceHelperUpdatable
  */
+@Keep
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
@@ -322,37 +322,15 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setProcessGroup(int pid, int group) {
-            if (!isAtLeastU()) {
-                throw new PlatformVersionMismatchException(
-                        PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
-            }
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
-            if (!isAtLeastU()) {
-                throw new PlatformVersionMismatchException(
-                        PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0);
-            }
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
-    }
-
-    // TODO(b/240298497) Fix this with car APIs.
-    public static boolean isAtLeastU() {
-        return SDK_INT >= 33 && isAtLeastPreReleaseCodename("UpsideDownCake");
-    }
-
-    private static boolean isAtLeastPreReleaseCodename(@NonNull String codename) {
-        // Special case "REL", which means the build is not a pre-release build.
-        if ("REL".equals(CODENAME)) {
-            return false;
-        }
-
-        // Otherwise lexically compare them. Return true if the build codename is equal to or
-        // greater than the requested codename.
-        return CODENAME.compareTo(codename) >= 0;
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
