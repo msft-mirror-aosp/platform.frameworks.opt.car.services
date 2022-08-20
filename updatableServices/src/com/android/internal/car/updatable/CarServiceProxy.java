@@ -17,6 +17,7 @@
 package com.android.internal.car.updatable;
 
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -229,8 +230,8 @@ final class CarServiceProxy {
             Slogf.d(TAG, "sendAllLifecycleToUser, user:" + userId + " lifecycle:" + lifecycle);
         }
 
-        // User created is unrelated to the user switching/unlocking flow.
-        // Return early here to prevent it from going into the following logic
+        // User created and user removed are unrelated to the user switching/unlocking flow.
+        // Return early to prevent them from going into the following logic
         // that makes assumptions about the sequence of lifecycle event types
         // following numerical order.
         if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_CREATED) {
@@ -239,6 +240,14 @@ final class CarServiceProxy {
             return;
         }
 
+        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_REMOVED) {
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_REMOVED,
+                    UserManagerHelper.USER_NULL, userId);
+            return;
+        }
+
+        // The following logic makes assumptions about the sequence of lifecycle event types
+        // following numerical order.
         if (lifecycle >= USER_LIFECYCLE_EVENT_TYPE_STARTING) {
             sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_STARTING,
                     UserManagerHelper.USER_NULL, userId);
@@ -413,8 +422,11 @@ final class CarServiceProxy {
         Preconditions.checkArgument((value instanceof UserHandle),
                 "Invalid value for ON_USER_REMOVED: %s", value);
         UserHandle user = (UserHandle) value;
+        // TODO(235524989): Consolidating logging with other lifecycle events,
+        // including user metrics.
         if (DBG) Slogf.d(TAG, "Sending onUserRemoved(): " + user);
-        mCarService.onUserRemoved(user);
+        mCarService.onUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_REMOVED,
+                UserManagerHelper.USER_NULL, user.getIdentifier());
     }
 
     /**
