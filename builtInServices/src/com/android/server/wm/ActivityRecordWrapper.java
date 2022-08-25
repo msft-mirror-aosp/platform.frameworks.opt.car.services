@@ -18,9 +18,11 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedIn;
+import android.car.builtin.annotation.PlatformVersion;
 import android.content.ComponentName;
 import android.content.pm.ActivityInfo;
+
+import com.android.annotation.AddedIn;
 
 /**
  * Wrapper of {@link ActivityRecord}.
@@ -35,14 +37,14 @@ public final class ActivityRecordWrapper {
     }
 
     /** @hide */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static ActivityRecordWrapper create(@Nullable ActivityRecord activityRecord) {
         if (activityRecord == null) return null;
         return new ActivityRecordWrapper(activityRecord);
     }
 
     /** @hide */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityRecord getActivityRecord() {
         return mActivityRecord;
     }
@@ -50,7 +52,7 @@ public final class ActivityRecordWrapper {
     /**
      * Gets which user this Activity is running for.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public int getUserId() {
         return mActivityRecord.mUserId;
     }
@@ -58,7 +60,7 @@ public final class ActivityRecordWrapper {
     /**
      * Gets the actual {@link ComponentName} of this Activity.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ComponentName getComponentName() {
         if (mActivityRecord.info == null) return null;
         return mActivityRecord.info.getComponentName();
@@ -67,7 +69,7 @@ public final class ActivityRecordWrapper {
     /**
      * Gets the {@link TaskDisplayAreaWrapper} where this is located.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public TaskDisplayAreaWrapper getDisplayArea() {
         return TaskDisplayAreaWrapper.create(mActivityRecord.getDisplayArea());
     }
@@ -75,7 +77,7 @@ public final class ActivityRecordWrapper {
     /**
      * Returns whether this Activity is not displayed.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public boolean isNoDisplay() {
         return mActivityRecord.noDisplay;
     }
@@ -83,7 +85,7 @@ public final class ActivityRecordWrapper {
     /**
      * Gets {@link TaskDisplayAreaWrapper} where the handover Activity is supposed to launch
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public TaskDisplayAreaWrapper getHandoverTaskDisplayArea() {
         return TaskDisplayAreaWrapper.create(mActivityRecord.mHandoverTaskDisplayArea);
     }
@@ -91,7 +93,7 @@ public final class ActivityRecordWrapper {
     /**
      * Gets {@code displayId} where the handover Activity is supposed to launch
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public int getHandoverLaunchDisplayId() {
         return mActivityRecord.mHandoverLaunchDisplayId;
     }
@@ -99,7 +101,7 @@ public final class ActivityRecordWrapper {
     /**
      * Returns whether this Activity allows to be embedded in the other Activity.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public boolean allowingEmbedded() {
         if (mActivityRecord.info == null) return false;
         return (mActivityRecord.info.flags & ActivityInfo.FLAG_ALLOW_EMBEDDED) != 0;
@@ -108,13 +110,13 @@ public final class ActivityRecordWrapper {
     /**
      * Returns whether the display where this Activity is located is trusted.
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public boolean isDisplayTrusted() {
         return mActivityRecord.getDisplayContent().isTrusted();
     }
 
     @Override
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mActivityRecord.toString();
     }
