@@ -18,10 +18,11 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedIn;
+import android.car.builtin.annotation.PlatformVersion;
 import android.os.Bundle;
 import android.os.UserHandle;
 
+import com.android.annotation.AddedIn;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 
 import java.io.PrintWriter;
@@ -36,25 +37,25 @@ import java.util.function.BiConsumer;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public interface CarServiceHelperServiceUpdatable {
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void onUserRemoved(@NonNull UserHandle userHandle);
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void onStart();
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void dump(@NonNull PrintWriter pw, @Nullable String[] args);
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void sendUserLifecycleEvent(int eventType, @Nullable UserHandle userFrom,
             @NonNull UserHandle userTo);
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void onFactoryReset(@NonNull BiConsumer<Integer, Bundle> processFactoryReset);
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void initBootUser();
 
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
 }

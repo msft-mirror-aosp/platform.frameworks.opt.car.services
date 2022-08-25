@@ -18,7 +18,7 @@ package com.android.server.wm;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import android.car.annotation.AddedIn;
+import com.android.annotation.AddedIn;
 
 import static android.car.test.util.AnnotationHelper.checkForAnnotation;
 
