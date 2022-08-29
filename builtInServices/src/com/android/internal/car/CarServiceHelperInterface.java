@@ -18,9 +18,11 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedIn;
 import android.car.annotation.MinimumPlatformSdkVersion;
+import android.car.builtin.annotation.PlatformVersion;
 import android.os.UserHandle;
+
+import com.android.annotation.AddedIn;
 
 import java.io.File;
 
@@ -34,14 +36,14 @@ public interface CarServiceHelperInterface {
     /**
      * Sets safety mode
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void setSafetyMode(boolean safe);
 
     /**
      * Creates user even when disallowed
      */
     @Nullable
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
             int flags);
 
@@ -49,14 +51,14 @@ public interface CarServiceHelperInterface {
      * Dumps service stacks
      */
     @Nullable
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     File dumpServiceStacks();
 
     /** Check {@link android.os.Process#setProcessGroup(int, int)}. */
-    @AddedIn(majorVersion = 34)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void setProcessGroup(int pid, int group);
 
     /** Check {@link android.os.Process#getProcessGroup(int)}. */
-    @AddedIn(majorVersion = 34)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     int getProcessGroup(int pid);
 }
