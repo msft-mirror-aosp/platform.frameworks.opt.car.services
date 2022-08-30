@@ -18,8 +18,10 @@ package com.android.server.wm;
 
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
-import android.car.annotation.AddedIn;
+import android.car.builtin.annotation.PlatformVersion;
 import android.window.WindowContainerToken;
+
+import com.android.annotation.AddedIn;
 
 /**
  * Wrapper of {@link ActivityOptions}.
@@ -34,7 +36,7 @@ public final class ActivityOptionsWrapper {
     }
 
     /** @hide */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static ActivityOptionsWrapper create(ActivityOptions options) {
         if (options == null) return null;
         return new ActivityOptionsWrapper(options);
@@ -44,7 +46,7 @@ public final class ActivityOptionsWrapper {
      * Gets the underlying {@link ActivityOptions} that is wrapped by this instance.
      */
     // Exposed the original object in order to allow to use the public accessors.
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityOptions getOptions() {
         return mOptions;
     }
@@ -52,7 +54,7 @@ public final class ActivityOptionsWrapper {
     /**
      * Gets {@link TaskDisplayAreaWrapper} to launch the Activity into
      */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public TaskDisplayAreaWrapper getLaunchTaskDisplayArea() {
         WindowContainerToken daToken = mOptions.getLaunchTaskDisplayArea();
         if (daToken == null) return null;
@@ -61,7 +63,7 @@ public final class ActivityOptionsWrapper {
     }
 
     @Override
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mOptions.toString();
     }
