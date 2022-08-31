@@ -52,7 +52,6 @@ import android.system.OsConstants;
 import android.util.Dumpable;
 import android.util.TimeUtils;
 
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
