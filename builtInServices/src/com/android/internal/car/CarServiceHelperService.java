@@ -596,6 +596,16 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
+    @Override
+    public int getDisplayAssignedToUser(int userId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        int displayId = umi.getDisplayAssignedToUser(userId);
+        if (DBG) {
+            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+        }
+        return displayId;
+    }
+
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
         private final WeakReference<CarServiceHelperService> mService;
 
