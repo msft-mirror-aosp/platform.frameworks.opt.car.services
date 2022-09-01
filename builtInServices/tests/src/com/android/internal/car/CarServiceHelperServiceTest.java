@@ -23,9 +23,12 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
+
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
@@ -43,9 +46,11 @@ import android.os.UserHandle;
 import android.os.SystemProperties.Handle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.SystemService.UserCompletedEventType;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -77,6 +82,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Mock
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
+    @Mock
+    private UserManagerInternal mUserManagerInternal;
+
     public CarServiceHelperServiceTest() {
         super(CarServiceHelperService.TAG);
     }
@@ -86,7 +94,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
      */
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(ServiceManager.class);
+        session
+                .spyStatic(ServiceManager.class)
+                .spyStatic(LocalServices.class);
     }
 
     @Before
@@ -98,6 +108,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarServiceHelperServiceUpdatable,
                 mCarDevicePolicySafetyChecker);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
+
+        doReturn(mUserManagerInternal)
+                .when(() -> LocalServices.getService(UserManagerInternal.class));
     }
 
     @Test
@@ -176,6 +189,14 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED, userId);
+    }
+
+    @Test
+    public void testIsUserVisible() throws Exception {
+        when(mUserManagerInternal.getDisplayAssignedToUser(42)).thenReturn(108);
+
+        assertWithMessage("getDisplayAssignedToUser(42)").that(mHelper.getDisplayAssignedToUser(42))
+                .isEqualTo(108);
     }
 
     private TargetUser newTargetUser(int userId) {

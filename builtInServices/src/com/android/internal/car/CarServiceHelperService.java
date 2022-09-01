@@ -52,7 +52,6 @@ import android.system.OsConstants;
 import android.util.Dumpable;
 import android.util.TimeUtils;
 
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -594,6 +593,16 @@ public class CarServiceHelperService extends SystemService
             Slogf.e(TAG, e, "Error creating user");
             return null;
         }
+    }
+
+    @Override
+    public int getDisplayAssignedToUser(int userId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        int displayId = umi.getDisplayAssignedToUser(userId);
+        if (DBG) {
+            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+        }
+        return displayId;
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
