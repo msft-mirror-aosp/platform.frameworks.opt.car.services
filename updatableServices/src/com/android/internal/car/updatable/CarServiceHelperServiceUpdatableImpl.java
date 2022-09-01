@@ -331,6 +331,11 @@ public final class CarServiceHelperServiceUpdatableImpl
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
+
+        @Override
+        public int getDisplayAssignedToUser(int userId) {
+            return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
+        }
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {

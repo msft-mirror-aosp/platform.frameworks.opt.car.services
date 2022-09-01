@@ -18,6 +18,7 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.annotation.UserIdInt;
 import android.car.annotation.MinimumPlatformSdkVersion;
 import android.car.builtin.annotation.PlatformVersion;
 import android.os.UserHandle;
@@ -46,6 +47,12 @@ public interface CarServiceHelperInterface {
     @AddedIn(PlatformVersion.TIRAMISU_0)
     UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
             int flags);
+
+    /**
+     * Checks if the user is visible.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    int getDisplayAssignedToUser(@UserIdInt int userId);
 
     /**
      * Dumps service stacks
