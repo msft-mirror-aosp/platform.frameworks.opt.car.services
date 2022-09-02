@@ -19,7 +19,6 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.annotation.MinimumPlatformSdkVersion;
 import android.car.builtin.annotation.PlatformVersion;
 import android.os.UserHandle;
 
