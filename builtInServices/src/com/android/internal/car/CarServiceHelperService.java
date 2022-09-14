@@ -27,6 +27,7 @@ import static com.android.internal.util.function.pooled.PooledLambda.obtainMessa
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
@@ -500,6 +501,12 @@ public class CarServiceHelperService extends SystemService
     @Override
     public int getProcessGroup(int pid) {
         return Process.getProcessGroup(pid);
+    }
+
+    @Override
+    public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
+        ActivityManager am = mContext.getSystemService(ActivityManager.class);
+        return am.startUserInBackgroundOnSecondaryDisplay(userId, displayId);
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {

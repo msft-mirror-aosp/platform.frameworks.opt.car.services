@@ -22,20 +22,16 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
-import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
+import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
 
 import static com.google.common.truth.Truth.assertWithMessage;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
-
 import android.annotation.UserIdInt;
+import android.app.ActivityManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
@@ -43,7 +39,7 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.ServiceManager;
 import android.os.UserHandle;
-import android.os.SystemProperties.Handle;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.LocalServices;
@@ -85,6 +81,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Mock
     private UserManagerInternal mUserManagerInternal;
 
+    @Mock
+    private ActivityManager mActivityManager;
+
     public CarServiceHelperServiceTest() {
         super(CarServiceHelperService.TAG);
     }
@@ -108,6 +107,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarServiceHelperServiceUpdatable,
                 mCarDevicePolicySafetyChecker);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mMockContext.getSystemService(ActivityManager.class)).thenReturn(mActivityManager);
 
         doReturn(mUserManagerInternal)
                 .when(() -> LocalServices.getService(UserManagerInternal.class));
@@ -197,6 +197,16 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
         assertWithMessage("getDisplayAssignedToUser(42)").that(mHelper.getDisplayAssignedToUser(42))
                 .isEqualTo(108);
+    }
+
+    @Test
+    public void testStartUserInBackgroundOnSecondaryDisplay() throws Exception {
+        int userId = 100;
+        int displayId = 2;
+
+        mHelper.startUserInBackgroundOnSecondaryDisplay(userId, displayId);
+
+        verify(mActivityManager).startUserInBackgroundOnSecondaryDisplay(userId, displayId);
     }
 
     private TargetUser newTargetUser(int userId) {
