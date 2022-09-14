@@ -16,6 +16,8 @@
 
 package com.android.internal.car.updatable;
 
+import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
+
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
@@ -36,15 +38,17 @@ import android.os.UserHandle;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.car.internal.util.VersionUtils;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
-
-import java.util.function.BiConsumer;
 
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
+import org.mockito.MockitoSession;
+
+import java.util.function.BiConsumer;
 
 /**
  * This class contains unit tests for the {@link CarServiceHelperServiceUpdatableImpl}.
@@ -52,6 +56,8 @@ import org.mockito.Mock;
 @RunWith(AndroidJUnit4.class)
 public final class CarServiceHelperServiceUpdatableImplTest
         extends AbstractExtendedMockitoTestCase {
+
+    private MockitoSession mSession;
 
     @Mock
     private Context mMockContext;
@@ -79,6 +85,12 @@ public final class CarServiceHelperServiceUpdatableImplTest
                 mCarServiceHelperInterface,
                 mCarLaunchParamsModifierInterface,
                 mCarServiceProxy);
+    }
+
+    @Override
+    protected void onSessionBuilder(
+            AbstractExtendedMockitoTestCase.CustomMockitoSessionBuilder builder) {
+        builder.spyStatic(VersionUtils.class);
     }
 
     @Test
@@ -156,6 +168,19 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
         verify(mCarServiceProxy).sendUserLifecycleEvent(eventType, userFrom.getIdentifier(),
                 userTo.getIdentifier());
+    }
+
+    @Test
+    public void testStartUserInBackgroundOnSecondaryDisplay() throws Exception {
+        int userId = 100;
+        int displayId = 2;
+
+        mCarServiceHelperServiceUpdatableImpl.mHelper.startUserInBackgroundOnSecondaryDisplay(
+                userId, displayId);
+
+        verify(() -> VersionUtils.assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0));
+        verify(mCarServiceHelperInterface).startUserInBackgroundOnSecondaryDisplay(userId,
+                displayId);
     }
 
     private void mockICarBinder() {

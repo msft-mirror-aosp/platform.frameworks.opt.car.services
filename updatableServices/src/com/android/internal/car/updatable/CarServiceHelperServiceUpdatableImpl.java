@@ -21,7 +21,6 @@ import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
 
-import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
@@ -91,7 +90,8 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final HandlerThread mHandlerThread = new HandlerThread(
             CarServiceHelperServiceUpdatableImpl.class.getSimpleName());
 
-    private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
+    @VisibleForTesting
+    final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
 
     private final CarServiceConnectedCallback mCarServiceConnectedCallback =
             new CarServiceConnectedCallback();
@@ -280,7 +280,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.dump(new IndentingPrintWriter(writer));
     }
 
-    private final class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
+    @VisibleForTesting
+    final class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
 
         @Override
         public void setDisplayAllowlistForUser(int userId, int[] displayIds) {
@@ -335,6 +336,13 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public int getDisplayAssignedToUser(int userId) {
             return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
+        }
+
+        @Override
+        public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+            return mCarServiceHelperInterface.startUserInBackgroundOnSecondaryDisplay(userId,
+                    displayId);
         }
     }
 
