@@ -4397,6 +4397,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
         }, mHandler);
     }
 
+    @GuardedBy("ImfLock.class")
     private void addStylusDeviceIdLocked(int deviceId) {
         if (mStylusIds == null) {
             mStylusIds = new IntArray();
@@ -4413,6 +4414,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
+    @GuardedBy("ImfLock.class")
     private void removeStylusDeviceIdLocked(int deviceId) {
         if (mStylusIds == null || mStylusIds.size() == 0) {
             return;
