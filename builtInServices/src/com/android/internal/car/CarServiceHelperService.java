@@ -490,7 +490,7 @@ public class CarServiceHelperService extends SystemService
         return ActivityManagerService.dumpStackTraces(
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 getInterestingNativePids(), /* logExceptionCreatingFile= */ null,
-                /* subject= */ null, /* criticalEventSection= */ null);
+                /* subject= */ null, /* criticalEventSection= */ null, /* latencyTracker= */ null);
     }
 
     @Override
@@ -699,7 +699,10 @@ public class CarServiceHelperService extends SystemService
             }
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
-            ActivityManagerService.dumpStackTraces(javaPids, null, null, nativePids, null);
+            ActivityManagerService.dumpStackTraces(
+                    /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
+                    /* nativePids= */ nativePids, /* logExceptionCreatingFile= */ null,
+                    /* latencyTracker= */ null);
             long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
             if (DBG) {
                 Slogf.d(TAG, "Dumping process took %dms", dumpTime);
