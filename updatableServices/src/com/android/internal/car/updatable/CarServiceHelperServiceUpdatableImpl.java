@@ -339,6 +339,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
+        public int getUserAssignedToDisplay(int displayId) {
+            return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+        }
+
+        @Override
         public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
             return mCarServiceHelperInterface.startUserInBackgroundOnSecondaryDisplay(userId,
