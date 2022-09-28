@@ -4213,6 +4213,13 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
+    @Override
+    public void setExplicitlyEnabledInputMethodSubtypes(String imeId,
+            @NonNull int[] subtypeHashCodes, @UserIdInt int userId) {
+        // TODO(aae-team): Support this API.  See b/249110888.
+        throw new UnsupportedOperationException("This method is not yet supported.");
+    }
+
     /**
      * This is kept due to {@code @UnsupportedAppUsage} in
      * {@link InputMethodManager#getInputMethodWindowVisibleHeight()} and a dependency in
