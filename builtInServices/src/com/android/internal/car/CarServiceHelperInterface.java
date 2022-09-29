@@ -48,10 +48,16 @@ public interface CarServiceHelperInterface {
             int flags);
 
     /**
-     * Checks if the user is visible.
+     * Gets the display assigned to the user.
      */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     int getDisplayAssignedToUser(@UserIdInt int userId);
+
+    /**
+     * Gets the full user (i.e., not profile) assigned to the display.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    int getUserAssignedToDisplay(int displayId);
 
     /**
      * Dumps service stacks

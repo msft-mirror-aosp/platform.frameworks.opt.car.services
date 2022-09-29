@@ -192,11 +192,19 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testIsUserVisible() throws Exception {
+    public void testGetDisplayAssignedToUser() throws Exception {
         when(mUserManagerInternal.getDisplayAssignedToUser(42)).thenReturn(108);
 
         assertWithMessage("getDisplayAssignedToUser(42)").that(mHelper.getDisplayAssignedToUser(42))
                 .isEqualTo(108);
+    }
+
+    @Test
+    public void testGetUserAssignedToDisplay() throws Exception {
+        when(mUserManagerInternal.getUserAssignedToDisplay(108)).thenReturn(42);
+
+        assertWithMessage("getUserAssignedToDisplay(108)")
+                .that(mHelper.getUserAssignedToDisplay(108)).isEqualTo(42);
     }
 
     @Test
