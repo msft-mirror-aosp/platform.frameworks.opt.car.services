@@ -324,28 +324,35 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void setProcessGroup(int pid, int group) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
 
         @Override
         public int getDisplayAssignedToUser(int userId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
             return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
         }
 
         @Override
         public int getUserAssignedToDisplay(int displayId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
             return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
         }
 
         @Override
         public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
             return mCarServiceHelperInterface.startUserInBackgroundOnSecondaryDisplay(userId,
                     displayId);
         }
