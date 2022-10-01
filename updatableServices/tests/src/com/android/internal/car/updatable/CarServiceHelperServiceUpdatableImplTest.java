@@ -22,12 +22,15 @@ import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERF
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
+import static com.google.common.truth.Truth.assertWithMessage;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 import android.car.ICar;
+import android.car.PlatformVersion;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.Context;
@@ -171,6 +174,26 @@ public final class CarServiceHelperServiceUpdatableImplTest
     }
 
     @Test
+    public void testGetProcessGroup() throws Exception {
+        when(mCarServiceHelperInterface.getProcessGroup(42)).thenReturn(108);
+
+        assertWithMessage("getProcessGroup(42)")
+                .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getProcessGroup(42))
+                .isEqualTo(108);
+
+        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
+    }
+
+    @Test
+    public void testSetProcessGroup() throws Exception {
+        mCarServiceHelperServiceUpdatableImpl.mHelper.setProcessGroup(42, 108);
+
+        verify(mCarServiceHelperInterface).setProcessGroup(42, 108);
+
+        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
+    }
+
+    @Test
     public void testStartUserInBackgroundOnSecondaryDisplay() throws Exception {
         int userId = 100;
         int displayId = 2;
@@ -178,9 +201,30 @@ public final class CarServiceHelperServiceUpdatableImplTest
         mCarServiceHelperServiceUpdatableImpl.mHelper.startUserInBackgroundOnSecondaryDisplay(
                 userId, displayId);
 
-        verify(() -> VersionUtils.assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0));
         verify(mCarServiceHelperInterface).startUserInBackgroundOnSecondaryDisplay(userId,
                 displayId);
+        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
+    }
+
+    @Test
+    public void testGetDisplayAssignedToUser() throws Exception {
+        when(mCarServiceHelperInterface.getDisplayAssignedToUser(42)).thenReturn(108);
+        assertWithMessage("getDisplayAssignedToUser(42)")
+                .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getDisplayAssignedToUser(42))
+                .isEqualTo(108);
+
+        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
+    }
+
+    @Test
+    public void testGetUserAssignedToDisplay() throws Exception {
+        when(mCarServiceHelperInterface.getUserAssignedToDisplay(42)).thenReturn(108);
+
+        assertWithMessage("getUserAssignedToDisplay(42)")
+                .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getUserAssignedToDisplay(42))
+                .isEqualTo(108);
+
+        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     private void mockICarBinder() {
@@ -195,6 +239,14 @@ public final class CarServiceHelperServiceUpdatableImplTest
     private void mockBindService() {
         when(mMockContext.bindService(any(), eq(Context.BIND_AUTO_CREATE), any(), any()))
                 .thenReturn(true);
+    }
+
+    // NOTE: ideally we should mockCarGetPlatformVersion(), but that doesn't work because
+    // VersionUtils is part of built-in library, so the test would be calling the VersionUtils
+    // that's in the device's classpath, not the one injected by ExtendedMockito. Hence, we're
+    // just verifying the API implementation calls VersionUtils.assertPlatformVersionAtLeast()
+    private void verifyPlatformVersionMismatchChecked(PlatformVersion minVersion) {
+        verify(() -> VersionUtils.assertPlatformVersionAtLeast(minVersion));
     }
 
     private void verifyBindService() throws Exception {
