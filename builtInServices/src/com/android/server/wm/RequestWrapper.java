@@ -18,7 +18,9 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.annotation.AddedIn;
+import android.car.builtin.annotation.PlatformVersion;
+
+import com.android.annotation.AddedIn;
 
 /**
  * Wrapper of {@link com.android.server.wm.ActivityStarter.Request}.
@@ -33,20 +35,20 @@ public final class RequestWrapper {
     }
 
     /** @hide */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static RequestWrapper create(@Nullable ActivityStarter.Request request) {
         if (request == null) return null;
         return new RequestWrapper(request);
     }
 
     /** @hide */
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityStarter.Request getRequest() {
         return mRequest;
     }
 
     @Override
-    @AddedIn(majorVersion = 33)
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mRequest.toString();
     }
