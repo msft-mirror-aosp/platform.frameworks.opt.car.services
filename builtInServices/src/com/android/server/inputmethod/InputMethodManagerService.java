@@ -69,7 +69,6 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.ActivityManagerInternal;
 import android.app.AppGlobals;
-import android.app.AppOpsManager;
 import android.app.KeyguardManager;
 import android.app.Notification;
 import android.app.NotificationManager;
@@ -310,7 +309,6 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
     final boolean mHasFeature;
     private final ArrayMap<String, List<InputMethodSubtype>> mAdditionalSubtypeMap =
             new ArrayMap<>();
-    private final AppOpsManager mAppOpsManager;
     private final UserManager mUserManager;
     private final UserManagerInternal mUserManagerInternal;
     private final InputMethodMenuController mMenuController;
@@ -1738,7 +1736,6 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
         mInputMethodDeviceConfigs = new InputMethodDeviceConfigs();
         mImeDisplayValidator = mWindowManagerInternal::getDisplayImePolicy;
         mDisplayManagerInternal = LocalServices.getService(DisplayManagerInternal.class);
-        mAppOpsManager = mContext.getSystemService(AppOpsManager.class);
         mUserManager = mContext.getSystemService(UserManager.class);
         mUserManagerInternal = LocalServices.getService(UserManagerInternal.class);
         mAccessibilityManager = AccessibilityManager.getInstance(context);
@@ -2524,7 +2521,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
                     null, null, null, selectedMethodId, getSequenceNumberLocked(), null, false);
         }
 
-        if (!InputMethodUtils.checkIfPackageBelongsToUid(mAppOpsManager, cs.mUid,
+        if (!InputMethodUtils.checkIfPackageBelongsToUid(mPackageManagerInternal, cs.mUid,
                 editorInfo.packageName)) {
             Slog.e(TAG, "Rejecting this client as it reported an invalid package name."
                     + " uid=" + cs.mUid + " package=" + editorInfo.packageName);
@@ -3960,7 +3957,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
             return false;
         }
         if (getCurIntentLocked() != null && InputMethodUtils.checkIfPackageBelongsToUid(
-                mAppOpsManager,
+                mPackageManagerInternal,
                 uid,
                 getCurIntentLocked().getComponent().getPackageName())) {
             return true;
