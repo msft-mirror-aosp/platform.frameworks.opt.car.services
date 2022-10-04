@@ -4167,6 +4167,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
         if (UserHandle.getCallingUserId() != userId) {
             mContext.enforceCallingPermission(Manifest.permission.INTERACT_ACROSS_USERS_FULL, null);
         }
+        final int callingUid = Binder.getCallingUid();
 
         // By this IPC call, only a process which shares the same uid with the IME can add
         // additional input method subtypes to the IME.
@@ -4187,7 +4188,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
 
             if (mSettings.getCurrentUserId() == userId) {
                 if (!mSettings.setAdditionalInputMethodSubtypes(imiId, toBeAdded,
-                        mAdditionalSubtypeMap, mIPackageManager)) {
+                        mAdditionalSubtypeMap, mPackageManagerInternal, callingUid)) {
                     return;
                 }
                 final long ident = Binder.clearCallingIdentity();
@@ -4206,7 +4207,7 @@ public final class InputMethodManagerService extends IInputMethodManager.Stub
                     new ArrayMap<>();
             AdditionalSubtypeUtils.load(additionalSubtypeMap, userId);
             settings.setAdditionalInputMethodSubtypes(imiId, toBeAdded, additionalSubtypeMap,
-                    mIPackageManager);
+                    mPackageManagerInternal, callingUid);
         }
     }
 
