@@ -18,7 +18,10 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.builtin.annotation.PlatformVersion;
 import android.content.pm.ActivityInfo;
+
+import com.android.annotation.AddedIn;
 
 /**
  * Wrapper of {@link android.content.pm.ActivityInfo.WindowLayout}.
@@ -33,12 +36,14 @@ public final class WindowLayoutWrapper {
     }
 
     /** @hide */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
         if (layout == null) return null;
         return new WindowLayoutWrapper(layout);
     }
 
     @Override
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mLayout.toString();
     }
