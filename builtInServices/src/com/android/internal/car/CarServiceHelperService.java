@@ -82,6 +82,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -489,8 +490,9 @@ public class CarServiceHelperService extends SystemService
         // Use the long version used by Watchdog since the short version is removed by the compiler.
         return ActivityManagerService.dumpStackTraces(
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
-                getInterestingNativePids(), /* logExceptionCreatingFile= */ null,
-                /* subject= */ null, /* criticalEventSection= */ null, /* latencyTracker= */ null);
+                CompletableFuture.completedFuture(getInterestingNativePids()),
+                /* logExceptionCreatingFile= */ null, /* subject= */ null,
+                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
     }
 
     @Override
@@ -711,8 +713,9 @@ public class CarServiceHelperService extends SystemService
             long startDumpTime = SystemClock.uptimeMillis();
             ActivityManagerService.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
-                    /* nativePids= */ nativePids, /* logExceptionCreatingFile= */ null,
-                    /* latencyTracker= */ null);
+                    /* nativePids= */ CompletableFuture.completedFuture(nativePids),
+                    /* logExceptionCreatingFile= */ null,
+                    /* auxiliaryTaskExecutor= */ Runnable::run, /* latencyTracker= */ null);
             long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
             if (DBG) {
                 Slogf.d(TAG, "Dumping process took %dms", dumpTime);
