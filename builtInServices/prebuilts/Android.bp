@@ -14,7 +14,7 @@
 
 // Multi-User / multi-Display IMMS prebuilt jar (allows concurrent IME sessions).
 // Instructions for building this jar from the repo root:
-// 1. Run: `m mu_imms`
+// 1. Run: `export BUILD_AUTOMOTIVE_IMMS_PREBUILT=true && m mu_imms`
 // 2. Copy and rename the generated jar:
 //    `cp out/target/common/obj/JAVA_LIBRARIES/mu_imms_intermediates/classes.jar \
 //        frameworks/opt/car/services/builtInServices/prebuilts/mu_imms-prebuilt.jar`
