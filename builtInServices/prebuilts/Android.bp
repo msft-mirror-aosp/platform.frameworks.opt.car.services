@@ -18,6 +18,10 @@
 // 2. Copy and rename the generated jar:
 //    `cp out/target/common/obj/JAVA_LIBRARIES/mu_imms_intermediates/classes.jar \
 //        frameworks/opt/car/services/builtInServices/prebuilts/mu_imms-prebuilt.jar`
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
 java_import {
     name: "mu_imms-prebuilt",
     jars: ["mu_imms-prebuilt.jar"],

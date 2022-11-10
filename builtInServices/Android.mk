@@ -13,6 +13,8 @@ LOCAL_JAVA_LIBRARIES := services.core.unboosted
 # This module should not be built as part of checkbuild
 LOCAL_DONT_CHECK_MODULE := true
 
+LOCAL_LICENSE_KINDS := SPDX-license-identifier-Apache-2.0
+LOCAL_LICENSE_CONDITIONS := notice
 include $(BUILD_STATIC_JAVA_LIBRARY)
 
 endif  # BUILD_AUTOMOTIVE_IMMS_PREBUILT
