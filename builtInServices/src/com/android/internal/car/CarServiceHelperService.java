@@ -56,6 +56,7 @@ import android.util.TimeUtils;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.car.os.Util;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
@@ -120,6 +121,11 @@ public class CarServiceHelperService extends SystemService
     private static final String PROC_PID_STAT_PATTERN =
             "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
+
+    static  {
+        // Load this JNI before other classes are loaded.
+        System.loadLibrary("carservicehelperjni");
+    }
 
     private final Context mContext;
     private final Object mLock = new Object();
@@ -509,6 +515,11 @@ public class CarServiceHelperService extends SystemService
     public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
         ActivityManager am = mContext.getSystemService(ActivityManager.class);
         return am.startUserInBackgroundOnSecondaryDisplay(userId, displayId);
+    }
+
+    @Override
+    public void setProcessProfile(int pid, int uid, @NonNull String profile) {
+        Util.setProcessProfile(pid, uid, profile);
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
