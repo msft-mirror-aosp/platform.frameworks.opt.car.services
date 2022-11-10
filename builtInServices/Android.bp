@@ -13,10 +13,10 @@ java_sdk_library {
     srcs: [
         "src/**/*.java",
     ],
-    exclude_srcs: ["src/**/inputmethod/*.java"],
     static_libs: [
         "android.car.watchdoglib",
         "android.automotive.watchdog.internal-V2-java",
+        "mu_imms-prebuilt",
     ],
     api_lint: {
         enabled: true,

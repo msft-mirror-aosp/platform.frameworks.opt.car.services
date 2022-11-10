@@ -77,4 +77,8 @@ public interface CarServiceHelperInterface {
     /** Check {@link ActivityManager#startUserInBackgroundOnSecondaryDisplay(int, int)}. */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     boolean startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId);
+
+    /** Check {@link android.os.Process#setProcessProfile(int, int, String)}. */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    void setProcessProfile(int pid, int uid, @NonNull String profile);
 }

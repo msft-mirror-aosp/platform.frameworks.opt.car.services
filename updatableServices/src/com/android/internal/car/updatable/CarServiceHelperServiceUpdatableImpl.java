@@ -21,6 +21,7 @@ import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
@@ -355,6 +356,13 @@ public final class CarServiceHelperServiceUpdatableImpl
 
             return mCarServiceHelperInterface.startUserInBackgroundOnSecondaryDisplay(userId,
                     displayId);
+        }
+
+        @Override
+        public void setProcessProfile(int pid, int uid, @NonNull String profile) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
         }
     }
 
