@@ -16,6 +16,7 @@
 package com.android.internal.car;
 
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -23,10 +24,12 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.UserIdInt;
 import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
@@ -64,6 +67,7 @@ import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
+import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -222,6 +226,19 @@ public class CarServiceHelperService extends SystemService
                 public void onUserRemoved(UserInfo user) {
                     if (DBG) Slogf.d(TAG, "onUserRemoved(): $s", user.toFullString());
                     mCarServiceHelperServiceUpdatable.onUserRemoved(user.getUserHandle());
+                }
+            });
+            umi.addUserVisibilityListener(new UserVisibilityListener() {
+                @Override
+                public void onUserVisibilityChanged(@UserIdInt int userId, boolean visible) {
+                    if (DBG) {
+                        Slogf.d(TAG, "onUserVisibilityChanged(%d, %b)", userId, visible);
+                    }
+                    int eventType = visible
+                            ? USER_LIFECYCLE_EVENT_TYPE_VISIBLE
+                            : USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
+                    mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(eventType,
+                            /* userFrom= */ null, UserHandle.of(userId));
                 }
             });
         } else {
