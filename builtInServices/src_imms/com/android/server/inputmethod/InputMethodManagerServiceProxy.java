@@ -26,11 +26,14 @@ import android.annotation.UserIdInt;
 import android.annotation.WorkerThread;
 import android.content.Context;
 import android.os.Binder;
+import android.os.Build;
 import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.IBinder;
 import android.os.ResultReceiver;
+import android.os.SystemProperties;
 import android.os.UserHandle;
+import android.util.Log;
 import android.util.SparseArray;
 import android.view.inputmethod.EditorInfo;
 import android.view.inputmethod.ImeTracker;
@@ -54,19 +57,25 @@ import com.android.server.SystemService;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.utils.Slogf;
 
-import java.util.ArrayList;
 import java.util.List;
 
 /**
  * Proxy used to host IMMSs per user and reroute requests to the user associated IMMS.
  *
  * TODO(b/245798405): Add the logic to handle user 0
+ * TODO(b/245798405): Dump infos like whether it is bypassing or proxy and how many IMMS are active
  *
  * @hide
  */
 public final class InputMethodManagerServiceProxy extends IInputMethodManager.Stub {
-    private static final boolean DBG = true;
+
     private static final String IMMS_TAG = InputMethodManagerServiceProxy.class.getSimpleName();
+    private static final boolean DBG = Slogf.isLoggable(IMMS_TAG, Log.DEBUG);
+
+    // System property used to disable IMMS proxy.
+    // When set to true, Android Core's original IMMS will be launched instead.
+    // Note: this flag only takes effects on non user builds.
+    public static final String DISABLE_MU_IMMS = "persist.fw.car.test.disable_mu_imms";
 
     private final Object mLock = new Object();
 
@@ -93,16 +102,6 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
 
     InputMethodManagerInternal getLocalServiceProxy() {
         return mInternalProxy;
-    }
-
-    List<CarInputMethodManagerService> getAllServices() {
-        List<CarInputMethodManagerService> services = new ArrayList<>();
-        synchronized (mLock) {
-            for (int i = 0; i < mServicesForUser.size(); i++) {
-                services.add(mServicesForUser.valueAt(i));
-            }
-        }
-        return services;
     }
 
     CarInputMethodManagerService createAndRegisterServiceFor(@UserIdInt int userId) {
@@ -135,7 +134,10 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     }
 
     /**
-     * SystemService for CarInputMethodManagerServices
+     * SystemService for CarInputMethodManagerServices.
+     *
+     * If {@code fw.enable_imms_proxy} system property is set to {@code false}, then it just
+     * delegate to Android Core original {@link InputMethodManagerService.Lifecycle}.
      *
      * TODO(b/245798405): make Lifecycle class easier to test and add tests for it
      */
@@ -149,6 +151,9 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         private HandlerThread mWorkerThread;
         private Handler mHandler;
 
+        // Android core IMMS to be used when IMMS Proxy is disabled
+        private final InputMethodManagerService.Lifecycle mCoreImmsLifecycle;
+
         /**
          * Initializes the system service for InputMethodManagerServiceProxy.
          */
@@ -157,13 +162,28 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             mContext = context;
             mUserManagerInternal = LocalServices.getService(UserManagerInternal.class);
             mServiceProxy = new InputMethodManagerServiceProxy(mContext);
+            if (!Build.IS_USER && SystemProperties.getBoolean(
+                    DISABLE_MU_IMMS, /* defaultValue= */ false)) {
+                mCoreImmsLifecycle = new InputMethodManagerService.Lifecycle(mContext);
+            } else {
+                mCoreImmsLifecycle = null;
+            }
+        }
+
+        private boolean isImmsProxyEnabled() {
+            return mCoreImmsLifecycle == null;
         }
 
         @MainThread
         @Override
         public void onStart() {
             if (DBG) {
-                Slogf.d(LIFECYCLE_TAG, "Entering #onStart");
+                Slogf.d(LIFECYCLE_TAG, "Entering #onStart (IMMS Proxy enabled={%s})",
+                        isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onStart();
+                return;
             }
             mWorkerThread = new HandlerThread(IMMS_TAG);
             mWorkerThread.start();
@@ -179,7 +199,13 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         @Override
         public void onBootPhase(int phase) {
             if (DBG) {
-                Slogf.d(LIFECYCLE_TAG, "Entering #onBootPhase with phase={%d}", phase);
+                Slogf.d(LIFECYCLE_TAG,
+                        "Entering #onBootPhase with phase={%d} (IMMS Proxy enabled={%s})", phase,
+                        isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onBootPhase(phase);
+                return;
             }
             if (phase == SystemService.PHASE_ACTIVITY_MANAGER_READY) {
                 mHandler.sendMessage(PooledLambda.obtainMessage(
@@ -202,7 +228,13 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         @Override
         public void onUserStarting(@NonNull TargetUser user) {
             if (DBG) {
-                Slogf.d(LIFECYCLE_TAG, "Entering #onUserStarting with user={%s}", user);
+                Slogf.d(LIFECYCLE_TAG,
+                        "Entering #onUserStarting with user={%s} (IMMS Proxy enabled={%s})", user,
+                        isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onUserStarting(user);
+                return;
             }
             mHandler.sendMessage(PooledLambda.obtainMessage(
                     Lifecycle::onUserStartingReceived, this, user));
@@ -227,7 +259,13 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         @Override
         public void onUserUnlocking(@NonNull TargetUser user) {
             if (DBG) {
-                Slogf.d(LIFECYCLE_TAG, "Entering #onUserUnlockingReceived with to={%s}", user);
+                Slogf.d(LIFECYCLE_TAG,
+                        "Entering #onUserUnlockingReceived with to={%s} (IMMS Proxy enabled={%s})",
+                        user, isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onUserUnlocking(user);
+                return;
             }
             mHandler.sendMessage(PooledLambda.obtainMessage(
                     Lifecycle::onUserUnlockingReceived, this, user));
@@ -247,13 +285,33 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         public void onUserStopping(@NonNull TargetUser user) {
             // TODO(b/245798405): Add proper logic to stop IMMS for the user passed as parameter.
             if (DBG) {
-                Slogf.d(LIFECYCLE_TAG, "Entering #onUserStoppingReceived with userId={%d}",
-                        user.getUserIdentifier());
+                Slogf.d(LIFECYCLE_TAG,
+                        "Entering #onUserStoppingReceived with userId={%d} (IMMS Proxy "
+                                + "enabled={%s})",
+                        user.getUserIdentifier(), isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onUserStopping(user);
+            }
+        }
+
+        @MainThread
+        @Override
+        public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
+            if (DBG) {
+                Slogf.d(LIFECYCLE_TAG,
+                        "Entering #onUserSwitching with from={%d} and to={%d} (IMMS Proxy "
+                                + "enabled={%s})",
+                        from.getUserIdentifier(), to.getUserIdentifier(), isImmsProxyEnabled());
+            }
+            if (!isImmsProxyEnabled()) {
+                mCoreImmsLifecycle.onUserSwitching(from, to);
             }
         }
     }
 
     // Delegate methods ////////////////////////////////////////////////////////////////////////////
+
     @Override
     public void addClient(IInputMethodClient client, IRemoteInputConnection inputmethod,
             int untrustedDisplayId) {
@@ -338,15 +396,18 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
                     + "windowToken={%s} and reason={%d}", callingUserId, windowToken, reason);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
-        return imms.hideSoftInput(client, windowToken, statsToken, flags, resultReceiver, reason);
+        return imms.hideSoftInput(client, windowToken, statsToken, flags, resultReceiver,
+                reason);
     }
 
     @Override
     public InputBindResult startInputOrWindowGainedFocus(int startInputReason,
-            IInputMethodClient client, IBinder windowToken, int startInputFlags, int softInputMode,
+            IInputMethodClient client, IBinder windowToken, int startInputFlags,
+            int softInputMode,
             int windowFlags, EditorInfo editorInfo, IRemoteInputConnection inputConnection,
             IRemoteAccessibilityInputConnection remoteAccessibilityInputConnection,
-            int unverifiedTargetSdkVersion, int userId, ImeOnBackInvokedDispatcher imeDispatcher) {
+            int unverifiedTargetSdkVersion, int userId,
+            ImeOnBackInvokedDispatcher imeDispatcher) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
             Slogf.d(IMMS_TAG, "User {%d} invoking startInputOrWindowGainedFocus with "
@@ -358,7 +419,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
                 windowFlags, editorInfo, inputConnection,
                 remoteAccessibilityInputConnection, unverifiedTargetSdkVersion, userId,
                 imeDispatcher);
-        Slogf.d(IMMS_TAG, "Returning {%s} for startInputOrWindowGainedFocus / user {%d}", result,
+        Slogf.d(IMMS_TAG, "Returning {%s} for startInputOrWindowGainedFocus / user {%d}",
+                result,
                 userId);
         return result;
     }
@@ -368,7 +430,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             int auxiliarySubtypeMode) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
-            Slogf.d(IMMS_TAG, "User {%d} invoking showInputMethodPickerFromClient", callingUserId);
+            Slogf.d(IMMS_TAG, "User {%d} invoking showInputMethodPickerFromClient",
+                    callingUserId);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
         imms.showInputMethodPickerFromClient(client, auxiliarySubtypeMode);
@@ -390,7 +453,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     public boolean isInputMethodPickerShownForTest() {
         final int callingUserId = getCallingUserId();
         if (DBG) {
-            Slogf.d(IMMS_TAG, "User {%d} invoking isInputMethodPickerShownForTest", callingUserId);
+            Slogf.d(IMMS_TAG, "User {%d} invoking isInputMethodPickerShownForTest",
+                    callingUserId);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
         return imms.isInputMethodPickerShownForTest();
@@ -400,7 +464,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     public InputMethodSubtype getCurrentInputMethodSubtype(int userId) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
-            Slogf.d(IMMS_TAG, "User {%d} invoking getCurrentInputMethodSubtype with userId={%d}",
+            Slogf.d(IMMS_TAG,
+                    "User {%d} invoking getCurrentInputMethodSubtype with userId={%d}",
                     callingUserId, userId);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
@@ -601,7 +666,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             final int uid = Binder.getCallingUid();
             final int callingUserId = UserHandle.getUserId(uid);
             if (DBG) {
-                Slogf.d(mImmiTag, "User {%d} invoking getInputMethodListAsUser=%d", callingUserId,
+                Slogf.d(mImmiTag, "User {%d} invoking getInputMethodListAsUser=%d",
+                        callingUserId,
                         userId);
             }
             InputMethodManagerInternal immi = getLocalServiceForUser(callingUserId);
@@ -622,7 +688,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
 
         @Override
         public void onCreateInlineSuggestionsRequest(int userId,
-                InlineSuggestionsRequestInfo requestInfo, IInlineSuggestionsRequestCallback cb) {
+                InlineSuggestionsRequestInfo requestInfo,
+                IInlineSuggestionsRequestCallback cb) {
             final int uid = Binder.getCallingUid();
             final int callingUserId = UserHandle.getUserId(uid);
             if (DBG) {
