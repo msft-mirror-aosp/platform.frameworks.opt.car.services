@@ -129,6 +129,7 @@ import android.view.WindowManager.DisplayImePolicy;
 import android.view.WindowManager.LayoutParams;
 import android.view.WindowManager.LayoutParams.SoftInputModeFlags;
 import android.view.inputmethod.EditorInfo;
+import android.view.inputmethod.ImeTracker;
 import android.view.inputmethod.InputBinding;
 import android.view.inputmethod.InputConnection;
 import android.view.inputmethod.InputMethod;
@@ -151,6 +152,7 @@ import com.android.internal.inputmethod.DirectBootAwareness;
 import com.android.internal.inputmethod.IAccessibilityInputMethodSession;
 import com.android.internal.inputmethod.IInlineSuggestionsRequestCallback;
 import com.android.internal.inputmethod.IInputContentUriToken;
+import com.android.internal.inputmethod.IInputMethod;
 import com.android.internal.inputmethod.IInputMethodClient;
 import com.android.internal.inputmethod.IInputMethodPrivilegedOperations;
 import com.android.internal.inputmethod.IInputMethodSession;
@@ -162,6 +164,7 @@ import com.android.internal.inputmethod.InlineSuggestionsRequestInfo;
 import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.InputMethodDebug;
 import com.android.internal.inputmethod.InputMethodNavButtonFlags;
+import com.android.internal.inputmethod.InputMethodSubtypeHandle;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.inputmethod.StartInputFlags;
 import com.android.internal.inputmethod.StartInputReason;
@@ -207,6 +210,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * This class provides a system service that manages input methods.
+ *
  * @hide
  */
 public final class CarInputMethodManagerService extends IInputMethodManager.Stub
@@ -214,7 +218,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     // Virtual device id for test.
     private static final Integer VIRTUAL_STYLUS_ID_FOR_TEST = 999999;
     static final boolean DEBUG = false;
-    static final String TAG = "InputMethodManagerService";
+    static final String TAG = "CarInputMethodManagerService";
     public static final String PROTO_ARG = "--proto";
 
     @Retention(SOURCE)
@@ -642,6 +646,10 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
      */
     private boolean mInputShown;
 
+    /** The token tracking the current IME request or {@code null} otherwise. */
+    @Nullable
+    private ImeTracker.Token mCurStatsToken;
+
     /**
      * {@code true} if the current input method is in fullscreen mode.
      */
@@ -761,7 +769,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
      * <dd>
      *   If this bit is ON, some of IME view, e.g. software input, candidate view, is visible.
      * </dd>
-     * dt>{@link InputMethodService#IME_INVISIBLE}</dt>
+     * <dt>{@link InputMethodService#IME_INVISIBLE}</dt>
      * <dd> If this bit is ON, IME is ready with views from last EditorInfo but is
      *    currently invisible.
      * </dd>
@@ -785,8 +793,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
     /**
      * Internal state snapshot when
-     * {@link com.android.internal.view.IInputMethod#startInput(IBinder, IRemoteInputConnection, EditorInfo,
-     * boolean)} is about to be called.
+     * {@link IInputMethod#startInput(IInputMethod.StartInputParams)} is about to be called.
      *
      * <p>Calling that IPC endpoint basically means that
      * {@link InputMethodService#doStartInput(InputConnection, EditorInfo, boolean)} will be called
@@ -1071,7 +1078,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         /**
          * Add a new entry and discard the oldest entry as needed.
-         * @param info {@lin StartInputInfo} to be added.
+         * @param info {@link StartInputInfo} to be added.
          */
         void addEntry(@NonNull StartInputInfo info) {
             final int index = mNextIndex;
@@ -1189,18 +1196,18 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 } else if (accessibilityRequestingNoImeUri.equals(uri)) {
                     final int accessibilitySoftKeyboardSetting = Settings.Secure.getIntForUser(
                             mContext.getContentResolver(),
-                            Settings.Secure.ACCESSIBILITY_SOFT_KEYBOARD_MODE, 0, mUserId);
+                            Settings.Secure.ACCESSIBILITY_SOFT_KEYBOARD_MODE, 0 /* def */, mUserId);
                     mAccessibilityRequestingNoSoftKeyboard =
                             (accessibilitySoftKeyboardSetting & AccessibilityService.SHOW_MODE_MASK)
                                     == AccessibilityService.SHOW_MODE_HIDDEN;
                     if (mAccessibilityRequestingNoSoftKeyboard) {
                         final boolean showRequested = mShowRequested;
-                        hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                        hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */,
+                                0 /* flags */, null /* resultReceiver */,
                                 SoftInputShowHideReason.HIDE_SETTINGS_ON_CHANGE);
                         mShowRequested = showRequested;
                     } else if (mShowRequested) {
-                        showCurrentInputLocked(mCurFocusedWindow,
-                                InputMethodManager.SHOW_IMPLICIT, null,
+                        showCurrentInputImplicitLocked(mCurFocusedWindow,
                                 SoftInputShowHideReason.SHOW_SETTINGS_ON_CHANGE);
                     }
                 } else {
@@ -1666,8 +1673,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
         // Hide soft input before user switch task since switch task may block main handler a while
         // and delayed the hideCurrentInputLocked().
-        hideCurrentInputLocked(
-                mCurFocusedWindow, 0, null, SoftInputShowHideReason.HIDE_SWITCH_USER);
+        hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                null /* resultReceiver */, SoftInputShowHideReason.HIDE_SWITCH_USER);
         final UserSwitchHandlerTask task = new UserSwitchHandlerTask(this, userId,
                 clientToBeReset);
         mUserSwitchHandlerTask = task;
@@ -2222,7 +2229,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             }
             final ClientDeathRecipient deathRecipient = new ClientDeathRecipient(this, client);
             try {
-                client.asBinder().linkToDeath(deathRecipient, 0);
+                client.asBinder().linkToDeath(deathRecipient, 0 /* flags */);
             } catch (RemoteException e) {
                 throw new IllegalStateException(e);
             }
@@ -2247,7 +2254,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         synchronized (ImfLock.class) {
             ClientState cs = mClients.remove(client.asBinder());
             if (cs != null) {
-                client.asBinder().unlinkToDeath(cs.mClientDeathRecipient, 0);
+                client.asBinder().unlinkToDeath(cs.mClientDeathRecipient, 0 /* flags */);
                 clearClientSessionLocked(cs);
                 clearClientSessionForAccessibilityLocked(cs);
 
@@ -2260,8 +2267,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 }
 
                 if (mCurClient == cs) {
-                    hideCurrentInputLocked(
-                            mCurFocusedWindow, 0, null, SoftInputShowHideReason.HIDE_REMOVE_CLIENT);
+                    hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                            null /* resultReceiver */, SoftInputShowHideReason.HIDE_REMOVE_CLIENT);
                     if (mBoundToMethod) {
                         mBoundToMethod = false;
                         IInputMethodInvoker curMethod = getCurMethodLocked();
@@ -2308,6 +2315,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             mCurClient.mSessionRequestedForAccessibility = false;
             mCurClient = null;
             mCurVirtualDisplayToScreenMatrix = null;
+            ImeTracker.get().onFailed(mCurStatsToken, ImeTracker.PHASE_SERVER_WAIT_IME);
+            mCurStatsToken = null;
 
             mMenuController.hideInputMethodMenuLocked();
         }
@@ -2380,8 +2389,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 navButtonFlags, mCurImeDispatcher);
         if (mShowRequested) {
             if (DEBUG) Slog.v(TAG, "Attach new input asks to show input");
-            showCurrentInputLocked(mCurFocusedWindow, getAppShowFlagsLocked(), null,
-                    SoftInputShowHideReason.ATTACH_NEW_INPUT);
+            // Re-use current statsToken, if it exists.
+            final ImeTracker.Token statsToken = mCurStatsToken;
+            mCurStatsToken = null;
+            showCurrentInputLocked(mCurFocusedWindow, statsToken, getAppShowFlagsLocked(),
+                    null /* resultReceiver */, SoftInputShowHideReason.ATTACH_NEW_INPUT);
         }
 
         String curId = getCurIdLocked();
@@ -2500,7 +2512,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         if (mDisplayIdToShowIme == INVALID_DISPLAY) {
             mImeHiddenByDisplayPolicy = true;
-            hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+            hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                    null /* resultReceiver */,
                     SoftInputShowHideReason.HIDE_DISPLAY_IME_POLICY_HIDE);
             return InputBindResult.NO_IME;
         }
@@ -3202,16 +3215,30 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @GuardedBy("ImfLock.class")
+    private void notifyInputMethodSubtypeChangedLocked(@UserIdInt int userId,
+            @NonNull InputMethodInfo imi, @Nullable InputMethodSubtype subtype) {
+        final InputMethodSubtype normalizedSubtype =
+                subtype != null && subtype.isSuitableForPhysicalKeyboardLayoutMapping()
+                        ? subtype : null;
+        final InputMethodSubtypeHandle newSubtypeHandle = normalizedSubtype != null
+                ? InputMethodSubtypeHandle.of(imi, normalizedSubtype) : null;
+        mInputManagerInternal.onInputMethodSubtypeChangedForKeyboardLayoutMapping(
+                userId, newSubtypeHandle, normalizedSubtype);
+    }
+
+    @GuardedBy("ImfLock.class")
     void setInputMethodLocked(String id, int subtypeId) {
         InputMethodInfo info = mMethodMap.get(id);
         if (info == null) {
-            throw new IllegalArgumentException("Unknown id: " + id);
+            throw getExceptionForUnknownImeId(id);
         }
 
         // See if we need to notify a subtype change within the same IME.
         if (id.equals(getSelectedMethodIdLocked())) {
+            final int userId = mSettings.getCurrentUserId();
             final int subtypeCount = info.getSubtypeCount();
             if (subtypeCount <= 0) {
+                notifyInputMethodSubtypeChangedLocked(userId, info, null);
                 return;
             }
             final InputMethodSubtype oldSubtype = mCurrentSubtype;
@@ -3226,6 +3253,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             if (newSubtype == null || oldSubtype == null) {
                 Slog.w(TAG, "Illegal subtype state: old subtype = " + oldSubtype
                         + ", new subtype = " + newSubtype);
+                notifyInputMethodSubtypeChangedLocked(userId, info, null);
                 return;
             }
             if (newSubtype != oldSubtype) {
@@ -3263,22 +3291,23 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @Override
-    public boolean showSoftInput(IInputMethodClient client, IBinder windowToken, int flags,
-            int lastClickTooType, ResultReceiver resultReceiver,
-            @SoftInputShowHideReason int reason) {
+    public boolean showSoftInput(IInputMethodClient client, IBinder windowToken,
+            @Nullable ImeTracker.Token statsToken, int flags, int lastClickTooType,
+            ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.showSoftInput");
         int uid = Binder.getCallingUid();
         ImeTracing.getInstance().triggerManagerServiceDump(
                 "InputMethodManagerService#showSoftInput");
         synchronized (ImfLock.class) {
-            if (!canInteractWithImeLocked(uid, client, "showSoftInput")) {
+            if (!canInteractWithImeLocked(uid, client, "showSoftInput", statsToken)) {
+                ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_CLIENT_FOCUSED);
                 return false;
             }
             final long ident = Binder.clearCallingIdentity();
             try {
                 if (DEBUG) Slog.v(TAG, "Client requesting input be shown");
-                return showCurrentInputLocked(
-                        windowToken, flags, lastClickTooType, resultReceiver, reason);
+                return showCurrentInputLocked(windowToken, statsToken, flags, lastClickTooType,
+                        resultReceiver, reason);
             } finally {
                 Binder.restoreCallingIdentity(ident);
                 Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
@@ -3295,7 +3324,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     "InputMethodManagerService#startStylusHandwriting");
             int uid = Binder.getCallingUid();
             synchronized (ImfLock.class) {
-                if (!canInteractWithImeLocked(uid, client, "startStylusHandwriting")) {
+                if (!canInteractWithImeLocked(uid, client, "startStylusHandwriting",
+                        null /* statsToken */)) {
                     return;
                 }
                 if (!hasSupportedStylusLocked()) {
@@ -3350,19 +3380,33 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @GuardedBy("ImfLock.class")
-    boolean showCurrentInputLocked(IBinder windowToken, int flags,
-            ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
-        return showCurrentInputLocked(
-                windowToken, flags, MotionEvent.TOOL_TYPE_UNKNOWN, resultReceiver, reason);
+    boolean showCurrentInputLocked(IBinder windowToken, @Nullable ImeTracker.Token statsToken,
+            int flags, ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
+        return showCurrentInputLocked(windowToken, statsToken, flags,
+                MotionEvent.TOOL_TYPE_UNKNOWN, resultReceiver, reason);
     }
 
     @GuardedBy("ImfLock.class")
-    private boolean showCurrentInputLocked(IBinder windowToken, int flags, int lastClickToolType,
+    private boolean showCurrentInputLocked(IBinder windowToken,
+            @Nullable ImeTracker.Token statsToken, int flags, int lastClickToolType,
             ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
+        // Create statsToken is none exists.
+        if (statsToken == null) {
+            String packageName = null;
+            if (mCurEditorInfo != null) {
+                packageName = mCurEditorInfo.packageName;
+            }
+            statsToken = new ImeTracker.Token(packageName);
+            ImeTracker.get().onRequestShow(statsToken, ImeTracker.ORIGIN_SERVER_START_INPUT,
+                    reason);
+        }
+
         mShowRequested = true;
         if (mAccessibilityRequestingNoSoftKeyboard || mImeHiddenByDisplayPolicy) {
+            ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_ACCESSIBILITY);
             return false;
         }
+        ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_ACCESSIBILITY);
 
         if ((flags & InputMethodManager.SHOW_FORCED) != 0) {
             mShowExplicitlyRequested = true;
@@ -3372,8 +3416,10 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
 
         if (!mSystemReady) {
+            ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_SYSTEM_READY);
             return false;
         }
+        ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_SYSTEM_READY);
 
         mBindingController.setCurrentMethodVisible();
         final IInputMethodInvoker curMethod = getCurMethodLocked();
@@ -3381,6 +3427,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             // create a placeholder token for IMS so that IMS cannot inject windows into client app.
             Binder showInputToken = new Binder();
             mShowRequestWindowMap.put(showInputToken, windowToken);
+            ImeTracker.get().onCancelled(mCurStatsToken, ImeTracker.PHASE_SERVER_WAIT_IME);
+            ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_HAS_IME);
+            mCurStatsToken = null;
             final int showFlags = getImeShowFlagsLocked();
             if (DEBUG) {
                 Slog.v(TAG, "Calling " + curMethod + ".showSoftInput(" + showInputToken
@@ -3392,23 +3441,34 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 curMethod.updateEditorToolType(lastClickToolType);
             }
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
-            if (curMethod.showSoftInput(showInputToken, showFlags, resultReceiver)) {
+            if (curMethod.showSoftInput(showInputToken, statsToken, showFlags, resultReceiver)) {
                 onShowHideSoftInputRequested(true /* show */, windowToken, reason);
             }
             mInputShown = true;
             return true;
+        } else {
+            ImeTracker.get().onCancelled(mCurStatsToken, ImeTracker.PHASE_SERVER_WAIT_IME);
+            ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_WAIT_IME);
+            mCurStatsToken = statsToken;
         }
         return false;
     }
 
     @Override
-    public boolean hideSoftInput(IInputMethodClient client, IBinder windowToken, int flags,
-            ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
+    public boolean hideSoftInput(IInputMethodClient client, IBinder windowToken,
+            @Nullable ImeTracker.Token statsToken, int flags, ResultReceiver resultReceiver,
+            @SoftInputShowHideReason int reason) {
         int uid = Binder.getCallingUid();
         ImeTracing.getInstance().triggerManagerServiceDump(
                 "InputMethodManagerService#hideSoftInput");
         synchronized (ImfLock.class) {
-            if (!canInteractWithImeLocked(uid, client, "hideSoftInput")) {
+            if (!canInteractWithImeLocked(uid, client, "hideSoftInput", statsToken)) {
+                if (mInputShown) {
+                    ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_CLIENT_FOCUSED);
+                } else {
+                    ImeTracker.get().onCancelled(statsToken,
+                            ImeTracker.PHASE_SERVER_CLIENT_FOCUSED);
+                }
                 return false;
             }
             final long ident = Binder.clearCallingIdentity();
@@ -3416,7 +3476,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.hideSoftInput");
                 if (DEBUG) Slog.v(TAG, "Client requesting input be hidden");
                 return CarInputMethodManagerService.this.hideCurrentInputLocked(windowToken,
-                        flags, resultReceiver, reason);
+                        statsToken, flags, resultReceiver, reason);
             } finally {
                 Binder.restoreCallingIdentity(ident);
                 Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
@@ -3425,17 +3485,32 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @GuardedBy("ImfLock.class")
-    boolean hideCurrentInputLocked(IBinder windowToken, int flags, ResultReceiver resultReceiver,
-            @SoftInputShowHideReason int reason) {
+    boolean hideCurrentInputLocked(IBinder windowToken, @Nullable ImeTracker.Token statsToken,
+            int flags, ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
+        // Create statsToken is none exists.
+        if (statsToken == null) {
+            String packageName = null;
+            if (mCurEditorInfo != null) {
+                packageName = mCurEditorInfo.packageName;
+            }
+            statsToken = new ImeTracker.Token(packageName);
+            ImeTracker.get().onRequestHide(statsToken, ImeTracker.ORIGIN_SERVER_HIDE_INPUT, reason);
+        }
+
         if ((flags & InputMethodManager.HIDE_IMPLICIT_ONLY) != 0
                 && (mShowExplicitlyRequested || mShowForced)) {
             if (DEBUG) Slog.v(TAG, "Not hiding: explicit show not cancelled by non-explicit hide");
+            ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_HIDE_IMPLICIT);
             return false;
         }
+        ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_HIDE_IMPLICIT);
+
         if (mShowForced && (flags & InputMethodManager.HIDE_NOT_ALWAYS) != 0) {
             if (DEBUG) Slog.v(TAG, "Not hiding: forced show not cancelled by not-always hide");
+            ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_HIDE_NOT_ALWAYS);
             return false;
         }
+        ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_HIDE_NOT_ALWAYS);
 
         // There is a chance that IMM#hideSoftInput() is called in a transient state where
         // IMMS#InputShown is already updated to be true whereas IMMS#mImeWindowVis is still waiting
@@ -3446,8 +3521,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         // IMMS#InputShown indicates that the software keyboard is shown.
         // TODO: Clean up, IMMS#mInputShown, IMMS#mImeWindowVis and mShowRequested.
         IInputMethodInvoker curMethod = getCurMethodLocked();
-        final boolean shouldHideSoftInput = (curMethod != null) && (mInputShown
-                || (mImeWindowVis & InputMethodService.IME_ACTIVE) != 0);
+        final boolean shouldHideSoftInput = (curMethod != null)
+                && (mInputShown || (mImeWindowVis & InputMethodService.IME_ACTIVE) != 0);
         boolean res;
         if (shouldHideSoftInput) {
             final Binder hideInputToken = new Binder();
@@ -3456,17 +3531,20 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             // delivered to the IME process as an IPC.  Hence the inconsistency between
             // IMMS#mInputShown and IMMS#mImeWindowVis should be resolved spontaneously in
             // the final state.
+            ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_SHOULD_HIDE);
             if (DEBUG) {
                 Slog.v(TAG, "Calling " + curMethod + ".hideSoftInput(0, " + hideInputToken
                         + ", " + resultReceiver + ") for reason: "
                         + InputMethodDebug.softInputDisplayReasonToString(reason));
             }
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
-            if (curMethod.hideSoftInput(hideInputToken, 0 /* flags */, resultReceiver)) {
+            if (curMethod.hideSoftInput(hideInputToken, statsToken, 0 /* flags */,
+                    resultReceiver)) {
                 onShowHideSoftInputRequested(false /* show */, windowToken, reason);
             }
             res = true;
         } else {
+            ImeTracker.get().onCancelled(statsToken, ImeTracker.PHASE_SERVER_SHOULD_HIDE);
             res = false;
         }
         mBindingController.setCurrentMethodNotVisible();
@@ -3474,6 +3552,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mShowRequested = false;
         mShowExplicitlyRequested = false;
         mShowForced = false;
+        // Cancel existing statsToken for show IME as we got a hide request.
+        ImeTracker.get().onCancelled(mCurStatsToken, ImeTracker.PHASE_SERVER_WAIT_IME);
+        mCurStatsToken = null;
         return res;
     }
 
@@ -3631,8 +3712,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             Slog.w(TAG, "If you need to impersonate a foreground user/profile from"
                     + " a background user, use EditorInfo.targetInputMethodUser with"
                     + " INTERACT_ACROSS_USERS_FULL permission.");
-            hideCurrentInputLocked(
-                    mCurFocusedWindow, 0, null, SoftInputShowHideReason.HIDE_INVALID_USER);
+            hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                    null /* resultReceiver */, SoftInputShowHideReason.HIDE_INVALID_USER);
             return InputBindResult.INVALID_USER;
         }
 
@@ -3688,7 +3769,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         boolean didStart = false;
 
         InputBindResult res = null;
-        // We shows the IME when the system allows the IME focused target window to restore the
+        // We show the IME when the system allows the IME focused target window to restore the
         // IME visibility (e.g. switching to the app task when last time the IME is visible).
         // Note that we don't restore IME visibility for some cases (e.g. when the soft input
         // state is ALWAYS_HIDDEN or STATE_HIDDEN with forward navigation).
@@ -3700,7 +3781,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             res = startInputUncheckedLocked(cs, inputContext, remoteAccessibilityInputConnection,
                     editorInfo, startInputFlags, startInputReason, unverifiedTargetSdkVersion,
                     imeDispatcher);
-            showCurrentInputLocked(windowToken, InputMethodManager.SHOW_IMPLICIT, null,
+            showCurrentInputImplicitLocked(windowToken,
                     SoftInputShowHideReason.SHOW_RESTORE_IME_VISIBILITY);
             return res;
         }
@@ -3713,8 +3794,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                         // be behind any soft input window, so hide the
                         // soft input window if it is shown.
                         if (DEBUG) Slog.v(TAG, "Unspecified window will hide input");
-                        hideCurrentInputLocked(
-                                mCurFocusedWindow, InputMethodManager.HIDE_NOT_ALWAYS, null,
+                        hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */,
+                                InputMethodManager.HIDE_NOT_ALWAYS, null /* resultReceiver */,
                                 SoftInputShowHideReason.HIDE_UNSPECIFIED_WINDOW);
 
                         // If focused display changed, we should unbind current method
@@ -3743,10 +3824,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                                 imeDispatcher);
                         didStart = true;
                     }
-                    showCurrentInputLocked(
-                            windowToken,
-                            InputMethodManager.SHOW_IMPLICIT,
-                            null,
+                    showCurrentInputImplicitLocked(windowToken,
                             SoftInputShowHideReason.SHOW_AUTO_EDITOR_FORWARD_NAV);
                 }
                 break;
@@ -3759,14 +3837,16 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             case LayoutParams.SOFT_INPUT_STATE_HIDDEN:
                 if ((softInputMode & LayoutParams.SOFT_INPUT_IS_FORWARD_NAVIGATION) != 0) {
                     if (DEBUG) Slog.v(TAG, "Window asks to hide input going forward");
-                    hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                    hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                            null /* resultReceiver */,
                             SoftInputShowHideReason.HIDE_STATE_HIDDEN_FORWARD_NAV);
                 }
                 break;
             case LayoutParams.SOFT_INPUT_STATE_ALWAYS_HIDDEN:
                 if (!sameWindowFocused) {
                     if (DEBUG) Slog.v(TAG, "Window asks to hide input");
-                    hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                    hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                            null /* resultReceiver */,
                             SoftInputShowHideReason.HIDE_ALWAYS_HIDDEN_STATE);
                 }
                 break;
@@ -3782,7 +3862,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                                     imeDispatcher);
                             didStart = true;
                         }
-                        showCurrentInputLocked(windowToken, InputMethodManager.SHOW_IMPLICIT, null,
+                        showCurrentInputImplicitLocked(windowToken,
                                 SoftInputShowHideReason.SHOW_STATE_VISIBLE_FORWARD_NAV);
                     } else {
                         Slog.e(TAG, "SOFT_INPUT_STATE_VISIBLE is ignored because"
@@ -3803,7 +3883,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                                     imeDispatcher);
                             didStart = true;
                         }
-                        showCurrentInputLocked(windowToken, InputMethodManager.SHOW_IMPLICIT, null,
+                        showCurrentInputImplicitLocked(windowToken,
                                 SoftInputShowHideReason.SHOW_STATE_ALWAYS_VISIBLE);
                     }
                 } else {
@@ -3825,7 +3905,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     // an editor upon refocusing a window.
                     if (startInputByWinGainedFocus) {
                         if (DEBUG) Slog.v(TAG, "Same window without editor will hide input");
-                        hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                        hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */,
+                                0 /* flags */, null /* resultReceiver */,
                                 SoftInputShowHideReason.HIDE_SAME_WINDOW_FOCUSED_WITHOUT_EDITOR);
                     }
                 }
@@ -3839,7 +3920,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     // 2) SOFT_INPUT_STATE_VISIBLE state without an editor
                     // 3) SOFT_INPUT_STATE_ALWAYS_VISIBLE state without an editor
                     if (DEBUG) Slog.v(TAG, "Window without editor will hide input");
-                    hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                    hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                            null /* resultReceiver */,
                             SoftInputShowHideReason.HIDE_WINDOW_GAINED_FOCUS_WITHOUT_EDITOR);
                 }
                 res = startInputUncheckedLocked(cs, inputContext,
@@ -3854,8 +3936,15 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @GuardedBy("ImfLock.class")
-    private boolean canInteractWithImeLocked(
-            int uid, IInputMethodClient client, String methodName) {
+    private void showCurrentInputImplicitLocked(@NonNull IBinder windowToken,
+            @SoftInputShowHideReason int reason) {
+        showCurrentInputLocked(windowToken, null /* statsToken */, InputMethodManager.SHOW_IMPLICIT,
+                null /* resultReceiver */, reason);
+    }
+
+    @GuardedBy("ImfLock.class")
+    private boolean canInteractWithImeLocked(int uid, IInputMethodClient client, String methodName,
+            @Nullable ImeTracker.Token statsToken) {
         if (mCurClient == null || client == null
                 || mCurClient.mClient.asBinder() != client.asBinder()) {
             // We need to check if this is the current client with
@@ -3863,13 +3952,16 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             // be made before input is started in it.
             final ClientState cs = mClients.get(client.asBinder());
             if (cs == null) {
+                ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_CLIENT_KNOWN);
                 throw new IllegalArgumentException("unknown client " + client.asBinder());
             }
+            ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_CLIENT_KNOWN);
             if (!isImeClientFocused(mCurFocusedWindow, cs)) {
                 Slog.w(TAG, String.format("Ignoring %s of uid %d : %s", methodName, uid, client));
                 return false;
             }
         }
+        ImeTracker.get().onProgress(statsToken, ImeTracker.PHASE_SERVER_CLIENT_FOCUSED);
         return true;
     }
 
@@ -3947,11 +4039,24 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
+    @NonNull
+    private static IllegalArgumentException getExceptionForUnknownImeId(
+            @Nullable String imeId) {
+        return new IllegalArgumentException("Unknown id: " + imeId);
+    }
+
     @BinderThread
     private void setInputMethod(@NonNull IBinder token, String id) {
+        final int callingUid = Binder.getCallingUid();
+        final int userId = UserHandle.getUserId(callingUid);
         synchronized (ImfLock.class) {
             if (!calledWithValidTokenLocked(token)) {
                 return;
+            }
+            final InputMethodInfo imi = mMethodMap.get(id);
+            if (imi == null || !canCallerAccessInputMethod(
+                    imi.getPackageName(), callingUid, userId, mSettings)) {
+                throw getExceptionForUnknownImeId(id);
             }
             setInputMethodWithSubtypeIdLocked(token, id, NOT_A_SUBTYPE_ID);
         }
@@ -3960,14 +4065,20 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @BinderThread
     private void setInputMethodAndSubtype(@NonNull IBinder token, String id,
             InputMethodSubtype subtype) {
+        final int callingUid = Binder.getCallingUid();
+        final int userId = UserHandle.getUserId(callingUid);
         synchronized (ImfLock.class) {
             if (!calledWithValidTokenLocked(token)) {
                 return;
             }
+            final InputMethodInfo imi = mMethodMap.get(id);
+            if (imi == null || !canCallerAccessInputMethod(
+                    imi.getPackageName(), callingUid, userId, mSettings)) {
+                throw getExceptionForUnknownImeId(id);
+            }
             if (subtype != null) {
                 setInputMethodWithSubtypeIdLocked(token, id,
-                        SubtypeUtils.getSubtypeIdFromHashCode(mMethodMap.get(id),
-                                subtype.hashCode()));
+                        SubtypeUtils.getSubtypeIdFromHashCode(imi, subtype.hashCode()));
             } else {
                 setInputMethod(token, id);
             }
@@ -4203,7 +4314,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             final int curTokenDisplayId;
             synchronized (ImfLock.class) {
                 if (!canInteractWithImeLocked(callingUid, client,
-                        "getInputMethodWindowVisibleHeight")) {
+                        "getInputMethodWindowVisibleHeight", null /* statsToken */)) {
                     if (!mLoggedDeniedGetInputMethodWindowVisibleHeightForUid.get(callingUid)) {
                         EventLog.writeEvent(0x534e4554, "204906124", callingUid, "");
                         mLoggedDeniedGetInputMethodWindowVisibleHeightForUid.put(callingUid, true);
@@ -4426,7 +4537,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         int uid = Binder.getCallingUid();
         synchronized (ImfLock.class) {
-            if (!canInteractWithImeLocked(uid, client, "addVirtualStylusIdForTestSession")) {
+            if (!canInteractWithImeLocked(uid, client, "addVirtualStylusIdForTestSession",
+                    null /* statsToken */)) {
                 return;
             }
             final long ident = Binder.clearCallingIdentity();
@@ -4453,7 +4565,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         int uid = Binder.getCallingUid();
         synchronized (ImfLock.class) {
-            if (!canInteractWithImeLocked(uid, client, "setStylusWindowIdleTimeoutForTest")) {
+            if (!canInteractWithImeLocked(uid, client, "setStylusWindowIdleTimeoutForTest",
+                    null /* statsToken */)) {
                 return;
             }
             final long ident = Binder.clearCallingIdentity();
@@ -4638,7 +4751,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     @BinderThread
-    private void applyImeVisibility(IBinder token, IBinder windowToken, boolean setVisible) {
+    private void applyImeVisibility(IBinder token, IBinder windowToken, boolean setVisible,
+            @Nullable ImeTracker.Token statsToken) {
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.applyImeVisibility");
         synchronized (ImfLock.class) {
             if (!calledWithValidTokenLocked(token)) {
@@ -4646,13 +4760,22 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             }
             if (!setVisible) {
                 if (mCurClient != null) {
+                    ImeTracker.get().onProgress(statsToken,
+                            ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
+
                     mWindowManagerInternal.hideIme(
                             mHideRequestWindowMap.get(windowToken),
-                            mCurClient.mSelfReportedDisplayId);
+                            mCurClient.mSelfReportedDisplayId, statsToken);
+                } else {
+                    ImeTracker.get().onFailed(statsToken,
+                            ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
                 }
             } else {
+                ImeTracker.get().onProgress(statsToken,
+                        ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
                 // Send to window manager to show IME after IME layout finishes.
-                mWindowManagerInternal.showImePostLayout(mShowRequestWindowMap.get(windowToken));
+                mWindowManagerInternal.showImePostLayout(mShowRequestWindowMap.get(windowToken),
+                        statsToken);
             }
         }
         Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
@@ -4695,7 +4818,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
-    /** Called right after {@link com.android.internal.inputmethod.IInputMethod#showSoftInput}. */
+    /** Called right after {@link IInputMethod#showSoftInput}. */
     @GuardedBy("ImfLock.class")
     private void onShowHideSoftInputRequested(boolean show, IBinder requestToken,
             @SoftInputShowHideReason int reason) {
@@ -4719,7 +4842,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             }
             final long ident = Binder.clearCallingIdentity();
             try {
-                hideCurrentInputLocked(mLastImeTargetWindow, flags, null, reason);
+                hideCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
+                        null /* resultReceiver */, reason);
             } finally {
                 Binder.restoreCallingIdentity(ident);
             }
@@ -4736,7 +4860,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             }
             final long ident = Binder.clearCallingIdentity();
             try {
-                showCurrentInputLocked(mLastImeTargetWindow, flags, null,
+                showCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
+                        null /* resultReceiver */,
                         SoftInputShowHideReason.SHOW_SOFT_INPUT_FROM_IME);
             } finally {
                 Binder.restoreCallingIdentity(ident);
@@ -4827,7 +4952,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             case MSG_HIDE_CURRENT_INPUT_METHOD:
                 synchronized (ImfLock.class) {
                     final @SoftInputShowHideReason int reason = (int) msg.obj;
-                    hideCurrentInputLocked(mCurFocusedWindow, 0, null, reason);
+                    hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */, 0 /* flags */,
+                            null /* resultReceiver */, reason);
 
                 }
                 return true;
@@ -5279,6 +5405,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 mCurrentSubtype = getCurrentInputMethodSubtypeLocked();
             }
         }
+        notifyInputMethodSubtypeChangedLocked(mSettings.getCurrentUserId(), imi, mCurrentSubtype);
 
         if (!setSubtypeOnly) {
             // Set InputMethod here
@@ -5903,8 +6030,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             if (resultReceiver != null) {
                 resultReceiver.send(ShellCommandResult.FAILURE, null);
             }
-            final String errorMsg = "InputMethodManagerService does not support shell commands from"
-                    + " non-shell users. callingUid=" + callingUid
+            final String errorMsg = "CarInputMethodManagerService does not support shell commands"
+                    + " from non-shell users. callingUid=" + callingUid
                     + " args=" + Arrays.toString(args);
             if (Process.isCoreUid(callingUid)) {
                 // Let's not crash the calling process if the caller is one of core components.
@@ -5978,7 +6105,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         @Override
         public void onHelp() {
             try (PrintWriter pw = getOutPrintWriter()) {
-                pw.println("InputMethodManagerService commands:");
+                pw.println("CarInputMethodManagerService commands:");
                 pw.println("  help");
                 pw.println("    Prints this help text.");
                 pw.println("  dump [options]");
@@ -6314,7 +6441,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     final String nextIme;
                     final List<InputMethodInfo> nextEnabledImes;
                     if (userId == mSettings.getCurrentUserId()) {
-                        hideCurrentInputLocked(mCurFocusedWindow, 0, null,
+                        hideCurrentInputLocked(mCurFocusedWindow, null /* statsToken */,
+                                0 /* flags */, null /* resultReceiver */,
                                 SoftInputShowHideReason.HIDE_RESET_SHELL_COMMAND);
                         mBindingController.unbindCurrentMethod();
                         // Reset the current IME
@@ -6579,8 +6707,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         @BinderThread
         @Override
-        public void applyImeVisibilityAsync(IBinder windowToken, boolean setVisible) {
-            mImms.applyImeVisibility(mToken, windowToken, setVisible);
+        public void applyImeVisibilityAsync(IBinder windowToken, boolean setVisible,
+                @Nullable ImeTracker.Token statsToken) {
+            mImms.applyImeVisibility(mToken, windowToken, setVisible, statsToken);
         }
 
         @BinderThread
