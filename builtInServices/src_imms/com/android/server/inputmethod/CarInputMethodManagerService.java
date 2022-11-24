@@ -178,7 +178,6 @@ import com.android.server.AccessibilityManagerInternal;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
-import com.android.server.SystemServerInitThreadPool;
 import com.android.server.SystemService;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.inputmethod.InputMethodManagerInternal.InputMethodListListener;
@@ -294,6 +293,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     private final CarInputMethodMenuController mMenuController;
     @NonNull private final CarInputMethodBindingController mBindingController;
     @NonNull private final CarAutofillSuggestionsController mAutofillController;
+
+    private final LocalServiceImpl mImmi;
 
     /**
      * Cache the result of {@code LocalServices.getService(AudioManagerInternal.class)}.
@@ -1743,6 +1744,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mHwController = new HandwritingModeController(thread.getLooper(),
                 new InkWindowInitializer());
         registerDeviceListenerAndCheckStylusSupport();
+        mImmi = new LocalServiceImpl();
+    }
+
+    InputMethodManagerInternal getInputMethodManagerInternal() {
+        return mImmi;
     }
 
     private final class InkWindowInitializer implements Runnable {
@@ -1933,22 +1939,14 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     });
                 }
 
-                // TODO(b/32343335): The entire systemRunning() method needs to be revisited.
-                mImeDrawsImeNavBarResLazyInitFuture = SystemServerInitThreadPool.submit(() -> {
-                    // Note that the synchronization block below guarantees that the task
-                    // can never be completed before the returned Future<?> object is assigned to
-                    // the "mImeDrawsImeNavBarResLazyInitFuture" field.
-                    synchronized (ImfLock.class) {
-                        mImeDrawsImeNavBarResLazyInitFuture = null;
-                        if (currentUserId != mSettings.getCurrentUserId()) {
-                            // This means that the current user is already switched to other user
-                            // before the background task is executed. In this scenario the relevant
-                            // field should already be initialized.
-                            return;
-                        }
-                        maybeInitImeNavbarConfigLocked(currentUserId);
-                    }
-                }, "Lazily initialize IMMS#mImeDrawsImeNavBarRes");
+                mImeDrawsImeNavBarResLazyInitFuture = null;
+                Slog.d(TAG, "currentUserId(" + currentUserId
+                        + ") != mSettings.getCurrentUserId("
+                        + mSettings.getCurrentUserId() + ") : "
+                        + (currentUserId != mSettings.getCurrentUserId()));
+                if (currentUserId == mSettings.getCurrentUserId()) {
+                    maybeInitImeNavbarConfigLocked(currentUserId);
+                }
 
                 mMyPackageMonitor.register(mContext, null, UserHandle.ALL, true);
                 mSettingsObserver.registerContentObserverLocked(currentUserId);
@@ -1973,8 +1971,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 InputMethodUtils.setNonSelectedSystemImesDisabledUntilUsed(
                         getPackageManagerForUser(mContext, currentUserId),
                         mSettings.getEnabledInputMethodListLocked());
-            }
-        }
+            }  // if !mSystemReady
+        }  // lock ImfLock
     }
 
     /**
@@ -5569,7 +5567,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     private void publishLocalService() {
-        LocalServices.addService(InputMethodManagerInternal.class, new LocalServiceImpl());
+        LocalServices.addService(InputMethodManagerInternal.class, mImmi);
+    }
+
+    void notifySystemUnlockUser(@UserIdInt int userId) {
+        mHandler.obtainMessage(MSG_SYSTEM_UNLOCK_USER, userId, 0).sendToTarget();
     }
 
     private final class LocalServiceImpl extends InputMethodManagerInternal {
