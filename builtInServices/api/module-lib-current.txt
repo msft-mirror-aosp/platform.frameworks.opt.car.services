@@ -29,7 +29,9 @@ package com.android.server.wm {
 
   public final class ActivityOptionsWrapper {
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
+    method public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
+    field public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
   }
 
   public final class ActivityRecordWrapper {
