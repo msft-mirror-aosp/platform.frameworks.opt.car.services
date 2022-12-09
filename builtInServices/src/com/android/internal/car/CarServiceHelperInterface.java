@@ -18,7 +18,10 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.car.builtin.annotation.PlatformVersion;
 import android.os.UserHandle;
+
+import com.android.annotation.AddedIn;
 
 import java.io.File;
 
@@ -32,12 +35,14 @@ public interface CarServiceHelperInterface {
     /**
      * Sets safety mode
      */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     void setSafetyMode(boolean safe);
 
     /**
      * Creates user even when disallowed
      */
     @Nullable
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
             int flags);
 
@@ -45,5 +50,6 @@ public interface CarServiceHelperInterface {
      * Dumps service stacks
      */
     @Nullable
+    @AddedIn(PlatformVersion.TIRAMISU_0)
     File dumpServiceStacks();
 }

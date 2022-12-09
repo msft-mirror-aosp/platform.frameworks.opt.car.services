@@ -15,7 +15,7 @@ java_sdk_library {
     ],
     static_libs: [
         "android.car.watchdoglib",
-        "android.automotive.watchdog.internal-V1-java",
+        "android.automotive.watchdog.internal-V2-java",
     ],
     api_lint: {
         enabled: true,
