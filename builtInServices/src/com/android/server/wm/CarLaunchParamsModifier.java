@@ -188,7 +188,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
 
     @Nullable
     private TaskDisplayAreaWrapper findTaskDisplayArea(int displayId, int featureId) {
-        DisplayContent display = mAtm.mRootWindowContainer.getDisplayContentOrCreate(displayId);
+        DisplayContent display = mAtm.mRootWindowContainer.getDisplayContent(displayId);
         if (display == null) {
             return null;
         }
