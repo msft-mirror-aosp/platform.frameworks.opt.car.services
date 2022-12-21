@@ -194,14 +194,14 @@ public final class CarServiceHelperServiceUpdatableImplTest
     }
 
     @Test
-    public void testStartUserInBackgroundOnSecondaryDisplay() throws Exception {
+    public void testStartUserInBackgroundVisibleOnDisplay() throws Exception {
         int userId = 100;
         int displayId = 2;
 
-        mCarServiceHelperServiceUpdatableImpl.mHelper.startUserInBackgroundOnSecondaryDisplay(
-                userId, displayId);
+        mCarServiceHelperServiceUpdatableImpl.mHelper.startUserInBackgroundVisibleOnDisplay(userId,
+                displayId);
 
-        verify(mCarServiceHelperInterface).startUserInBackgroundOnSecondaryDisplay(userId,
+        verify(mCarServiceHelperInterface).startUserInBackgroundVisibleOnDisplay(userId,
                 displayId);
         verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }

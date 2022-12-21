@@ -351,10 +351,10 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
-        public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
+        public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
 
-            return mCarServiceHelperInterface.startUserInBackgroundOnSecondaryDisplay(userId,
+            return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(userId,
                     displayId);
         }
 
