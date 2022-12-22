@@ -10,7 +10,7 @@ package com.android.internal.car {
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
-    method public boolean startUserInBackgroundOnSecondaryDisplay(int, int);
+    method public boolean startUserInBackgroundVisibleOnDisplay(int, int);
   }
 
   public interface CarServiceHelperServiceUpdatable {
