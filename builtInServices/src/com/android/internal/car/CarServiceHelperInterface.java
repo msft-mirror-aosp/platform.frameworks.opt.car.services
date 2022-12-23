@@ -74,9 +74,9 @@ public interface CarServiceHelperInterface {
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     int getProcessGroup(int pid);
 
-    /** Check {@link ActivityManager#startUserInBackgroundVisibleOnDisplay(int, int)}. */
+    /** Check {@link ActivityManager#startUserInBackgroundOnSecondaryDisplay(int, int)}. */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    boolean startUserInBackgroundVisibleOnDisplay(@UserIdInt int userId, int displayId);
+    boolean startUserInBackgroundOnSecondaryDisplay(@UserIdInt int userId, int displayId);
 
     /** Check {@link android.os.Process#setProcessProfile(int, int, String)}. */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)

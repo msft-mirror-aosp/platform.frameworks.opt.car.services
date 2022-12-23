@@ -529,9 +529,9 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
+    public boolean startUserInBackgroundOnSecondaryDisplay(int userId, int displayId) {
         ActivityManager am = mContext.getSystemService(ActivityManager.class);
-        return am.startUserInBackgroundVisibleOnDisplay(userId, displayId);
+        return am.startUserInBackgroundOnSecondaryDisplay(userId, displayId);
     }
 
     @Override
