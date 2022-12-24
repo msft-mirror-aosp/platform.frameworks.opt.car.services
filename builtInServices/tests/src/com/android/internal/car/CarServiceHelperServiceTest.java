@@ -208,13 +208,13 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testStartUserInBackgroundOnSecondaryDisplay() throws Exception {
+    public void testStartUserInBackgroundVisibleOnDisplay() throws Exception {
         int userId = 100;
         int displayId = 2;
 
-        mHelper.startUserInBackgroundOnSecondaryDisplay(userId, displayId);
+        mHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId);
 
-        verify(mActivityManager).startUserInBackgroundOnSecondaryDisplay(userId, displayId);
+        verify(mActivityManager).startUserInBackgroundVisibleOnDisplay(userId, displayId);
     }
 
     private TargetUser newTargetUser(int userId) {
