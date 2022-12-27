@@ -51,6 +51,7 @@ import com.android.internal.inputmethod.InlineSuggestionsRequestInfo;
 import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.util.function.pooled.PooledLambda;
+import com.android.internal.view.IImeTracker;
 import com.android.internal.view.IInputMethodManager;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
@@ -633,6 +634,17 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
         imms.setStylusWindowIdleTimeoutForTest(client, timeout);
+    }
+
+    @Override
+    public IImeTracker getImeTrackerService() {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking getImeTrackerService",
+                    callingUserId);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        return imms.getImeTrackerService();
     }
 
     class InputMethodManagerInternalProxy extends InputMethodManagerInternal {
