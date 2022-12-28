@@ -31,6 +31,10 @@ import com.android.annotation.AddedIn;
 public final class ActivityOptionsWrapper {
     private final ActivityOptions mOptions;
 
+    /** See {@link android.app.WindowConfiguration#WINDOWING_MODE_UNDEFINED}. */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public static final int WINDOWING_MODE_UNDEFINED = 0;
+
     private ActivityOptionsWrapper(ActivityOptions options) {
         mOptions = options;
     }
@@ -49,6 +53,14 @@ public final class ActivityOptionsWrapper {
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityOptions getOptions() {
         return mOptions;
+    }
+
+    /**
+     * Gets the windowing mode to launch the Activity into
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public int getLaunchWindowingMode() {
+        return mOptions.getLaunchWindowingMode();
     }
 
     /**

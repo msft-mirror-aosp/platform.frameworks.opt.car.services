@@ -49,8 +49,11 @@ import static android.view.Display.INVALID_DISPLAY;
 import static android.view.WindowManager.DISPLAY_IME_POLICY_HIDE;
 import static android.view.WindowManager.DISPLAY_IME_POLICY_LOCAL;
 
+import static com.android.server.EventLogTags.IMF_HIDE_IME;
+import static com.android.server.EventLogTags.IMF_SHOW_IME;
 import static com.android.server.inputmethod.InputMethodBindingController.TIME_TO_RECONNECT;
 import static com.android.server.inputmethod.InputMethodUtils.isSoftInputModeStateVisibleAllowed;
+import static com.android.server.wm.WindowManagerDebugConfig.DEBUG_IME_VISIBILITY;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
 
@@ -173,12 +176,14 @@ import com.android.internal.os.TransferPipe;
 import com.android.internal.util.ArrayUtils;
 import com.android.internal.util.ConcurrentUtils;
 import com.android.internal.util.DumpUtils;
+import com.android.internal.view.IImeTracker;
 import com.android.internal.view.IInputMethodManager;
 import com.android.server.AccessibilityManagerInternal;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
 import com.android.server.SystemService;
+import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.inputmethod.InputMethodManagerInternal.InputMethodListListener;
 import com.android.server.inputmethod.InputMethodSubtypeSwitchingController.ImeSubtypeListItem;
@@ -193,11 +198,12 @@ import java.io.IOException;
 import java.io.PrintWriter;
 import java.lang.annotation.Retention;
 import java.security.InvalidParameterException;
-import java.text.SimpleDateFormat;
+import java.time.Instant;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
-import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
@@ -294,7 +300,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @NonNull private final CarInputMethodBindingController mBindingController;
     @NonNull private final CarAutofillSuggestionsController mAutofillController;
 
-    private final LocalServiceImpl mImmi;
+    private final LocalServiceImpl mImmi;  // CarInputMethodManagerService
 
     /**
      * Cache the result of {@code LocalServices.getService(AudioManagerInternal.class)}.
@@ -304,6 +310,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
      */
     @Nullable
     private AudioManagerInternal mAudioManagerInternal = null;
+    @Nullable
+    private VirtualDeviceManagerInternal mVdmInternal = null;
 
     // All known input methods.
     final ArrayList<InputMethodInfo> mMethodList = new ArrayList<>();
@@ -916,8 +924,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
 
         void dump(@NonNull PrintWriter pw, @NonNull String prefix) {
-            final SimpleDateFormat dataFormat =
-                    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
+            final DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+                            .withZone(ZoneId.systemDefault());
 
             for (int i = 0; i < mEntries.length; ++i) {
                 final Entry entry = mEntries[(i + mNextIndex) % mEntries.length];
@@ -928,7 +937,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 pw.println("SoftInputShowHideHistory #" + entry.mSequenceNumber + ":");
 
                 pw.print(prefix);
-                pw.println(" time=" + dataFormat.format(new Date(entry.mWallTime))
+                pw.println(" time=" + formatter.format(Instant.ofEpochMilli(entry.mWallTime))
                         + " (timestamp=" + entry.mTimestamp + ")");
 
                 pw.print(prefix);
@@ -991,15 +1000,15 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
          * Entry size for non low-RAM devices.
          *
          * <p>TODO: Consider to follow what other system services have been doing to manage
-         * constants (e.g. {@link Settings.Global#ACTIVITY_MANAGER_CONSTANTS}).</p>
+         * constants (e.g. {@link android.provider.Settings.Global#ACTIVITY_MANAGER_CONSTANTS}).</p>
          */
         private static final int ENTRY_SIZE_FOR_HIGH_RAM_DEVICE = 32;
 
         /**
-         * Entry size for non low-RAM devices.
+         * Entry size for low-RAM devices.
          *
          * <p>TODO: Consider to follow what other system services have been doing to manage
-         * constants (e.g. {@link Settings.Global#ACTIVITY_MANAGER_CONSTANTS}).</p>
+         * constants (e.g. {@link android.provider.Settings.Global#ACTIVITY_MANAGER_CONSTANTS}).</p>
          */
         private static final int ENTRY_SIZE_FOR_LOW_RAM_DEVICE = 5;
 
@@ -1012,7 +1021,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
 
         /**
-         * Backing store for the ring bugger.
+         * Backing store for the ring buffer.
          */
         private final Entry[] mEntries = new Entry[getEntrySize()];
 
@@ -1092,8 +1101,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
 
         void dump(@NonNull PrintWriter pw, @NonNull String prefix) {
-            final SimpleDateFormat dataFormat =
-                    new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS", Locale.US);
+            final DateTimeFormatter formatter =
+                    DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS", Locale.US)
+                            .withZone(ZoneId.systemDefault());
 
             for (int i = 0; i < mEntries.length; ++i) {
                 final Entry entry = mEntries[(i + mNextIndex) % mEntries.length];
@@ -1104,7 +1114,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 pw.println("StartInput #" + entry.mSequenceNumber + ":");
 
                 pw.print(prefix);
-                pw.println(" time=" + dataFormat.format(new Date(entry.mWallTime))
+                pw.println(" time=" + formatter.format(Instant.ofEpochMilli(entry.mWallTime))
                         + " (timestamp=" + entry.mTimestamp + ")"
                         + " reason="
                         + InputMethodDebug.startInputReasonToString(entry.mStartInputReason)
@@ -1145,6 +1155,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @NonNull
     private final SoftInputShowHideHistory mSoftInputShowHideHistory =
             new SoftInputShowHideHistory();
+
+    @NonNull
+    private final ImeTrackerService mImeTrackerService = new ImeTrackerService();
 
     class SettingsObserver extends ContentObserver {
         int mUserId;
@@ -1744,9 +1757,10 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mHwController = new HandwritingModeController(thread.getLooper(),
                 new InkWindowInitializer());
         registerDeviceListenerAndCheckStylusSupport();
-        mImmi = new LocalServiceImpl();
+        mImmi = new LocalServiceImpl();  // CarInputMethodManagerService
     }
 
+    // CarInputMethodManagerService
     InputMethodManagerInternal getInputMethodManagerInternal() {
         return mImmi;
     }
@@ -1939,6 +1953,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     });
                 }
 
+                // CarInputMethodManagerService
                 mImeDrawsImeNavBarResLazyInitFuture = null;
                 Slog.d(TAG, "currentUserId(" + currentUserId
                         + ") != mSettings.getCurrentUserId("
@@ -1971,8 +1986,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 InputMethodUtils.setNonSelectedSystemImesDisabledUntilUsed(
                         getPackageManagerForUser(mContext, currentUserId),
                         mSettings.getEnabledInputMethodListLocked());
-            }  // if !mSystemReady
-        }  // lock ImfLock
+            }
+        }
     }
 
     /**
@@ -2194,8 +2209,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
      * <p>As a general principle, IPCs from the application process that take
      * {@link IInputMethodClient} will be rejected without this step.</p>
      *
-     * @param client {@link Binder} proxy that is associated with the singleton instance
-     *               of {@link InputMethodManager} that runs on the client
+     * @param client {@link android.os.Binder} proxy that is associated with the singleton instance
+     *               of {@link android.view.inputmethod.InputMethodManager} that runs on the client
      *               process
      * @param inputConnection communication channel for the fallback {@link InputConnection}
      * @param selfReportedDisplayId self-reported display ID to which the client is associated.
@@ -2530,6 +2545,16 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mCurVirtualDisplayToScreenMatrix =
                 getVirtualDisplayToScreenMatrixLocked(cs.mSelfReportedDisplayId,
                         mDisplayIdToShowIme);
+        // Override the locale hints if the app is running on a virtual device.
+        if (mVdmInternal == null) {
+            mVdmInternal = LocalServices.getService(VirtualDeviceManagerInternal.class);
+        }
+        if (mVdmInternal != null && editorInfo.hintLocales == null) {
+            LocaleList hintsFromVirtualDevice = mVdmInternal.getPreferredLocaleListForUid(cs.mUid);
+            if (hintsFromVirtualDevice != null) {
+                editorInfo.hintLocales = hintsFromVirtualDevice;
+            }
+        }
         mCurEditorInfo = editorInfo;
 
         // If configured, we want to avoid starting up the IME if it is not supposed to be showing
@@ -3389,13 +3414,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
         // Create statsToken is none exists.
         if (statsToken == null) {
-            String packageName = null;
-            if (mCurEditorInfo != null) {
-                packageName = mCurEditorInfo.packageName;
-            }
-            statsToken = new ImeTracker.Token(packageName);
-            ImeTracker.get().onRequestShow(statsToken, ImeTracker.ORIGIN_SERVER_START_INPUT,
-                    reason);
+            // TODO(b/261565259): to avoid using null, add package name in ClientState
+            final String packageName = (mCurEditorInfo != null) ? mCurEditorInfo.packageName : null;
+            final int uid = mCurClient != null ? mCurClient.mUid : -1;
+            statsToken = ImeTracker.get().onRequestShow(packageName, uid,
+                    ImeTracker.ORIGIN_SERVER_START_INPUT, reason);
         }
 
         mShowRequested = true;
@@ -3439,7 +3462,13 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             }
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
             if (curMethod.showSoftInput(showInputToken, statsToken, showFlags, resultReceiver)) {
-                onShowHideSoftInputRequested(true /* show */, windowToken, reason);
+                if (DEBUG_IME_VISIBILITY) {
+                    EventLog.writeEvent(IMF_SHOW_IME, statsToken.getTag(),
+                            Objects.toString(mCurFocusedWindow),
+                            InputMethodDebug.softInputDisplayReasonToString(reason),
+                            InputMethodDebug.softInputModeToString(mCurFocusedWindowSoftInputMode));
+                }
+                onShowHideSoftInputRequested(true /* show */, windowToken, reason, statsToken);
             }
             mInputShown = true;
             return true;
@@ -3486,12 +3515,18 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             int flags, ResultReceiver resultReceiver, @SoftInputShowHideReason int reason) {
         // Create statsToken is none exists.
         if (statsToken == null) {
-            String packageName = null;
-            if (mCurEditorInfo != null) {
-                packageName = mCurEditorInfo.packageName;
+            // TODO(b/261565259): to avoid using null, add package name in ClientState
+            final String packageName = (mCurEditorInfo != null) ? mCurEditorInfo.packageName : null;
+            final int uid;
+            if (mCurClient != null) {
+                uid = mCurClient.mUid;
+            } else if (mCurFocusedWindowClient != null) {
+                uid = mCurFocusedWindowClient.mUid;
+            } else {
+                uid = -1;
             }
-            statsToken = new ImeTracker.Token(packageName);
-            ImeTracker.get().onRequestHide(statsToken, ImeTracker.ORIGIN_SERVER_HIDE_INPUT, reason);
+            statsToken = ImeTracker.get().onRequestHide(packageName, uid,
+                    ImeTracker.ORIGIN_SERVER_HIDE_INPUT, reason);
         }
 
         if ((flags & InputMethodManager.HIDE_IMPLICIT_ONLY) != 0
@@ -3537,7 +3572,13 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             // TODO(b/192412909): Check if we can always call onShowHideSoftInputRequested() or not.
             if (curMethod.hideSoftInput(hideInputToken, statsToken, 0 /* flags */,
                     resultReceiver)) {
-                onShowHideSoftInputRequested(false /* show */, windowToken, reason);
+                if (DEBUG_IME_VISIBILITY) {
+                    EventLog.writeEvent(IMF_HIDE_IME, statsToken.getTag(),
+                            Objects.toString(mCurFocusedWindow),
+                            InputMethodDebug.softInputDisplayReasonToString(reason),
+                            InputMethodDebug.softInputModeToString(mCurFocusedWindowSoftInputMode));
+                }
+                onShowHideSoftInputRequested(false /* show */, windowToken, reason, statsToken);
             }
             res = true;
         } else {
@@ -4753,6 +4794,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.applyImeVisibility");
         synchronized (ImfLock.class) {
             if (!calledWithValidTokenLocked(token)) {
+                ImeTracker.get().onFailed(statsToken, ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
                 return;
             }
             if (!setVisible) {
@@ -4795,11 +4837,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     private void setInputMethodWithSubtypeIdLocked(IBinder token, String id, int subtypeId) {
         if (token == null) {
             if (mContext.checkCallingOrSelfPermission(
-                    Manifest.permission.WRITE_SECURE_SETTINGS)
+                    android.Manifest.permission.WRITE_SECURE_SETTINGS)
                     != PackageManager.PERMISSION_GRANTED) {
                 throw new SecurityException(
                         "Using null token requires permission "
-                                + Manifest.permission.WRITE_SECURE_SETTINGS);
+                                + android.Manifest.permission.WRITE_SECURE_SETTINGS);
             }
         } else if (getCurTokenLocked() != token) {
             Slog.w(TAG, "Ignoring setInputMethod of uid " + Binder.getCallingUid()
@@ -4815,10 +4857,10 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
-    /** Called right after {@link IInputMethod#showSoftInput}. */
+    /** Called right after {@link com.android.internal.inputmethod.IInputMethod#showSoftInput}. */
     @GuardedBy("ImfLock.class")
     private void onShowHideSoftInputRequested(boolean show, IBinder requestToken,
-            @SoftInputShowHideReason int reason) {
+            @SoftInputShowHideReason int reason, @Nullable ImeTracker.Token statsToken) {
         final WindowManagerInternal.ImeTargetInfo info =
                 mWindowManagerInternal.onToggleImeRequested(
                         show, mCurFocusedWindow, requestToken, mCurTokenDisplayId);
@@ -4827,6 +4869,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 mCurFocusedWindowSoftInputMode, reason, mInFullscreenMode,
                 info.requestWindowName, info.imeControlTargetName, info.imeLayerTargetName,
                 info.imeSurfaceParentName));
+
+        mImeTrackerService.onImmsUpdate(statsToken.mBinder, info.requestWindowName);
     }
 
     @BinderThread
@@ -5158,10 +5202,10 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             ResolveInfo ri = services.get(i);
             ServiceInfo si = ri.serviceInfo;
             final String imeId = InputMethodInfo.computeId(ri);
-            if (!Manifest.permission.BIND_INPUT_METHOD.equals(si.permission)) {
+            if (!android.Manifest.permission.BIND_INPUT_METHOD.equals(si.permission)) {
                 Slog.w(TAG, "Skipping input method " + imeId
                         + ": it does not require the permission "
-                        + Manifest.permission.BIND_INPUT_METHOD);
+                        + android.Manifest.permission.BIND_INPUT_METHOD);
                 continue;
             }
 
@@ -5214,7 +5258,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             final int numImes = allInputMethodServices.size();
             for (int i = 0; i < numImes; ++i) {
                 final ServiceInfo si = allInputMethodServices.get(i).serviceInfo;
-                if (Manifest.permission.BIND_INPUT_METHOD.equals(si.permission)) {
+                if (android.Manifest.permission.BIND_INPUT_METHOD.equals(si.permission)) {
                     mMyPackageMonitor.addKnownImePackageNameLocked(si.packageName);
                 }
             }
@@ -5566,9 +5610,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     private void publishLocalService() {
+        // CarInputMethodManagerService
         LocalServices.addService(InputMethodManagerInternal.class, mImmi);
     }
 
+    // CarInputMethodManagerService
     void notifySystemUnlockUser(@UserIdInt int userId) {
         mHandler.obtainMessage(MSG_SYSTEM_UNLOCK_USER, userId, 0).sendToTarget();
     }
@@ -5970,6 +6016,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
             p.println("  mSoftInputShowHideHistory:");
             mSoftInputShowHideHistory.dump(pw, "   ");
+
+            p.println("  mImeTrackerService#History:");
+            mImeTrackerService.dump(pw, "   ");
         }
 
         // Exit here for critical dump, as remaining sections require IPCs to other processes.
@@ -6031,8 +6080,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             if (resultReceiver != null) {
                 resultReceiver.send(ShellCommandResult.FAILURE, null);
             }
-            final String errorMsg = "CarInputMethodManagerService does not support shell commands"
-                    + " from non-shell users. callingUid=" + callingUid
+            final String errorMsg = "InputMethodManagerService does not support shell commands from"
+                    + " non-shell users. callingUid=" + callingUid
                     + " args=" + Arrays.toString(args);
             if (Process.isCoreUid(callingUid)) {
                 // Let's not crash the calling process if the caller is one of core components.
@@ -6558,6 +6607,12 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             return false;
         }
         return true;
+    }
+
+    /** @hide */
+    @Override
+    public IImeTracker getImeTrackerService() {
+        return mImeTrackerService;
     }
 
     private static final class InputMethodPrivilegedOperationsImpl
