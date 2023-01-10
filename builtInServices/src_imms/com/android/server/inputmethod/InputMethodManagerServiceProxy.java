@@ -19,6 +19,7 @@ import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_CRITICAL;
 import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_NORMAL;
 import static android.os.IServiceManager.DUMP_FLAG_PROTO;
 
+import android.annotation.BinderThread;
 import android.annotation.MainThread;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -50,6 +51,7 @@ import com.android.internal.inputmethod.IRemoteInputConnection;
 import com.android.internal.inputmethod.InlineSuggestionsRequestInfo;
 import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
+import com.android.internal.util.DumpUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
 import com.android.internal.view.IImeTracker;
 import com.android.internal.view.IInputMethodManager;
@@ -58,13 +60,15 @@ import com.android.server.SystemService;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.utils.Slogf;
 
+import java.io.FileDescriptor;
+import java.io.PrintWriter;
+import java.util.Arrays;
 import java.util.List;
 
 /**
  * Proxy used to host IMMSs per user and reroute requests to the user associated IMMS.
  *
  * TODO(b/245798405): Add the logic to handle user 0
- * TODO(b/245798405): Dump infos like whether it is bypassing or proxy and how many IMMS are active
  *
  * @hide
  */
@@ -311,7 +315,51 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
     }
 
-    // Delegate methods ////////////////////////////////////////////////////////////////////////////
+    /**
+     * Dump this IMMS Proxy object. If `--user` arg is pass (along with an existing user id) then
+     * it will just dump the user associated IMMS.
+     */
+    @BinderThread
+    @Override
+    protected void dump(FileDescriptor fd, PrintWriter pw, String[] args) {
+        if (!DumpUtils.checkDumpPermission(mContext, IMMS_TAG, pw)) {
+            Slogf.w(IMMS_TAG, "Permission denied for #dump");
+            return;
+        }
+
+        // Check if --user is set. If set, then just dump the user's IMMS.
+        if (args != null && args.length > 0) {
+            if ("--user".equals(args[0])) {
+                if (args.length == 1) {
+                    throw new IllegalArgumentException("User id must be passed within --user arg");
+                }
+                int userId = Integer.parseInt(args[1]);
+                mServicesForUser.get(userId).dump(fd, pw, args);
+                return;
+            } else {
+                throw new IllegalArgumentException("Unrecognized args " + Arrays.toString(args));
+            }
+        }
+
+        pw.println("*InputMethodManagerServiceProxy");
+        synchronized (mLock) {
+            pw.println("**mServicesForUser**");
+            for (int i = 0; i < mServicesForUser.size(); i++) {
+                int userId = mServicesForUser.keyAt(i);
+                CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
+                pw.println(" userId=" + userId + " imms=" + imms.hashCode());
+            }
+            pw.println("**mLocalServicesForUser**");
+            for (int i = 0; i < mLocalServicesForUser.size(); i++) {
+                int userId = mLocalServicesForUser.keyAt(i);
+                InputMethodManagerInternal immi = mLocalServicesForUser.valueAt(i);
+                pw.println(" userId=" + userId + " immi=" + immi.hashCode());
+            }
+        }
+        pw.flush();
+    }
+
+    // Delegate methods  ///////////////////////////////////////////////////////////////////////////
 
     @Override
     public void addClient(IInputMethodClient client, IRemoteInputConnection inputmethod,
