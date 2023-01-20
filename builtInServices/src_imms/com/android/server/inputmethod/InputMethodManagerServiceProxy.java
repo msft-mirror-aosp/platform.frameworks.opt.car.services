@@ -695,6 +695,17 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         return imms.getImeTrackerService();
     }
 
+    @Override
+    public InputMethodInfo getCurrentInputMethodInfoAsUser(@UserIdInt int userId) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking getCurrentInputMethodInfoAsUser with userId={%d}",
+                    callingUserId, userId);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        return imms.getCurrentInputMethodInfoAsUser(userId);
+    }
+
     class InputMethodManagerInternalProxy extends InputMethodManagerInternal {
         private final String mImmiTag =
                 IMMS_TAG + "." + InputMethodManagerInternalProxy.class.getSimpleName();
