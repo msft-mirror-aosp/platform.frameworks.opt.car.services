@@ -42,11 +42,14 @@ import android.view.inputmethod.InputMethod;
 import android.view.inputmethod.InputMethodInfo;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.inputmethod.IInputMethod;
 import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.UnbindReason;
 import com.android.server.EventLogTags;
 import com.android.server.wm.WindowManagerInternal;
+
+import java.util.concurrent.CountDownLatch;
 
 /**
  * A controller managing the state of the input method binding.
@@ -77,19 +80,26 @@ final class CarInputMethodBindingController {
     @GuardedBy("ImfLock.class") private boolean mVisibleBound;
     @GuardedBy("ImfLock.class") private boolean mSupportsStylusHw;
 
+    @Nullable private CountDownLatch mLatchForTesting;
+
     /**
      * Binding flags for establishing connection to the {@link InputMethodService}.
      */
-    private static final int IME_CONNECTION_BIND_FLAGS =
+    @VisibleForTesting
+    static final int IME_CONNECTION_BIND_FLAGS =
             Context.BIND_AUTO_CREATE
                     | Context.BIND_NOT_VISIBLE
                     | Context.BIND_NOT_FOREGROUND
                     | Context.BIND_IMPORTANT_BACKGROUND
                     | Context.BIND_SCHEDULE_LIKE_TOP_APP;
+
+    private final int mImeConnectionBindFlags;
+
     /**
      * Binding flags used only while the {@link InputMethodService} is showing window.
      */
-    private static final int IME_VISIBLE_BIND_FLAGS =
+    @VisibleForTesting
+    static final int IME_VISIBLE_BIND_FLAGS =
             Context.BIND_AUTO_CREATE
                     | Context.BIND_TREAT_LIKE_ACTIVITY
                     | Context.BIND_FOREGROUND_SERVICE
@@ -97,12 +107,19 @@ final class CarInputMethodBindingController {
                     | Context.BIND_SHOWING_UI;
 
     CarInputMethodBindingController(@NonNull CarInputMethodManagerService service) {
+        this(service, IME_CONNECTION_BIND_FLAGS, null /* latchForTesting */);
+    }
+
+    CarInputMethodBindingController(@NonNull CarInputMethodManagerService service,
+            int imeConnectionBindFlags, CountDownLatch latchForTesting) {
         mService = service;
         mContext = mService.mContext;
         mMethodMap = mService.mMethodMap;
         mSettings = mService.mSettings;
         mPackageManagerInternal = mService.mPackageManagerInternal;
         mWindowManagerInternal = mService.mWindowManagerInternal;
+        mImeConnectionBindFlags = imeConnectionBindFlags;
+        mLatchForTesting = latchForTesting;
     }
 
     /**
@@ -140,13 +157,13 @@ final class CarInputMethodBindingController {
     /**
      * Id obtained with {@link InputMethodInfo#getId()} for the currently selected input method.
      * This is to be synchronized with the secure settings keyed with
-     * {@link Settings.Secure#DEFAULT_INPUT_METHOD}.
+     * {@link android.provider.Settings.Secure#DEFAULT_INPUT_METHOD}.
      *
      * <p>This can be transiently {@code null} when the system is re-initializing input method
      * settings, e.g., the system locale is just changed.</p>
      *
      * <p>Note that {@link #getCurId()} is used to track which IME is being connected to
-     * {@link CarInputMethodManagerService}.</p>
+     * {@link com.android.server.inputmethod.CarInputMethodManagerService}.</p>
      *
      * @see #getCurId()
      */
@@ -242,7 +259,7 @@ final class CarInputMethodBindingController {
         @Override public void onBindingDied(ComponentName name) {
             synchronized (ImfLock.class) {
                 mService.invalidateAutofillSessionLocked();
-                if (mVisibleBound) {
+                if (isVisibleBound()) {
                     unbindVisibleConnection();
                 }
             }
@@ -291,6 +308,10 @@ final class CarInputMethodBindingController {
                 mService.scheduleResetStylusHandwriting();
             }
             Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
+
+            if (mLatchForTesting != null) {
+                mLatchForTesting.countDown(); // Notify the finish to tests
+            }
         }
 
         @GuardedBy("ImfLock.class")
@@ -329,7 +350,7 @@ final class CarInputMethodBindingController {
                     // should now try to restart the service for us.
                     mLastBindTime = SystemClock.uptimeMillis();
                     clearCurMethodAndSessions();
-                    mService.clearInputShowRequestLocked();
+                    mService.clearInputShownLocked();
                     mService.unbindCurrentClientLocked(UnbindReason.DISCONNECT_IME);
                 }
             }
@@ -338,15 +359,15 @@ final class CarInputMethodBindingController {
 
     @GuardedBy("ImfLock.class")
     void unbindCurrentMethod() {
-        if (mVisibleBound) {
+        if (isVisibleBound()) {
             unbindVisibleConnection();
         }
 
-        if (mHasConnection) {
+        if (hasConnection()) {
             unbindMainConnection();
         }
 
-        if (mCurToken != null) {
+        if (getCurToken() != null) {
             removeCurrentToken();
             mService.resetSystemUiLocked();
         }
@@ -458,7 +479,7 @@ final class CarInputMethodBindingController {
 
     @GuardedBy("ImfLock.class")
     private boolean bindCurrentInputMethodServiceMainConnection() {
-        mHasConnection = bindCurrentInputMethodService(mMainConnection, IME_CONNECTION_BIND_FLAGS);
+        mHasConnection = bindCurrentInputMethodService(mMainConnection, mImeConnectionBindFlags);
         return mHasConnection;
     }
 
@@ -472,7 +493,7 @@ final class CarInputMethodBindingController {
     void setCurrentMethodVisible() {
         if (mCurMethod != null) {
             if (DEBUG) Slog.d(TAG, "setCurrentMethodVisible: mCurToken=" + mCurToken);
-            if (mHasConnection && !mVisibleBound) {
+            if (hasConnection() && !isVisibleBound()) {
                 mVisibleBound = bindCurrentInputMethodService(mVisibleConnection,
                         IME_VISIBLE_BIND_FLAGS);
             }
@@ -480,7 +501,7 @@ final class CarInputMethodBindingController {
         }
 
         // No IME is currently connected. Reestablish the main connection.
-        if (!mHasConnection) {
+        if (!hasConnection()) {
             if (DEBUG) {
                 Slog.d(TAG, "Cannot show input: no IME bound. Rebinding.");
             }
@@ -512,7 +533,7 @@ final class CarInputMethodBindingController {
      */
     @GuardedBy("ImfLock.class")
     void setCurrentMethodNotVisible() {
-        if (mVisibleBound) {
+        if (isVisibleBound()) {
             unbindVisibleConnection();
         }
     }
