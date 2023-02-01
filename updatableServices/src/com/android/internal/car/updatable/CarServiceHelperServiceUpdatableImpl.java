@@ -15,9 +15,13 @@
  */
 package com.android.internal.car.updatable;
 
+import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
+
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
@@ -41,14 +45,15 @@ import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.annotations.Keep;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
-import java.io.File;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 
+import java.io.File;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.concurrent.Executor;
@@ -57,6 +62,7 @@ import java.util.function.BiConsumer;
 /**
  * Implementation of the abstract class CarServiceHelperUpdatable
  */
+@Keep
 public final class CarServiceHelperServiceUpdatableImpl
         implements CarServiceHelperServiceUpdatable, Executor {
 
@@ -85,7 +91,8 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final HandlerThread mHandlerThread = new HandlerThread(
             CarServiceHelperServiceUpdatableImpl.class.getSimpleName());
 
-    private final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
+    @VisibleForTesting
+    final ICarServiceHelperImpl mHelper = new ICarServiceHelperImpl();
 
     private final CarServiceConnectedCallback mCarServiceConnectedCallback =
             new CarServiceConnectedCallback();
@@ -274,7 +281,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.dump(new IndentingPrintWriter(writer));
     }
 
-    private final class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
+    @VisibleForTesting
+    final class ICarServiceHelperImpl extends ICarServiceHelper.Stub {
 
         @Override
         public void setDisplayAllowlistForUser(int userId, int[] displayIds) {
@@ -312,6 +320,49 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void sendInitialUser(UserHandle user) {
             mCarServiceProxy.saveInitialUser(user);
+        }
+
+        @Override
+        public void setProcessGroup(int pid, int group) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            mCarServiceHelperInterface.setProcessGroup(pid, group);
+        }
+
+        @Override
+        public int getProcessGroup(int pid) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            return mCarServiceHelperInterface.getProcessGroup(pid);
+        }
+
+        @Override
+        public int getDisplayAssignedToUser(int userId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
+        }
+
+        @Override
+        public int getUserAssignedToDisplay(int displayId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+        }
+
+        @Override
+        public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(userId,
+                    displayId);
+        }
+
+        @Override
+        public void setProcessProfile(int pid, int uid, @NonNull String profile) {
+            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
+
+            mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
         }
     }
 

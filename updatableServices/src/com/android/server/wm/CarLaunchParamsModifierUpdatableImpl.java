@@ -272,11 +272,11 @@ public final class CarLaunchParamsModifierUpdatableImpl
         TaskDisplayAreaWrapper originalDisplayArea = currentParams.getPreferredTaskDisplayArea();
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayAreaWrapper targetDisplayArea = null;
-        if (DBG) {
-            Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s ActivityOptions:%s",
-                    userId, originalDisplayArea, options);
-        }
         ComponentName activityName = activity.getComponentName();
+        if (DBG) {
+            Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s actvity:%s options:%s",
+                    userId, originalDisplayArea, activityName, options);
+        }
         decision:
         synchronized (mLock) {
             // If originalDisplayArea is set, respect that before ActivityOptions check.
@@ -350,8 +350,12 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
         if (targetDisplayArea != null && originalDisplayArea != targetDisplayArea) {
             Slogf.i(TAG, "Changed launching display, user:%d requested display area:%s"
-                    + " target display area:", userId, originalDisplayArea, targetDisplayArea);
+                    + " target display area:%s", userId, originalDisplayArea, targetDisplayArea);
             outParams.setPreferredTaskDisplayArea(targetDisplayArea);
+            if (options != null && options.getLaunchWindowingMode()
+                    != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
+                outParams.setWindowingMode(options.getLaunchWindowingMode());
+            }
             return LaunchParamsWrapper.RESULT_DONE;
         } else {
             return LaunchParamsWrapper.RESULT_SKIP;

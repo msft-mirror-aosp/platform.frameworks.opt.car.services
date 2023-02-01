@@ -50,8 +50,6 @@ import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.res.Configuration;
 import android.hardware.display.DisplayManager;
-import android.os.Parcel;
-import android.os.Parcelable;
 import android.os.ServiceSpecificException;
 import android.os.UserHandle;
 import android.view.Display;
@@ -84,6 +82,8 @@ import java.util.function.Function;
  */
 @RunWith(AndroidJUnit4.class)
 public class CarLaunchParamsModifierUpdatableTest {
+    // TODO(b/262267582): Use these constants directly in the tests and remove the corresponding
+    // mock variables.
     private static final int PASSENGER_DISPLAY_ID_10 = 10;
     private static final int PASSENGER_DISPLAY_ID_11 = 11;
     private static final int VIRTUAL_DISPLAY_ID_2 = 2;
@@ -199,10 +199,10 @@ public class CarLaunchParamsModifierUpdatableTest {
         when(mActivityTaskManagerService.getGlobalLock()).thenReturn(mWindowManagerGlobalLock);
 
         mWindowManagerService = WindowManagerService.main(
-                mContext, mInputManagerService, /* showBootMsgs= */ false, /* onlyCore= */ false,
-                /* policy= */ null, mActivityTaskManagerService,
+                mContext, mInputManagerService, /* showBootMsgs= */ false, /* policy= */ null,
+                mActivityTaskManagerService,
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
-                /* surfaceFactory= */ null, /* surfaceControlFactory= */ null);
+                /* surfaceControlFactory= */ null);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
         mRootWindowContainer.mWindowManager = mWindowManagerService;
 
@@ -250,8 +250,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         mCurrentParams.mPreferredTaskDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
                 display.getDisplayId()).getTaskDisplayArea();
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
-                mOutParams))
+                mActivityRecordSource, mActivityOptions, /* request= */ null , /* phase= */ 0,
+                mCurrentParams, mOutParams))
                 .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
     }
 
@@ -265,8 +265,8 @@ public class CarLaunchParamsModifierUpdatableTest {
                 displayAssigned.getDisplayId()).getTaskDisplayArea();
         mCurrentParams.mPreferredTaskDisplayArea = requestedTaskDisplayArea;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
-                mOutParams))
+                mActivityRecordSource, mActivityOptions, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams))
                 .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(assignedTaskDisplayArea);
     }
@@ -278,8 +278,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         }
         mCurrentParams.mPreferredTaskDisplayArea = null;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
-                mOutParams))
+                mActivityRecordSource, mActivityOptions, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams))
                 .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(expectedDisplayArea);
     }
@@ -288,8 +288,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         mTask.mUserId = userId;
         mCurrentParams.mPreferredTaskDisplayArea = null;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, mActivityOptions, null /* request */, 0, mCurrentParams,
-                mOutParams))
+                mActivityRecordSource, mActivityOptions, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams))
                 .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_SKIP);
         assertThat(mOutParams.mPreferredTaskDisplayArea).isNull();
     }
@@ -615,7 +615,7 @@ public class CarLaunchParamsModifierUpdatableTest {
 
     @Test
     public void testSourceDisplayFromProcessDisplayIfAvailable() {
-        int userId = 10;
+        int userId = 108;
         String processName = "processName";
         int processUid = 11;
         when(mActivityRecordActivity.getProcessName())
@@ -635,15 +635,15 @@ public class CarLaunchParamsModifierUpdatableTest {
         mTask.mUserId = userId;
 
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, null, null /* request */, 0, mCurrentParams, mOutParams))
-                .isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
+                mActivityRecordSource, /* options= */ null, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams)).isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea)
                 .isEqualTo(mDisplayArea10ForPassenger);
     }
 
     @Test
     public void testSourceDisplayFromLaunchingDisplayIfAvailable() {
-        int userId = 10;
+        int userId = 108;
         int launchedFromPid = 1324;
         int launchedFromUid = 325;
         when(mActivityRecordActivity.getLaunchedFromPid())
@@ -663,15 +663,15 @@ public class CarLaunchParamsModifierUpdatableTest {
         mTask.mUserId = 10;
 
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, null, null /* request */, 0, mCurrentParams, mOutParams))
-                .isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
+                mActivityRecordSource, /* options= */ null, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams)).isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea)
                 .isEqualTo(mDisplayArea10ForPassenger);
     }
 
     @Test
     public void testSourceDisplayFromCallingDisplayIfAvailable() {
-        int userId = 10;
+        int userId = 108;
         ActivityStarter.Request request = fakeRequest();
         mUpdatable.setPassengerDisplays(new int[]{mDisplay11ForPassenger.getDisplayId(),
                 mDisplay10ForPassenger.getDisplayId()});
@@ -687,8 +687,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         mTask.mUserId = userId;
 
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, null, request, 0, mCurrentParams, mOutParams))
-                .isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
+                mActivityRecordSource, /* options= */ null, request, /* phase= */ 0, mCurrentParams,
+                mOutParams)).isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea)
                 .isEqualTo(mDisplayArea10ForPassenger);
     }
@@ -709,7 +709,8 @@ public class CarLaunchParamsModifierUpdatableTest {
         mTask.mUserId = 10;
 
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
-                mActivityRecordSource, null, request, 0, mCurrentParams, mOutParams))
+                mActivityRecordSource, /* options= */ null, request, /* phase= */ 0, mCurrentParams,
+                mOutParams))
                 .isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
         assertThat(mOutParams.mPreferredTaskDisplayArea)
                 .isEqualTo(mDisplayArea11ForPassenger);
@@ -771,6 +772,32 @@ public class CarLaunchParamsModifierUpdatableTest {
                 () -> mUpdatable.setPersistentActivity(mapActivity, DEFAULT_DISPLAY,
                         DisplayAreaOrganizer.FEATURE_UNDEFINED));
     }
+
+    @Test
+    public void testWindowingMode_forPassengerActivityOptions_updatedInParams() {
+        int userId = 108;
+        int launchedFromPid = 1324;
+        int launchedFromUid = 325;
+        when(mActivityOptions.getLaunchWindowingMode()).thenReturn(6);
+        when(mActivityRecordActivity.getLaunchedFromPid()).thenReturn(launchedFromPid);
+        when(mActivityRecordActivity.getLaunchedFromUid()).thenReturn(launchedFromUid);
+        mUpdatable.setPassengerDisplays(new int[]{PASSENGER_DISPLAY_ID_11,
+                PASSENGER_DISPLAY_ID_10});
+        mUpdatable.setDisplayAllowListForUser(userId, new int[]{PASSENGER_DISPLAY_ID_10});
+        WindowProcessController controller = mock(WindowProcessController.class);
+        when(mActivityTaskManagerService.getProcessController(launchedFromPid, launchedFromUid))
+                .thenReturn(controller);
+        when(controller.getTopActivityDisplayArea()).thenReturn(mDisplayArea10ForPassenger);
+        mCurrentParams.mPreferredTaskDisplayArea = null;
+        mTask.mUserId = 108;
+
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
+                mActivityRecordSource, /* options= */ null, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams)).isEqualTo(TaskLaunchParamsModifier.RESULT_DONE);
+        assertThat(mOutParams.mPreferredTaskDisplayArea).isEqualTo(mDisplayArea10ForPassenger);
+        assertThat(mOutParams.mWindowingMode).isEqualTo(6);
+    }
+
 
     private static ActivityStarter.Request fakeRequest() {
         ActivityStarter.Request request = new ActivityStarter.Request();

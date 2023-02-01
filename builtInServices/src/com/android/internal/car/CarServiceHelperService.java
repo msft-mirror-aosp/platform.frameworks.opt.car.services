@@ -15,6 +15,8 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -22,10 +24,13 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.UserIdInt;
+import android.app.ActivityManager;
 import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
@@ -51,10 +56,10 @@ import android.system.OsConstants;
 import android.util.Dumpable;
 import android.util.TimeUtils;
 
-import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
+import com.android.internal.car.os.Util;
 import com.android.internal.os.IResultReceiver;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
@@ -62,6 +67,7 @@ import com.android.server.Watchdog;
 import com.android.server.am.ActivityManagerService;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
+import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.CarLaunchParamsModifier;
@@ -81,6 +87,7 @@ import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.regex.Matcher;
@@ -118,6 +125,11 @@ public class CarServiceHelperService extends SystemService
     private static final String PROC_PID_STAT_PATTERN =
             "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
+
+    static  {
+        // Load this JNI before other classes are loaded.
+        System.loadLibrary("carservicehelperjni");
+    }
 
     private final Context mContext;
     private final Object mLock = new Object();
@@ -205,11 +217,28 @@ public class CarServiceHelperService extends SystemService
                 @Override
                 public void onUserCreated(UserInfo user, Object token) {
                     if (DBG) Slogf.d(TAG, "onUserCreated(): %s", user.toFullString());
+                    mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
+                            USER_LIFECYCLE_EVENT_TYPE_CREATED, /* userFrom= */ null,
+                            user.getUserHandle());
                 }
+
                 @Override
                 public void onUserRemoved(UserInfo user) {
                     if (DBG) Slogf.d(TAG, "onUserRemoved(): $s", user.toFullString());
                     mCarServiceHelperServiceUpdatable.onUserRemoved(user.getUserHandle());
+                }
+            });
+            umi.addUserVisibilityListener(new UserVisibilityListener() {
+                @Override
+                public void onUserVisibilityChanged(@UserIdInt int userId, boolean visible) {
+                    if (DBG) {
+                        Slogf.d(TAG, "onUserVisibilityChanged(%d, %b)", userId, visible);
+                    }
+                    int eventType = visible
+                            ? USER_LIFECYCLE_EVENT_TYPE_VISIBLE
+                            : USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
+                    mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(eventType,
+                            /* userFrom= */ null, UserHandle.of(userId));
                 }
             });
         } else {
@@ -302,7 +331,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserUnlocking(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKING)) return;
         EventLogHelper.writeCarHelperUserUnlocking(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserUnlocking(%s)", user);
 
@@ -313,7 +341,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserUnlocked(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_UNLOCKED)) return;
         int userId = user.getUserIdentifier();
         EventLogHelper.writeCarHelperUserUnlocked(userId);
         if (DBG) Slogf.d(TAG, "onUserUnlocked(%s)", user);
@@ -330,7 +357,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStarting(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STARTING)) return;
         EventLogHelper.writeCarHelperUserStarting(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStarting(%s)", user);
 
@@ -342,7 +368,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStopping(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPING)) return;
         EventLogHelper.writeCarHelperUserStopping(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopping(%s)", user);
 
@@ -354,7 +379,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserStopped(@NonNull TargetUser user) {
-        if (isPreCreated(user, USER_LIFECYCLE_EVENT_TYPE_STOPPED)) return;
         EventLogHelper.writeCarHelperUserStopped(user.getUserIdentifier());
         if (DBG) Slogf.d(TAG, "onUserStopped(%s)", user);
 
@@ -364,7 +388,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
-        if (isPreCreated(to, USER_LIFECYCLE_EVENT_TYPE_SWITCHING)) return;
         EventLogHelper.writeCarHelperUserSwitching(
                 from == null ? UserHandle.USER_NULL : from.getUserIdentifier(),
                 to.getUserIdentifier());
@@ -379,14 +402,6 @@ public class CarServiceHelperService extends SystemService
 
     @Override
     public void onUserCompletedEvent(TargetUser user, UserCompletedEventType eventType) {
-        if (user.isPreCreated()) {
-            if (DBG) {
-                Slogf.d(TAG, "Ignoring USER_COMPLETED event %s for pre-created user %s",
-                        eventType, user);
-            }
-            return;
-        }
-
         UserHandle handle = user.getUserHandle();
         if (eventType.includesOnUserUnlocked()) {
             mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(
@@ -422,13 +437,13 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private boolean isPreCreated(@NonNull TargetUser user, @UserLifecycleEventType int eventType) {
-        if (!user.isPreCreated()) return false;
-
-        if (DBG) {
-            Slogf.d(TAG, "Ignoring event of type %d for pre-created user %s", eventType, user);
+    @Override
+    public boolean isUserSupported(TargetUser user) {
+        boolean isPreCreated = user.isPreCreated();
+        if (isPreCreated && DBG) {
+            Slogf.d(TAG, "Not supporting Pre-created user %s", user);
         }
-        return true;
+        return !isPreCreated;
     }
 
     private TimingsTraceAndSlog newTimingsTraceAndSlog() {
@@ -495,8 +510,33 @@ public class CarServiceHelperService extends SystemService
         ArrayList<Integer> pids = new ArrayList<>();
         pids.add(Process.myPid());
 
+        // Use the long version used by Watchdog since the short version is removed by the compiler.
         return ActivityManagerService.dumpStackTraces(
-                pids, null, null, getInterestingNativePids(), null);
+                pids, /* processCpuTracker= */ null, /* lastPids= */ null,
+                CompletableFuture.completedFuture(getInterestingNativePids()),
+                /* logExceptionCreatingFile= */ null, /* subject= */ null,
+                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
+    }
+
+    @Override
+    public void setProcessGroup(int pid, int group) {
+        Process.setProcessGroup(pid, group);
+    }
+
+    @Override
+    public int getProcessGroup(int pid) {
+        return Process.getProcessGroup(pid);
+    }
+
+    @Override
+    public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
+        ActivityManager am = mContext.getSystemService(ActivityManager.class);
+        return am.startUserInBackgroundVisibleOnDisplay(userId, displayId);
+    }
+
+    @Override
+    public void setProcessProfile(int pid, int uid, @NonNull String profile) {
+        Util.setProcessProfile(pid, uid, profile);
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
@@ -592,6 +632,26 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
+    @Override
+    public int getDisplayAssignedToUser(int userId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        int displayId = umi.getDisplayAssignedToUser(userId);
+        if (DBG) {
+            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+        }
+        return displayId;
+    }
+
+    @Override
+    public int getUserAssignedToDisplay(int displayId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        int userId = umi.getUserAssignedToDisplay(displayId);
+        if (DBG) {
+            Slogf.d(TAG, "getUserAssignedToDisplay(%d): %d", displayId, userId);
+        }
+        return userId;
+    }
+
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
         private final WeakReference<CarServiceHelperService> mService;
 
@@ -679,7 +739,11 @@ public class CarServiceHelperService extends SystemService
             }
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
-            ActivityManagerService.dumpStackTraces(javaPids, null, null, nativePids, null);
+            ActivityManagerService.dumpStackTraces(
+                    /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
+                    /* nativePids= */ CompletableFuture.completedFuture(nativePids),
+                    /* logExceptionCreatingFile= */ null,
+                    /* auxiliaryTaskExecutor= */ Runnable::run, /* latencyTracker= */ null);
             long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
             if (DBG) {
                 Slogf.d(TAG, "Dumping process took %dms", dumpTime);

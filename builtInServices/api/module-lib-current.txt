@@ -4,7 +4,13 @@ package com.android.internal.car {
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
+    method public int getDisplayAssignedToUser(int);
+    method public int getProcessGroup(int);
+    method public int getUserAssignedToDisplay(int);
+    method public void setProcessGroup(int, int);
+    method public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
+    method public boolean startUserInBackgroundVisibleOnDisplay(int, int);
   }
 
   public interface CarServiceHelperServiceUpdatable {
@@ -23,7 +29,9 @@ package com.android.server.wm {
 
   public final class ActivityOptionsWrapper {
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
+    method public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
+    field public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
   }
 
   public final class ActivityRecordWrapper {

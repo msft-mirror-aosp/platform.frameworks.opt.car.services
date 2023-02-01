@@ -22,17 +22,16 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
-import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mock;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
+import static com.android.server.SystemService.UserCompletedEventType.newUserCompletedEventTypeForTest;
 
-import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.Mockito.never;
-import static org.mockito.Mockito.spy;
+import static com.google.common.truth.Truth.assertWithMessage;
 
 import android.annotation.UserIdInt;
+import android.app.ActivityManager;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
@@ -40,12 +39,14 @@ import android.content.pm.PackageManager;
 import android.os.IBinder;
 import android.os.ServiceManager;
 import android.os.UserHandle;
-import android.os.SystemProperties.Handle;
+
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
+import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.SystemService.UserCompletedEventType;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -77,6 +78,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Mock
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
+    @Mock
+    private UserManagerInternal mUserManagerInternal;
+
+    @Mock
+    private ActivityManager mActivityManager;
+
     public CarServiceHelperServiceTest() {
         super(CarServiceHelperService.TAG);
     }
@@ -86,7 +93,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
      */
     @Override
     protected void onSessionBuilder(CustomMockitoSessionBuilder session) {
-        session.spyStatic(ServiceManager.class);
+        session
+                .spyStatic(ServiceManager.class)
+                .spyStatic(LocalServices.class);
     }
 
     @Before
@@ -98,6 +107,23 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarServiceHelperServiceUpdatable,
                 mCarDevicePolicySafetyChecker);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mMockContext.getSystemService(ActivityManager.class)).thenReturn(mActivityManager);
+
+        doReturn(mUserManagerInternal)
+                .when(() -> LocalServices.getService(UserManagerInternal.class));
+    }
+
+    @Test
+    public void testIsUserSupported_preCreatedUserIsNotSupported() throws Exception {
+        expectWithMessage("isUserSupported")
+            .that(mHelper.isUserSupported(newTargetUser(10, /* preCreated= */ true)))
+            .isFalse();
+    }
+
+    @Test
+    public void testIsUserSupported_nonPreCreatedUserIsSupported() throws Exception {
+        expectWithMessage("isUserSupported").that(mHelper.isUserSupported(newTargetUser(11)))
+            .isTrue();
     }
 
     @Test
@@ -107,13 +133,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         mHelper.onUserStarting(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING, userId);
-    }
-
-    @Test
-    public void testOnUserStarting_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStarting(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -129,26 +148,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserSwitching_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserSwitching(newTargetUser(10), newTargetUser(11, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
-    }
-
-    @Test
     public void testOnUserUnlocking_notifiesICar() throws Exception {
         int userId = 10;
 
         mHelper.onUserUnlocking(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKING, userId);
-    }
-
-    @Test
-    public void testOnUserUnlocking_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserUnlocking(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -161,26 +166,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserStopping_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStopping(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
-    }
-
-    @Test
     public void testOnUserStopped_notifiesICar() throws Exception {
         int userId = 10;
 
         mHelper.onUserStopped(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED, userId);
-    }
-
-    @Test
-    public void testOnUserStopped_preCreatedDoesntNotifyICar() throws Exception {
-        mHelper.onUserStopped(newTargetUser(10, /* preCreated= */ true));
-
-        verifyICarOnUserLifecycleEventNeverCalled();
     }
 
     @Test
@@ -201,16 +192,29 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnUserCompletedEvent_preCreatedUserDoesNotNotifyICar() throws Exception {
-        UserCompletedEventType userCompletedEventType = newUserCompletedEventTypeForTest(
-                UserCompletedEventType.EVENT_TYPE_USER_STARTING
-                | UserCompletedEventType.EVENT_TYPE_USER_SWITCHING
-                | UserCompletedEventType.EVENT_TYPE_USER_UNLOCKED);
+    public void testGetDisplayAssignedToUser() throws Exception {
+        when(mUserManagerInternal.getDisplayAssignedToUser(42)).thenReturn(108);
 
-        mHelper.onUserCompletedEvent(newTargetUser(10, /* preCreated= */true),
-                userCompletedEventType);
+        assertWithMessage("getDisplayAssignedToUser(42)").that(mHelper.getDisplayAssignedToUser(42))
+                .isEqualTo(108);
+    }
 
-        verifyICarOnUserLifecycleEventNeverCalled();
+    @Test
+    public void testGetUserAssignedToDisplay() throws Exception {
+        when(mUserManagerInternal.getUserAssignedToDisplay(108)).thenReturn(42);
+
+        assertWithMessage("getUserAssignedToDisplay(108)")
+                .that(mHelper.getUserAssignedToDisplay(108)).isEqualTo(42);
+    }
+
+    @Test
+    public void testStartUserInBackgroundVisibleOnDisplay() throws Exception {
+        int userId = 100;
+        int displayId = 2;
+
+        mHelper.startUserInBackgroundVisibleOnDisplay(userId, displayId);
+
+        verify(mActivityManager).startUserInBackgroundVisibleOnDisplay(userId, displayId);
     }
 
     private TargetUser newTargetUser(int userId) {
@@ -247,11 +251,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
             @UserIdInt int userId) throws Exception {
         verify(mCarServiceHelperServiceUpdatable).sendUserLifecycleEvent(eventType,
                 null, UserHandle.of(userId));
-    }
-
-    private void verifyICarOnUserLifecycleEventNeverCalled() throws Exception {
-        verify(mCarServiceHelperServiceUpdatable, never()).sendUserLifecycleEvent(anyInt(), any(),
-                any());
     }
 
     private void verifyInitBootUser() throws Exception {
