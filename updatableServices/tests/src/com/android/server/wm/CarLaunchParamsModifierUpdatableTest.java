@@ -57,6 +57,7 @@ import android.view.SurfaceControl;
 import android.window.DisplayAreaOrganizer;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.filters.FlakyTest;
 
 import com.android.internal.policy.AttributeCache;
 import com.android.server.LocalServices;
@@ -80,6 +81,7 @@ import java.util.function.Function;
  * Build/Install/Run:
  *  atest FrameworkOptCarServicesUpdatableTest:CarLaunchParamsModifierUpdatableTest
  */
+@FlakyTest(detail = "b/268250058")
 @RunWith(AndroidJUnit4.class)
 public class CarLaunchParamsModifierUpdatableTest {
     // TODO(b/262267582): Use these constants directly in the tests and remove the corresponding
