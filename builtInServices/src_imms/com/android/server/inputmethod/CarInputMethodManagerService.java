@@ -292,7 +292,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     // begin CarInputMethodManagerService
     private final CarInputMethodMenuController mMenuController;
     @NonNull private final CarInputMethodBindingController mBindingController;
-    @NonNull private final CarAutofillSuggestionsController mAutofillController;
+    @NonNull private final AutofillController mAutofillController;
     // end CarInputMethodManagerService
 
     @GuardedBy("ImfLock.class")
@@ -1702,7 +1702,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 bindingControllerForTesting != null
                         ? bindingControllerForTesting
                         : new CarInputMethodBindingController(this);
-        mAutofillController = new CarAutofillSuggestionsController(this);
+
+        // CarInputMethodManagerService
+        mAutofillController = userId == UserHandle.USER_SYSTEM
+                ? new NullAutofillSuggestionsController() :
+                new CarAutofillSuggestionsController(this);
 
         mVisibilityStateComputer = new CarImeVisibilityStateComputer(this);
         mVisibilityApplier = new CarDefaultImeVisibilityApplier(this);
@@ -1720,6 +1724,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     // CarInputMethodManagerService
     InputMethodManagerInternal getInputMethodManagerInternal() {
         return mImmi;
+    }
+
+    // CarInputMethodManagerService
+    AutofillController getAutofillController() {
+        return mAutofillController;
     }
 
     private final class InkWindowInitializer implements Runnable {
