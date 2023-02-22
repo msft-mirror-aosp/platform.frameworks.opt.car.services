@@ -18,4 +18,4 @@
     <test class="com.android.compatibility.common.tradefed.testtype.JarHostTest" >
         <option name="jar" value="CarServiceCrashDumpTest.jar" />
     </test>
-</configuration
+</configuration>
