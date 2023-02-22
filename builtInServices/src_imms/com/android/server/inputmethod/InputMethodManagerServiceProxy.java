@@ -347,7 +347,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             for (int i = 0; i < mServicesForUser.size(); i++) {
                 int userId = mServicesForUser.keyAt(i);
                 CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
-                pw.println(" userId=" + userId + " imms=" + imms.hashCode());
+                pw.println(" userId=" + userId + " imms=" + imms.hashCode() + " {autofill="
+                        + imms.getAutofillController() + "}");
             }
             pw.println("**mLocalServicesForUser**");
             for (int i = 0; i < mLocalServicesForUser.size(); i++) {
