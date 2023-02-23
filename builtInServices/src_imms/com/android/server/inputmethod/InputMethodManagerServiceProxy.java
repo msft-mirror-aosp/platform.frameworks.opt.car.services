@@ -653,6 +653,38 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     }
 
     @Override
+    public void prepareStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking prepareStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        imms.prepareStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
+    }
+
+    @Override
+    public boolean acceptStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking acceptStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        return imms.acceptStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
+    }
+
+    @Override
     public boolean isStylusHandwritingAvailableAsUser(int userId) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
