@@ -75,7 +75,7 @@ import java.util.List;
 public final class InputMethodManagerServiceProxy extends IInputMethodManager.Stub {
 
     private static final String IMMS_TAG = InputMethodManagerServiceProxy.class.getSimpleName();
-    private static final boolean DBG = Slogf.isLoggable(IMMS_TAG, Log.DEBUG);
+    private static final boolean DBG = Log.isLoggable(IMMS_TAG, Log.DEBUG);
 
     // System property used to disable IMMS proxy.
     // When set to true, Android Core's original IMMS will be launched instead.
