@@ -202,7 +202,7 @@ public class CarLaunchParamsModifierUpdatableTest {
                 mContext, mInputManagerService, /* showBootMsgs= */ false, /* onlyCore= */ false,
                 /* policy= */ null, mActivityTaskManagerService,
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
-                /* surfaceFactory= */ null, /* surfaceControlFactory= */ null);
+                /* surfaceControlFactory= */ null);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
         mRootWindowContainer.mWindowManager = mWindowManagerService;
 
