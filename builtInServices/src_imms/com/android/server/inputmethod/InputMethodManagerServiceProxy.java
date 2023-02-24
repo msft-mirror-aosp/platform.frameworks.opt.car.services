@@ -75,7 +75,7 @@ import java.util.List;
 public final class InputMethodManagerServiceProxy extends IInputMethodManager.Stub {
 
     private static final String IMMS_TAG = InputMethodManagerServiceProxy.class.getSimpleName();
-    private static final boolean DBG = Slogf.isLoggable(IMMS_TAG, Log.DEBUG);
+    private static final boolean DBG = Log.isLoggable(IMMS_TAG, Log.DEBUG);
 
     // System property used to disable IMMS proxy.
     // When set to true, Android Core's original IMMS will be launched instead.
@@ -347,7 +347,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             for (int i = 0; i < mServicesForUser.size(); i++) {
                 int userId = mServicesForUser.keyAt(i);
                 CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
-                pw.println(" userId=" + userId + " imms=" + imms.hashCode());
+                pw.println(" userId=" + userId + " imms=" + imms.hashCode() + " {autofill="
+                        + imms.getAutofillController() + "}");
             }
             pw.println("**mLocalServicesForUser**");
             for (int i = 0; i < mLocalServicesForUser.size(); i++) {

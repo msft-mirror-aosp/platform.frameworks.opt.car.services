@@ -35,7 +35,7 @@ import com.android.internal.inputmethod.InlineSuggestionsRequestInfo;
 /**
  * A controller managing autofill suggestion requests.
  */
-final class CarAutofillSuggestionsController {
+final class CarAutofillSuggestionsController implements AutofillController {
     private static final boolean DEBUG = false;
     private static final String TAG = CarAutofillSuggestionsController.class.getSimpleName();
 
@@ -83,7 +83,8 @@ final class CarAutofillSuggestionsController {
     }
 
     @GuardedBy("ImfLock.class")
-    void onCreateInlineSuggestionsRequest(@UserIdInt int userId,
+    @Override
+    public void onCreateInlineSuggestionsRequest(@UserIdInt int userId,
             InlineSuggestionsRequestInfo requestInfo, IInlineSuggestionsRequestCallback callback,
             boolean touchExplorationEnabled) {
         clearPendingInlineSuggestionsRequest();
@@ -114,7 +115,7 @@ final class CarAutofillSuggestionsController {
     }
 
     @GuardedBy("ImfLock.class")
-    void performOnCreateInlineSuggestionsRequest() {
+    public void performOnCreateInlineSuggestionsRequest() {
         if (mPendingInlineSuggestionsRequest == null) {
             return;
         }
@@ -151,7 +152,7 @@ final class CarAutofillSuggestionsController {
     }
 
     @GuardedBy("ImfLock.class")
-    void invalidateAutofillSession() {
+    public void invalidateAutofillSession() {
         if (mInlineSuggestionsRequestCallback != null) {
             try {
                 mInlineSuggestionsRequestCallback.onInlineSuggestionsSessionInvalidated();
