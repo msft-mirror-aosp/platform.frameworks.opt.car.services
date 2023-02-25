@@ -44,6 +44,7 @@ import android.window.ImeOnBackInvokedDispatcher;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.inputmethod.IAccessibilityInputMethodSession;
+import com.android.internal.inputmethod.IImeTracker;
 import com.android.internal.inputmethod.IInlineSuggestionsRequestCallback;
 import com.android.internal.inputmethod.IInputMethodClient;
 import com.android.internal.inputmethod.IRemoteAccessibilityInputConnection;
@@ -53,7 +54,6 @@ import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.util.DumpUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
-import com.android.internal.view.IImeTracker;
 import com.android.internal.view.IInputMethodManager;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
@@ -650,6 +650,38 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
         imms.startStylusHandwriting(client);
+    }
+
+    @Override
+    public void prepareStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking prepareStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        imms.prepareStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
+    }
+
+    @Override
+    public boolean acceptStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking acceptStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        return imms.acceptStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
     }
 
     @Override
