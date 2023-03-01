@@ -15,7 +15,7 @@ java_sdk_library {
     ],
     static_libs: [
         "android.car.watchdoglib",
-        "android.automotive.watchdog.internal-V2-java",
+        "android.automotive.watchdog.internal-V3-java",
         "mu_imms-prebuilt",
     ],
     api_lint: {
