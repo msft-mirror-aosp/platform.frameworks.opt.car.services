@@ -281,6 +281,7 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             CarInputMethodManagerService service = mServiceProxy.getServiceForUser(
                     user.getUserIdentifier());
             if (service != null) {
+                // Called on ActivityManager thread.
                 service.notifySystemUnlockUser(user.getUserIdentifier());
             }
         }
@@ -926,11 +927,24 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             final int uid = Binder.getCallingUid();
             final int callingUserId = UserHandle.getUserId(uid);
             if (DBG) {
-                Slogf.d(mImmiTag, "User {%d} invoking unbindAccessibilityFromCurrentClient(",
-                        callingUserId);
+                Slogf.d(mImmiTag, "User {%d} invoking unbindAccessibilityFromCurrentClient("
+                                + "accessibilityConnectionId=%d)", callingUserId,
+                        accessibilityConnectionId);
             }
             InputMethodManagerInternal immi = getLocalServiceForUser(callingUserId);
             immi.unbindAccessibilityFromCurrentClient(accessibilityConnectionId);
+        }
+
+        @Override
+        public void switchKeyboardLayout(int direction) {
+            final int uid = Binder.getCallingUid();
+            final int callingUserId = UserHandle.getUserId(uid);
+            if (DBG) {
+                Slogf.d(mImmiTag, "User {%d} invoking switchKeyboardLayout(direction=%d)",
+                        callingUserId, direction);
+            }
+            InputMethodManagerInternal immi = getLocalServiceForUser(callingUserId);
+            immi.switchKeyboardLayout(direction);
         }
     }
 }
