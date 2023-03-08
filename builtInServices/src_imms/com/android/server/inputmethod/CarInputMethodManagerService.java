@@ -16,9 +16,6 @@
 
 package com.android.server.inputmethod;
 
-import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_CRITICAL;
-import static android.os.IServiceManager.DUMP_FLAG_PRIORITY_NORMAL;
-import static android.os.IServiceManager.DUMP_FLAG_PROTO;
 import static android.os.Trace.TRACE_TAG_WINDOW_MANAGER;
 import static android.server.inputmethod.InputMethodManagerServiceProto.BACK_DISPOSITION;
 import static android.server.inputmethod.InputMethodManagerServiceProto.BOUND_TO_METHOD;
@@ -174,7 +171,6 @@ import com.android.server.AccessibilityManagerInternal;
 import com.android.server.EventLogTags;
 import com.android.server.LocalServices;
 import com.android.server.ServiceThread;
-import com.android.server.SystemService;
 import com.android.server.companion.virtual.VirtualDeviceManagerInternal;
 import com.android.server.input.InputManagerInternal;
 import com.android.server.inputmethod.InputMethodManagerInternal.InputMethodListListener;
@@ -1593,56 +1589,6 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @Nullable
     @GuardedBy("ImfLock.class")
     private UserSwitchHandlerTask mUserSwitchHandlerTask;
-
-    /**
-     * {@link SystemService} used to publish and manage the lifecycle of
-     * {@link CarInputMethodManagerService}.
-     */
-    public static final class Lifecycle extends SystemService {
-        private final CarInputMethodManagerService mService;
-
-        public Lifecycle(Context context) {
-            this(context, new CarInputMethodManagerService(context));
-        }
-
-        public Lifecycle(
-                Context context, @NonNull CarInputMethodManagerService inputMethodManagerService) {
-            super(context);
-            mService = inputMethodManagerService;
-        }
-
-        @Override
-        public void onStart() {
-            mService.publishLocalService();
-            publishBinderService(Context.INPUT_METHOD_SERVICE, mService, false /*allowIsolated*/,
-                    DUMP_FLAG_PRIORITY_CRITICAL | DUMP_FLAG_PRIORITY_NORMAL | DUMP_FLAG_PROTO);
-        }
-
-        @Override
-        public void onUserSwitching(@Nullable TargetUser from, @NonNull TargetUser to) {
-            // Called on ActivityManager thread.
-            synchronized (ImfLock.class) {
-                mService.scheduleSwitchUserTaskLocked(to.getUserIdentifier(),
-                        /* clientToBeReset= */ null);
-            }
-        }
-
-        @Override
-        public void onBootPhase(int phase) {
-            // Called on ActivityManager thread.
-            // TODO: Dispatch this to a worker thread as needed.
-            if (phase == SystemService.PHASE_ACTIVITY_MANAGER_READY) {
-                mService.systemRunning();
-            }
-        }
-
-        @Override
-        public void onUserUnlocking(@NonNull TargetUser user) {
-            // Called on ActivityManager thread.
-            mService.mHandler.obtainMessage(MSG_SYSTEM_UNLOCK_USER, user.getUserIdentifier(), 0)
-                    .sendToTarget();
-        }
-    }
 
     void onUnlockUser(@UserIdInt int userId) {
         synchronized (ImfLock.class) {
