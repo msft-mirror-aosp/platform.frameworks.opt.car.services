@@ -44,6 +44,7 @@ import android.window.ImeOnBackInvokedDispatcher;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.inputmethod.IAccessibilityInputMethodSession;
+import com.android.internal.inputmethod.IImeTracker;
 import com.android.internal.inputmethod.IInlineSuggestionsRequestCallback;
 import com.android.internal.inputmethod.IInputMethodClient;
 import com.android.internal.inputmethod.IRemoteAccessibilityInputConnection;
@@ -53,7 +54,6 @@ import com.android.internal.inputmethod.InputBindResult;
 import com.android.internal.inputmethod.SoftInputShowHideReason;
 import com.android.internal.util.DumpUtils;
 import com.android.internal.util.function.pooled.PooledLambda;
-import com.android.internal.view.IImeTracker;
 import com.android.internal.view.IInputMethodManager;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
@@ -75,7 +75,7 @@ import java.util.List;
 public final class InputMethodManagerServiceProxy extends IInputMethodManager.Stub {
 
     private static final String IMMS_TAG = InputMethodManagerServiceProxy.class.getSimpleName();
-    private static final boolean DBG = Slogf.isLoggable(IMMS_TAG, Log.DEBUG);
+    private static final boolean DBG = Log.isLoggable(IMMS_TAG, Log.DEBUG);
 
     // System property used to disable IMMS proxy.
     // When set to true, Android Core's original IMMS will be launched instead.
@@ -347,7 +347,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             for (int i = 0; i < mServicesForUser.size(); i++) {
                 int userId = mServicesForUser.keyAt(i);
                 CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
-                pw.println(" userId=" + userId + " imms=" + imms.hashCode());
+                pw.println(" userId=" + userId + " imms=" + imms.hashCode() + " {autofill="
+                        + imms.getAutofillController() + "}");
             }
             pw.println("**mLocalServicesForUser**");
             for (int i = 0; i < mLocalServicesForUser.size(); i++) {
@@ -649,6 +650,38 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
         imms.startStylusHandwriting(client);
+    }
+
+    @Override
+    public void prepareStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking prepareStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        imms.prepareStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
+    }
+
+    @Override
+    public boolean acceptStylusHandwritingDelegation(
+            @NonNull IInputMethodClient client,
+            @NonNull String delegatePackageName,
+            @NonNull String delegatorPackageName) {
+        final int callingUserId = getCallingUserId();
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "User {%d} invoking acceptStylusHandwritingDelegation with"
+                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                    callingUserId, client, delegatePackageName, delegatorPackageName);
+        }
+        CarInputMethodManagerService imms = getServiceForUser(callingUserId);
+        return imms.acceptStylusHandwritingDelegation(client, delegatePackageName,
+                delegatorPackageName);
     }
 
     @Override
