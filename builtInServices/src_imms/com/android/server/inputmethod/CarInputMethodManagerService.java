@@ -295,7 +295,6 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     private final CarInputMethodMenuController mMenuController;
     @NonNull private final CarInputMethodBindingController mBindingController;
     @NonNull private final AutofillController mAutofillController;
-    // end CarInputMethodManagerService
 
     @GuardedBy("ImfLock.class")
     @NonNull private final CarImeVisibilityStateComputer mVisibilityStateComputer;
@@ -304,6 +303,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @NonNull private final CarDefaultImeVisibilityApplier mVisibilityApplier;
 
     private final LocalServiceImpl mImmi;  // CarInputMethodManagerService
+    // end CarInputMethodManagerService
 
     /**
      * Cache the result of {@code LocalServices.getService(AudioManagerInternal.class)}.
@@ -1416,6 +1416,22 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
 
         @Override
+        public void onPackageDataCleared(String packageName, int uid) {
+            boolean changed = false;
+            for (InputMethodInfo imi : mMethodList) {
+                if (imi.getPackageName().equals(packageName)) {
+                    mAdditionalSubtypeMap.remove(imi.getId());
+                    changed = true;
+                }
+            }
+            if (changed) {
+                AdditionalSubtypeUtils.save(
+                        mAdditionalSubtypeMap, mMethodMap, mSettings.getCurrentUserId());
+                mChangedPackages.add(packageName);
+            }
+        }
+
+        @Override
         public void onFinishPackageChanges() {
             onFinishPackageChangesInternal();
             clearPackageChangeState();
@@ -2094,7 +2110,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     new ArrayMap<>();
             AdditionalSubtypeUtils.load(additionalSubtypeMap, userId);
             queryInputMethodServicesInternal(mContext, userId, additionalSubtypeMap, methodMap,
-                    methodList, directBootAwareness);
+                    methodList, directBootAwareness, mSettings.getEnabledInputMethodNames());
             settings = new InputMethodSettings(mContext, methodMap, userId, true /* copyOnWrite */);
         }
         // filter caller's access to input methods
@@ -3278,7 +3294,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 notifyInputMethodSubtypeChangedLocked(userId, info, null);
                 return;
             }
-            if (newSubtype != oldSubtype) {
+            if (!newSubtype.equals(oldSubtype)) {
                 setSelectedInputMethodAndSubtypeLocked(info, subtypeId, true);
                 IInputMethodInvoker curMethod = getCurMethodLocked();
                 if (curMethod != null) {
@@ -3319,11 +3335,12 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.showSoftInput");
         int uid = Binder.getCallingUid();
         ImeTracing.getInstance().triggerManagerServiceDump(
-                "CarInputMethodManagerService#showSoftInput");
+                "InputMethodManagerService#showSoftInput");
         synchronized (ImfLock.class) {
             if (!canInteractWithImeLocked(uid, client, "showSoftInput", statsToken)) {
                 ImeTracker.forLogging().onFailed(
                         statsToken, ImeTracker.PHASE_SERVER_CLIENT_FOCUSED);
+                Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
                 return false;
             }
             final long ident = Binder.clearCallingIdentity();
@@ -3344,7 +3361,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.startStylusHandwriting");
         try {
             ImeTracing.getInstance().triggerManagerServiceDump(
-                    "CarInputMethodManagerService#startStylusHandwriting");
+                    "InputMethodManagerService#startStylusHandwriting");
             int uid = Binder.getCallingUid();
             synchronized (ImfLock.class) {
                 mHwController.clearPendingHandwritingDelegation();
@@ -3530,7 +3547,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             @SoftInputShowHideReason int reason) {
         int uid = Binder.getCallingUid();
         ImeTracing.getInstance().triggerManagerServiceDump(
-                "CarInputMethodManagerService#hideSoftInput");
+                "InputMethodManagerService#hideSoftInput");
         synchronized (ImfLock.class) {
             if (!canInteractWithImeLocked(uid, client, "hideSoftInput", statsToken)) {
                 if (isInputShown()) {
@@ -3633,7 +3650,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER,
                     "IMMS.startInputOrWindowGainedFocus");
             ImeTracing.getInstance().triggerManagerServiceDump(
-                    "CarInputMethodManagerService#startInputOrWindowGainedFocus");
+                    "InputMethodManagerService#startInputOrWindowGainedFocus");
             final InputBindResult result;
             synchronized (ImfLock.class) {
                 final long ident = Binder.clearCallingIdentity();
@@ -3794,8 +3811,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
         mCurFocusedWindow = windowToken;
         mCurFocusedWindowSoftInputMode = softInputMode;
-        mCurFocusedWindowEditorInfo = editorInfo;
         mCurFocusedWindowClient = cs;
+        mCurFocusedWindowEditorInfo = editorInfo;
         mCurPerceptible = true;
 
         // We want to start input before showing the IME, but after closing
@@ -4065,15 +4082,20 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             if (!calledWithValidTokenLocked(token)) {
                 return false;
             }
-            final ImeSubtypeListItem nextSubtype = mSwitchingController.getNextInputMethodLocked(
-                    onlyCurrentIme, mMethodMap.get(getSelectedMethodIdLocked()), mCurrentSubtype);
-            if (nextSubtype == null) {
-                return false;
-            }
-            setInputMethodWithSubtypeIdLocked(token, nextSubtype.mImi.getId(),
-                    nextSubtype.mSubtypeId);
-            return true;
+            return switchToNextInputMethodLocked(token, onlyCurrentIme);
         }
+    }
+
+    @GuardedBy("ImfLock.class")
+    private boolean switchToNextInputMethodLocked(@Nullable IBinder token, boolean onlyCurrentIme) {
+        final ImeSubtypeListItem nextSubtype = mSwitchingController.getNextInputMethodLocked(
+                onlyCurrentIme, mMethodMap.get(getSelectedMethodIdLocked()), mCurrentSubtype);
+        if (nextSubtype == null) {
+            return false;
+        }
+        setInputMethodWithSubtypeIdLocked(token, nextSubtype.mImi.getId(),
+                nextSubtype.mSubtypeId);
+        return true;
     }
 
     @BinderThread
@@ -4151,7 +4173,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                     new ArrayMap<>();
             AdditionalSubtypeUtils.load(additionalSubtypeMap, userId);
             queryInputMethodServicesInternal(mContext, userId, additionalSubtypeMap, methodMap,
-                    methodList, DirectBootAwareness.AUTO);
+                    methodList, DirectBootAwareness.AUTO, mSettings.getEnabledInputMethodNames());
             final InputMethodSettings settings = new InputMethodSettings(mContext, methodMap,
                     userId, false);
             settings.setAdditionalInputMethodSubtypes(imiId, toBeAdded, additionalSubtypeMap,
@@ -4650,19 +4672,23 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @BinderThread
     private void applyImeVisibility(IBinder token, IBinder windowToken, boolean setVisible,
             @Nullable ImeTracker.Token statsToken) {
-        Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.applyImeVisibility");
-        synchronized (ImfLock.class) {
-            if (!calledWithValidTokenLocked(token)) {
-                ImeTracker.forLogging().onFailed(statsToken,
-                        ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
-                return;
+        try {
+            Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.applyImeVisibility");
+            synchronized (ImfLock.class) {
+                if (!calledWithValidTokenLocked(token)) {
+                    ImeTracker.forLogging().onFailed(statsToken,
+                            ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
+                    return;
+                }
+                final IBinder requestToken = mVisibilityStateComputer.getWindowTokenFrom(
+                        windowToken);
+                mVisibilityApplier.applyImeVisibility(requestToken, statsToken,
+                        setVisible ? ImeVisibilityStateComputer.STATE_SHOW_IME
+                                : ImeVisibilityStateComputer.STATE_HIDE_IME);
             }
-            final IBinder requestToken = mVisibilityStateComputer.getWindowTokenFrom(windowToken);
-            mVisibilityApplier.applyImeVisibility(requestToken, statsToken,
-                    setVisible ? ImeVisibilityStateComputer.STATE_SHOW_IME
-                            : ImeVisibilityStateComputer.STATE_HIDE_IME);
+        } finally {
+            Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
         }
-        Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
     }
 
     @BinderThread
@@ -4733,39 +4759,45 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @BinderThread
     private void hideMySoftInput(@NonNull IBinder token, int flags,
             @SoftInputShowHideReason int reason) {
-        Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.hideMySoftInput");
-        synchronized (ImfLock.class) {
-            if (!calledWithValidTokenLocked(token)) {
-                return;
+        try {
+            Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.hideMySoftInput");
+            synchronized (ImfLock.class) {
+                if (!calledWithValidTokenLocked(token)) {
+                    return;
+                }
+                final long ident = Binder.clearCallingIdentity();
+                try {
+                    hideCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
+                            null /* resultReceiver */, reason);
+                } finally {
+                    Binder.restoreCallingIdentity(ident);
+                }
             }
-            final long ident = Binder.clearCallingIdentity();
-            try {
-                hideCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
-                        null /* resultReceiver */, reason);
-            } finally {
-                Binder.restoreCallingIdentity(ident);
-            }
+        } finally {
+            Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
         }
-        Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
     }
 
     @BinderThread
     private void showMySoftInput(@NonNull IBinder token, int flags) {
-        Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.showMySoftInput");
-        synchronized (ImfLock.class) {
-            if (!calledWithValidTokenLocked(token)) {
-                return;
+        try {
+            Trace.traceBegin(TRACE_TAG_WINDOW_MANAGER, "IMMS.showMySoftInput");
+            synchronized (ImfLock.class) {
+                if (!calledWithValidTokenLocked(token)) {
+                    return;
+                }
+                final long ident = Binder.clearCallingIdentity();
+                try {
+                    showCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
+                            null /* resultReceiver */,
+                            SoftInputShowHideReason.SHOW_SOFT_INPUT_FROM_IME);
+                } finally {
+                    Binder.restoreCallingIdentity(ident);
+                }
             }
-            final long ident = Binder.clearCallingIdentity();
-            try {
-                showCurrentInputLocked(mLastImeTargetWindow, null /* statsToken */, flags,
-                        null /* resultReceiver */,
-                        SoftInputShowHideReason.SHOW_SOFT_INPUT_FROM_IME);
-            } finally {
-                Binder.restoreCallingIdentity(ident);
-            }
+        } finally {
+            Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
         }
-        Trace.traceEnd(TRACE_TAG_WINDOW_MANAGER);
     }
 
     @VisibleForTesting
@@ -5038,7 +5070,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     static void queryInputMethodServicesInternal(Context context,
             @UserIdInt int userId, ArrayMap<String, List<InputMethodSubtype>> additionalSubtypeMap,
             ArrayMap<String, InputMethodInfo> methodMap, ArrayList<InputMethodInfo> methodList,
-            @DirectBootAwareness int directBootAwareness) {
+            @DirectBootAwareness int directBootAwareness, List<String> enabledInputMethodList) {
         final Context userAwareContext = context.getUserId() == userId
                 ? context
                 : context.createContextAsUser(UserHandle.of(userId), 0 /* flags */);
@@ -5071,6 +5103,17 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         methodList.ensureCapacity(services.size());
         methodMap.ensureCapacity(services.size());
 
+        filterInputMethodServices(additionalSubtypeMap, methodMap, methodList,
+                enabledInputMethodList, userAwareContext, services);
+    }
+
+    static void filterInputMethodServices(
+            ArrayMap<String, List<InputMethodSubtype>> additionalSubtypeMap,
+            ArrayMap<String, InputMethodInfo> methodMap, ArrayList<InputMethodInfo> methodList,
+            List<String> enabledInputMethodList, Context userAwareContext,
+            List<ResolveInfo> services) {
+        final ArrayMap<String, Integer> imiPackageCount = new ArrayMap<>();
+
         for (int i = 0; i < services.size(); ++i) {
             ResolveInfo ri = services.get(i);
             ServiceInfo si = ri.serviceInfo;
@@ -5090,10 +5133,21 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 if (imi.isVrOnly()) {
                     continue;  // Skip VR-only IME, which isn't supported for now.
                 }
-                methodList.add(imi);
-                methodMap.put(imi.getId(), imi);
-                if (DEBUG) {
-                    Slog.d(TAG, "Found an input method " + imi);
+                final String packageName = si.packageName;
+                // only include IMEs which are from the system, enabled, or below the threshold
+                if (si.applicationInfo.isSystemApp() || enabledInputMethodList.contains(imi.getId())
+                        || imiPackageCount.getOrDefault(packageName, 0)
+                        < InputMethodInfo.MAX_IMES_PER_PACKAGE) {
+                    imiPackageCount.put(packageName,
+                            1 + imiPackageCount.getOrDefault(packageName, 0));
+
+                    methodList.add(imi);
+                    methodMap.put(imi.getId(), imi);
+                    if (DEBUG) {
+                        Slog.d(TAG, "Found an input method " + imi);
+                    }
+                } else if (DEBUG) {
+                    Slog.d(TAG, "Found an input method, but ignored due threshold: " + imi);
                 }
             } catch (Exception e) {
                 Slog.wtf(TAG, "Unable to load input method " + imeId, e);
@@ -5115,7 +5169,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mMyPackageMonitor.clearKnownImePackageNamesLocked();
 
         queryInputMethodServicesInternal(mContext, mSettings.getCurrentUserId(),
-                mAdditionalSubtypeMap, mMethodMap, mMethodList, DirectBootAwareness.AUTO);
+                mAdditionalSubtypeMap, mMethodMap, mMethodList, DirectBootAwareness.AUTO,
+                mSettings.getEnabledInputMethodNames());
 
         // Construct the set of possible IME packages for onPackageChanged() to avoid false
         // negatives when the package state remains to be the same but only the component state is
@@ -5174,7 +5229,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                             reenableMinimumNonAuxSystemImes);
             final int numImes = defaultEnabledIme.size();
             for (int i = 0; i < numImes; ++i) {
-                final InputMethodInfo imi =  defaultEnabledIme.get(i);
+                final InputMethodInfo imi = defaultEnabledIme.get(i);
                 if (DEBUG) {
                     Slog.d(TAG, "--- enable ime = " + imi);
                 }
@@ -5474,7 +5529,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 new ArrayMap<>();
         AdditionalSubtypeUtils.load(additionalSubtypeMap, userId);
         queryInputMethodServicesInternal(mContext, userId, additionalSubtypeMap,
-                methodMap, methodList, DirectBootAwareness.AUTO);
+                methodMap, methodList, DirectBootAwareness.AUTO,
+                mSettings.getEnabledInputMethodNames());
         return methodMap;
     }
 
@@ -5529,15 +5585,15 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         return canAccess;
     }
 
+    // Start CarInputMethodManagerService
     private void publishLocalService() {
-        // CarInputMethodManagerService
-        LocalServices.addService(InputMethodManagerInternal.class, mImmi);
+        LocalServices.addService(InputMethodManagerInternal.class, new LocalServiceImpl());
     }
 
-    // CarInputMethodManagerService
     void notifySystemUnlockUser(@UserIdInt int userId) {
         mHandler.obtainMessage(MSG_SYSTEM_UNLOCK_USER, userId, 0).sendToTarget();
     }
+    // End CarInputMethodManagerService
 
     private final class LocalServiceImpl extends InputMethodManagerInternal {
 
@@ -5735,6 +5791,17 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         public void maybeFinishStylusHandwriting() {
             mHandler.removeMessages(MSG_FINISH_HANDWRITING);
             mHandler.obtainMessage(MSG_FINISH_HANDWRITING).sendToTarget();
+        }
+
+        @Override
+        public void switchKeyboardLayout(int direction) {
+            synchronized (ImfLock.class) {
+                if (direction > 0) {
+                    switchToNextInputMethodLocked(null /* token */, true /* onlyCurrentIme */);
+                } else {
+                    // TODO(b/258853866): Support backwards switching.
+                }
+            }
         }
     }
 
@@ -5998,8 +6065,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             if (resultReceiver != null) {
                 resultReceiver.send(ShellCommandResult.FAILURE, null);
             }
-            final String errorMsg = "CarInputMethodManagerService does not support shell commands"
-                    + " from non-shell users. callingUid=" + callingUid
+            final String errorMsg = "InputMethodManagerService does not support shell commands from"
+                    + " non-shell users. callingUid=" + callingUid
                     + " args=" + Arrays.toString(args);
             if (Process.isCoreUid(callingUid)) {
                 // Let's not crash the calling process if the caller is one of core components.
@@ -6013,12 +6080,14 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     private static final class ShellCommandImpl extends ShellCommand {
+        // Start CarInputMethodManagerService
         @NonNull
         final CarInputMethodManagerService mService;
 
         ShellCommandImpl(CarInputMethodManagerService service) {
             mService = service;
         }
+        // End CarInputMethodManagerService
 
         @BinderThread
         @ShellCommandResult
@@ -6196,7 +6265,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 for (int userId : userIds) {
                     final List<InputMethodInfo> methods = all
                             ? getInputMethodListLocked(
-                                    userId, DirectBootAwareness.AUTO, Process.SHELL_UID)
+                            userId, DirectBootAwareness.AUTO, Process.SHELL_UID)
                             : getEnabledInputMethodListLocked(userId, Process.SHELL_UID);
                     if (userIds.length > 1) {
                         pr.print("User #");
@@ -6413,19 +6482,22 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                                 0 /* flags */, null /* resultReceiver */,
                                 SoftInputShowHideReason.HIDE_RESET_SHELL_COMMAND);
                         mBindingController.unbindCurrentMethod();
-                        // Reset the current IME
-                        resetSelectedInputMethodAndSubtypeLocked(null);
-                        // Also reset the settings of the current IME
-                        mSettings.putSelectedInputMethod(null);
-                        // Disable all enabled IMEs.
-                        for (InputMethodInfo inputMethodInfo :
-                                mSettings.getEnabledInputMethodListLocked()) {
-                            setInputMethodEnabledLocked(inputMethodInfo.getId(), false);
+
+                        // Enable default IMEs, disable others
+                        ArrayList<InputMethodInfo> toDisable =
+                                mSettings.getEnabledInputMethodListLocked();
+                        ArrayList<InputMethodInfo> defaultEnabled =
+                                InputMethodInfoUtils.getDefaultEnabledImes(mContext, mMethodList);
+                        toDisable.removeAll(defaultEnabled);
+                        for (InputMethodInfo info : toDisable) {
+                            setInputMethodEnabledLocked(info.getId(), false);
                         }
-                        // Re-enable with default enabled IMEs.
-                        for (InputMethodInfo imi : InputMethodInfoUtils.getDefaultEnabledImes(
-                                mContext, mMethodList)) {
-                            setInputMethodEnabledLocked(imi.getId(), true);
+                        for (InputMethodInfo info : defaultEnabled) {
+                            setInputMethodEnabledLocked(info.getId(), true);
+                        }
+                        // Choose new default IME, reset to none if no IME available.
+                        if (!chooseNewDefaultIMELocked()) {
+                            resetSelectedInputMethodAndSubtypeLocked(null);
                         }
                         updateInputMethodsFromSettingsLocked(true /* enabledMayChange */);
                         InputMethodUtils.setNonSelectedSystemImesDisabledUntilUsed(
@@ -6440,7 +6512,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                                 new ArrayMap<>();
                         AdditionalSubtypeUtils.load(additionalSubtypeMap, userId);
                         queryInputMethodServicesInternal(mContext, userId, additionalSubtypeMap,
-                                methodMap, methodList, DirectBootAwareness.AUTO);
+                                methodMap, methodList, DirectBootAwareness.AUTO,
+                                mSettings.getEnabledInputMethodNames());
                         final InputMethodSettings settings = new InputMethodSettings(mContext,
                                 methodMap, userId, false);
 
