@@ -81,4 +81,12 @@ public interface CarServiceHelperInterface {
     /** Check {@link android.os.Process#setProcessProfile(int, int, String)}. */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void setProcessProfile(int pid, int uid, @NonNull String profile);
+
+    /**
+     * Returns the PID for the AIDL VHAL service.
+     *
+     * On error, returns {@link com.android.car.internal.common.CommonConstants#INVALID_PID}.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    int fetchAidlVhalPid();
 }
