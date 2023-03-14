@@ -656,11 +656,11 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public int getDisplayAssignedToUser(int userId) {
+    public int getMainDisplayAssignedToUser(int userId) {
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
-        int displayId = umi.getDisplayAssignedToUser(userId);
+        int displayId = umi.getMainDisplayAssignedToUser(userId);
         if (DBG) {
-            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+            Slogf.d(TAG, "getMainDisplayAssignedToUser(%d): %d", userId, displayId);
         }
         return displayId;
     }
