@@ -67,7 +67,7 @@ import com.android.internal.os.IResultReceiver;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
-import com.android.server.am.ActivityManagerService;
+import com.android.server.am.StackTracesDumpHelper;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
@@ -516,7 +516,7 @@ public class CarServiceHelperService extends SystemService
         pids.add(Process.myPid());
 
         // Use the long version used by Watchdog since the short version is removed by the compiler.
-        return ActivityManagerService.dumpStackTraces(
+        return StackTracesDumpHelper.dumpStackTraces(
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
@@ -762,7 +762,7 @@ public class CarServiceHelperService extends SystemService
             }
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
-            ActivityManagerService.dumpStackTraces(
+            StackTracesDumpHelper.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
                     /* nativePids= */ CompletableFuture.completedFuture(nativePids),
                     /* logExceptionCreatingFile= */ null,
