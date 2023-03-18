@@ -15,6 +15,7 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
@@ -47,6 +48,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceDebugInfo;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -125,6 +128,8 @@ public class CarServiceHelperService extends SystemService
     private static final String PROC_PID_STAT_PATTERN =
             "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
+    private static final String AIDL_VHAL_INTERFACE_PREFIX =
+            "android.hardware.automotive.vehicle.IVehicle/";
 
     static  {
         // Load this JNI before other classes are loaded.
@@ -537,6 +542,24 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void setProcessProfile(int pid, int uid, @NonNull String profile) {
         Util.setProcessProfile(pid, uid, profile);
+    }
+
+    @Override
+    public int fetchAidlVhalPid() {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) {
+            Slogf.w(TAG, "Service debug info returned by the service manager is null");
+            return INVALID_PID;
+        }
+
+        for (ServiceDebugInfo info : infos) {
+            if (info.name.startsWith(AIDL_VHAL_INTERFACE_PREFIX)) {
+                return info.debugPid;
+            }
+        }
+        Slogf.w(TAG, "Service manager doesn't have the AIDL VHAL service instance for interface"
+                + " prefix %s", AIDL_VHAL_INTERFACE_PREFIX);
+        return INVALID_PID;
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {

@@ -16,6 +16,7 @@
 
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -37,6 +38,7 @@ import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.os.IBinder;
+import android.os.ServiceDebugInfo;
 import android.os.ServiceManager;
 import android.os.UserHandle;
 
@@ -59,6 +61,8 @@ import org.mockito.Mock;
  */
 @RunWith(AndroidJUnit4.class)
 public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase {
+    private static final String SAMPLE_AIDL_VHAL_INTERFACE_NAME =
+            "android.hardware.automotive.vehicle.IVehicle/SampleVehicleHalService";
 
     private CarServiceHelperService mHelper;
 
@@ -217,6 +221,30 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         verify(mActivityManager).startUserInBackgroundVisibleOnDisplay(userId, displayId);
     }
 
+    @Test
+    public void testFetchAidlVhalPid() throws Exception {
+        int vhalPid = 5643;
+        ServiceDebugInfo[] debugInfos = {
+            newServiceDebugInfo(SAMPLE_AIDL_VHAL_INTERFACE_NAME, vhalPid),
+            newServiceDebugInfo("some.service", 1234),
+        };
+        doReturn(debugInfos).when(() -> ServiceManager.getServiceDebugInfo());
+
+        assertWithMessage("AIDL VHAL pid").that(mHelper.fetchAidlVhalPid()).isEqualTo(vhalPid);
+    }
+
+    @Test
+    public void testFetchAidlVhalPid_missingAidlVhalService() throws Exception {
+        ServiceDebugInfo[] debugInfos = {
+            newServiceDebugInfo("random.service", 8535),
+            newServiceDebugInfo("some.service", 1234),
+        };
+        doReturn(debugInfos).when(() -> ServiceManager.getServiceDebugInfo());
+
+        assertWithMessage("AIDL VHAL pid").that(mHelper.fetchAidlVhalPid())
+                .isEqualTo(INVALID_PID);
+    }
+
     private TargetUser newTargetUser(int userId) {
         return newTargetUser(userId, /* preCreated= */ false);
     }
@@ -255,5 +283,12 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     private void verifyInitBootUser() throws Exception {
         verify(mCarServiceHelperServiceUpdatable).initBootUser();
+    }
+
+    private ServiceDebugInfo newServiceDebugInfo(String name, int debugPid) {
+        ServiceDebugInfo serviceDebugInfo = new ServiceDebugInfo();
+        serviceDebugInfo.name = name;
+        serviceDebugInfo.debugPid = debugPid;
+        return serviceDebugInfo;
     }
 }
