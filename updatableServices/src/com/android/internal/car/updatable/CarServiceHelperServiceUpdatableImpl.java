@@ -339,10 +339,10 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
-        public int getDisplayAssignedToUser(int userId) {
+        public int getMainDisplayAssignedToUser(int userId) {
             assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
 
-            return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
+            return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
         }
 
         @Override
