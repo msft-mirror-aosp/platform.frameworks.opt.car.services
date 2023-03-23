@@ -48,10 +48,10 @@ public interface CarServiceHelperInterface {
             int flags);
 
     /**
-     * Gets the display assigned to the user.
+     * Gets the main display assigned to the user.
      */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
-    int getDisplayAssignedToUser(@UserIdInt int userId);
+    int getMainDisplayAssignedToUser(@UserIdInt int userId);
 
     /**
      * Gets the full user (i.e., not profile) assigned to the display.
