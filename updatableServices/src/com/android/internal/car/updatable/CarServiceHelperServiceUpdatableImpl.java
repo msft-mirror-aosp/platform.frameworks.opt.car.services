@@ -52,6 +52,7 @@ import com.android.internal.annotations.Keep;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
+import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -105,6 +106,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarServiceHelperInterface mCarServiceHelperInterface;
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
+    private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
 
     public CarServiceHelperServiceUpdatableImpl(Context context,
             CarServiceHelperInterface carServiceHelperInterface,
@@ -124,6 +126,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceHelperInterface = carServiceHelperInterface;
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 carLaunchParamsModifierInterface);
+        mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl();
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -184,6 +187,11 @@ public final class CarServiceHelperServiceUpdatableImpl
     @Override
     public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
         return mCarLaunchParamsModifierUpdatable;
+    }
+
+    @Override
+    public CarActivityInterceptorUpdatableImpl getCarActivityInterceptorUpdatable() {
+        return mCarActivityInterceptorUpdatable;
     }
 
     @VisibleForTesting
