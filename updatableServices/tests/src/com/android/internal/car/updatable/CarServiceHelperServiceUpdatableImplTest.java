@@ -207,10 +207,11 @@ public final class CarServiceHelperServiceUpdatableImplTest
     }
 
     @Test
-    public void testGetDisplayAssignedToUser() throws Exception {
-        when(mCarServiceHelperInterface.getDisplayAssignedToUser(42)).thenReturn(108);
-        assertWithMessage("getDisplayAssignedToUser(42)")
-                .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getDisplayAssignedToUser(42))
+    public void testGetMainDisplayAssignedToUser() throws Exception {
+        when(mCarServiceHelperInterface.getMainDisplayAssignedToUser(42)).thenReturn(108);
+        assertWithMessage("getMainDisplayAssignedToUser(42)")
+                .that(mCarServiceHelperServiceUpdatableImpl.mHelper
+                        .getMainDisplayAssignedToUser(42))
                 .isEqualTo(108);
 
         verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
