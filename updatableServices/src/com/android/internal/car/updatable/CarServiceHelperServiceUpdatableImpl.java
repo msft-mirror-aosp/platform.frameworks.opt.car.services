@@ -20,7 +20,6 @@ import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
-import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
 import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
 
 import android.annotation.NonNull;
@@ -326,44 +325,32 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setProcessGroup(int pid, int group) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             return mCarServiceHelperInterface.getProcessGroup(pid);
         }
 
         @Override
         public int getMainDisplayAssignedToUser(int userId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
         }
 
         @Override
         public int getUserAssignedToDisplay(int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
         }
 
         @Override
         public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(userId,
                     displayId);
         }
 
         @Override
         public void setProcessProfile(int pid, int uid, @NonNull String profile) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
             mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
         }
 
