@@ -16,8 +16,6 @@
 
 package com.android.internal.car.updatable;
 
-import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
-
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
@@ -30,7 +28,6 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 
 import android.car.ICar;
-import android.car.PlatformVersion;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.Context;
@@ -180,8 +177,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
         assertWithMessage("getProcessGroup(42)")
                 .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getProcessGroup(42))
                 .isEqualTo(108);
-
-        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     @Test
@@ -189,8 +184,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
         mCarServiceHelperServiceUpdatableImpl.mHelper.setProcessGroup(42, 108);
 
         verify(mCarServiceHelperInterface).setProcessGroup(42, 108);
-
-        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     @Test
@@ -203,7 +196,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
         verify(mCarServiceHelperInterface).startUserInBackgroundVisibleOnDisplay(userId,
                 displayId);
-        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     @Test
@@ -213,8 +205,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
                 .that(mCarServiceHelperServiceUpdatableImpl.mHelper
                         .getMainDisplayAssignedToUser(42))
                 .isEqualTo(108);
-
-        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     @Test
@@ -224,8 +214,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
         assertWithMessage("getUserAssignedToDisplay(42)")
                 .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getUserAssignedToDisplay(42))
                 .isEqualTo(108);
-
-        verifyPlatformVersionMismatchChecked((UPSIDE_DOWN_CAKE_0));
     }
 
     private void mockICarBinder() {
@@ -240,14 +228,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
     private void mockBindService() {
         when(mMockContext.bindService(any(), eq(Context.BIND_AUTO_CREATE), any(), any()))
                 .thenReturn(true);
-    }
-
-    // NOTE: ideally we should mockCarGetPlatformVersion(), but that doesn't work because
-    // VersionUtils is part of built-in library, so the test would be calling the VersionUtils
-    // that's in the device's classpath, not the one injected by ExtendedMockito. Hence, we're
-    // just verifying the API implementation calls VersionUtils.assertPlatformVersionAtLeast()
-    private void verifyPlatformVersionMismatchChecked(PlatformVersion minVersion) {
-        verify(() -> VersionUtils.assertPlatformVersionAtLeast(minVersion));
     }
 
     private void verifyBindService() throws Exception {
