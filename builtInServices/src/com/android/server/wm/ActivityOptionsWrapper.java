@@ -77,6 +77,9 @@ public final class ActivityOptionsWrapper {
     @Override
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
-        return mOptions.toString();
+        StringBuilder sb = new StringBuilder(mOptions.toString());
+        sb.append(" ,mLaunchDisplayId=");
+        sb.append(mOptions.getLaunchDisplayId());
+        return sb.toString();
     }
 }
