@@ -20,8 +20,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.PlatformVersion;
-import android.graphics.Rect;
-import android.view.Display;
+import android.util.Pair;
 
 import com.android.annotation.AddedIn;
 
@@ -58,4 +57,11 @@ public interface CarLaunchParamsModifierInterface {
     @NonNull List<TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(
             @NonNull ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request);
 
+    /**
+     * @return a pair of the current userId and the target userId.
+     * The target userId is the user to switch during switching the driver,
+     * or {@link android.os.UserHandle.USER_NULL}.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @NonNull Pair<Integer, Integer> getCurrentAndTargetUserIds();
 }

@@ -244,6 +244,7 @@ public class CarServiceHelperService extends SystemService
                             : USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
                     mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(eventType,
                             /* userFrom= */ null, UserHandle.of(userId));
+                    mCarLaunchParamsModifier.handleUserVisibilityChanged(userId, visible);
                 }
             });
         } else {
