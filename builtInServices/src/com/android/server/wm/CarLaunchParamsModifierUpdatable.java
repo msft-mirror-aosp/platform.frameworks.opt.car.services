@@ -16,29 +16,12 @@
 
 package com.android.server.wm;
 
-import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.app.CarActivityManager;
 import android.car.builtin.annotation.PlatformVersion;
-import android.content.ComponentName;
 import android.hardware.display.DisplayManager;
-import android.os.ServiceSpecificException;
-import android.os.UserHandle;
-import android.util.ArrayMap;
-import android.util.Slog;
-import android.util.SparseIntArray;
-import android.view.Display;
-import android.window.DisplayAreaOrganizer;
 
 import com.android.annotation.AddedIn;
-import com.android.internal.annotations.GuardedBy;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Updatable interface of CarLaunchParamsModifier.
@@ -50,6 +33,10 @@ public interface CarLaunchParamsModifierUpdatable {
     /** Returns {@link DisplayManager.DisplayListener} of CarLaunchParamsModifierUpdatable. */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     DisplayManager.DisplayListener getDisplayListener();
+
+    /** Notifies user switching. */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    void handleUserVisibilityChanged(@UserIdInt int userId, boolean visible);
 
     /** Notifies user switching. */
     @AddedIn(PlatformVersion.TIRAMISU_0)
