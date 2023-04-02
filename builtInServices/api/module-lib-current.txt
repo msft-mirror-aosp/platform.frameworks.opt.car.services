@@ -61,6 +61,7 @@ package com.android.server.wm {
 
   public interface CarLaunchParamsModifierInterface {
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper findTaskDisplayArea(int, int);
+    method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int);
     method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@NonNull com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
   }
@@ -71,6 +72,7 @@ package com.android.server.wm {
     method public void handleCurrentUserSwitching(int);
     method public void handleUserStarting(int);
     method public void handleUserStopped(int);
+    method public void handleUserVisibilityChanged(int, boolean);
   }
 
   public final class LaunchParamsWrapper {
