@@ -152,7 +152,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
     }
 
-    /** @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0) */
     @Override
     public void handleUserVisibilityChanged(int userId, boolean visible) {
         synchronized (mLock) {

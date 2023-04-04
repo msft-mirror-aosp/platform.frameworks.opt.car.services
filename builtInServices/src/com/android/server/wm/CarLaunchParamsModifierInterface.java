@@ -18,8 +18,10 @@ package com.android.server.wm;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.PlatformVersion;
+import android.os.Build;
 import android.util.Pair;
 
 import com.android.annotation.AddedIn;
@@ -62,6 +64,7 @@ public interface CarLaunchParamsModifierInterface {
      * The target userId is the user to switch during switching the driver,
      * or {@link android.os.UserHandle.USER_NULL}.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @NonNull Pair<Integer, Integer> getCurrentAndTargetUserIds();
 }

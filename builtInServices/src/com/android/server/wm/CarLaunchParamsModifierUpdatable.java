@@ -16,10 +16,12 @@
 
 package com.android.server.wm;
 
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.car.builtin.annotation.PlatformVersion;
 import android.hardware.display.DisplayManager;
+import android.os.Build;
 
 import com.android.annotation.AddedIn;
 
@@ -35,6 +37,7 @@ public interface CarLaunchParamsModifierUpdatable {
     DisplayManager.DisplayListener getDisplayListener();
 
     /** Notifies user switching. */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void handleUserVisibilityChanged(@UserIdInt int userId, boolean visible);
 
