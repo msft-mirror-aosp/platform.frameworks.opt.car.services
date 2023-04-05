@@ -680,32 +680,36 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     @Override
     public void prepareStylusHandwritingDelegation(
             @NonNull IInputMethodClient client,
+            @UserIdInt int userId,
             @NonNull String delegatePackageName,
             @NonNull String delegatorPackageName) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
             Slogf.d(IMMS_TAG, "User {%d} invoking prepareStylusHandwritingDelegation with"
-                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                            + "client={%s}, userId={%d}, delegatePackageName={%s}, "
+                            + "delegatorPackageName={%s}",
                     callingUserId, client, delegatePackageName, delegatorPackageName);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
-        imms.prepareStylusHandwritingDelegation(client, delegatePackageName,
+        imms.prepareStylusHandwritingDelegation(client, userId, delegatePackageName,
                 delegatorPackageName);
     }
 
     @Override
     public boolean acceptStylusHandwritingDelegation(
             @NonNull IInputMethodClient client,
+            @UserIdInt int userId,
             @NonNull String delegatePackageName,
             @NonNull String delegatorPackageName) {
         final int callingUserId = getCallingUserId();
         if (DBG) {
             Slogf.d(IMMS_TAG, "User {%d} invoking acceptStylusHandwritingDelegation with"
-                            + "client={%s}, delegatePackageName={%s}, delegatorPackageName={%s}",
+                            + "client={%s}, userId={%d}, delegatePackageName={%s}, "
+                            + "delegatorPackageName={%s}",
                     callingUserId, client, delegatePackageName, delegatorPackageName);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
-        return imms.acceptStylusHandwritingDelegation(client, delegatePackageName,
+        return imms.acceptStylusHandwritingDelegation(client, userId, delegatePackageName,
                 delegatorPackageName);
     }
 
