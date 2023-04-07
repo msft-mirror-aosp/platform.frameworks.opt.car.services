@@ -164,7 +164,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         mFallBackDisplayAreaList.clear();
 
         WindowProcessController controllerFromLaunchingRecord = mAtm.getProcessController(
-                activityRecord.launchedFromPid, activityRecord.launchedFromUid);
+                activityRecord.getLaunchedFromPid(), activityRecord.getLaunchedFromUid());
         TaskDisplayArea displayAreaForLaunchingRecord = controllerFromLaunchingRecord == null
                 ? null : controllerFromLaunchingRecord.getTopActivityDisplayArea();
         if (displayAreaForLaunchingRecord != null) {
