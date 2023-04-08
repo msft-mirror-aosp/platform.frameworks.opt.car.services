@@ -53,7 +53,7 @@ public final class TaskDisplayAreaWrapper {
      */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public Display getDisplay() {
-        return mTaskDisplayArea.getDisplayContent().getDisplay();
+        return mTaskDisplayArea.mDisplayContent.getDisplay();
     }
 
     @Override
