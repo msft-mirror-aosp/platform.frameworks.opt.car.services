@@ -4,14 +4,14 @@ package com.android.internal.car {
   public interface CarServiceHelperInterface {
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
-    method public int fetchAidlVhalPid();
-    method public int getMainDisplayAssignedToUser(int);
-    method public int getProcessGroup(int);
-    method public int getUserAssignedToDisplay(int);
-    method public void setProcessGroup(int, int);
-    method public void setProcessProfile(int, int, @NonNull String);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int fetchAidlVhalPid();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getMainDisplayAssignedToUser(int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getProcessGroup(int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getUserAssignedToDisplay(int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void setProcessGroup(int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
-    method public boolean startUserInBackgroundVisibleOnDisplay(int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public boolean startUserInBackgroundVisibleOnDisplay(int, int);
   }
 
   public interface CarServiceHelperServiceUpdatable {
@@ -30,9 +30,9 @@ package com.android.server.wm {
 
   public final class ActivityOptionsWrapper {
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
-    method public int getLaunchWindowingMode();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
-    field public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
+    field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
   }
 
   public final class ActivityRecordWrapper {
@@ -61,6 +61,7 @@ package com.android.server.wm {
 
   public interface CarLaunchParamsModifierInterface {
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper findTaskDisplayArea(int, int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int);
     method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@NonNull com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
   }
@@ -71,6 +72,7 @@ package com.android.server.wm {
     method public void handleCurrentUserSwitching(int);
     method public void handleUserStarting(int);
     method public void handleUserStopped(int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void handleUserVisibilityChanged(int, boolean);
   }
 
   public final class LaunchParamsWrapper {

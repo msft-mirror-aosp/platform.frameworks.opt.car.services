@@ -15,13 +15,14 @@
  */
 package com.android.internal.car.updatable;
 
-import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
+import static android.view.Display.INVALID_DISPLAY;
 
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.common.CommonConstants.INVALID_GID;
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
-import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeast;
+import static com.android.car.internal.common.CommonConstants.INVALID_USER_ID;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -326,51 +327,59 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setProcessGroup(int pid, int group) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
+            if (!isPlatformVersionAtLeastU()) {
+                return;
+            }
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getProcessGroup(pid);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getProcessGroup(pid);
+            }
+            return INVALID_GID;
         }
 
         @Override
         public int getMainDisplayAssignedToUser(int userId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
+            }
+            return INVALID_DISPLAY;
         }
 
         @Override
         public int getUserAssignedToDisplay(int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+            }
+            return INVALID_USER_ID;
         }
 
         @Override
         public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(userId,
-                    displayId);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(
+                        userId, displayId);
+            }
+            return false;
         }
 
         @Override
         public void setProcessProfile(int pid, int uid, @NonNull String profile) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
+            if (!isPlatformVersionAtLeastU()) {
+                return;
+            }
             mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
         }
 
         @Override
         public int fetchAidlVhalPid() {
-            return isPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0)
-                    ? mCarServiceHelperInterface.fetchAidlVhalPid() : INVALID_PID;
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.fetchAidlVhalPid();
+            }
+            return INVALID_PID;
         }
     }
 
