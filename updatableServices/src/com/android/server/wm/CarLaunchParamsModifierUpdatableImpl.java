@@ -398,7 +398,9 @@ public final class CarLaunchParamsModifierUpdatableImpl
             Slogf.i(TAG, "Changed launching display, user:%d requested display area:%s"
                     + " target display area:%s", userId, originalDisplayArea, targetDisplayArea);
             outParams.setPreferredTaskDisplayArea(targetDisplayArea);
-            if (options != null && options.getLaunchWindowingMode()
+            if (VersionUtils.isPlatformVersionAtLeastU()
+                    && options != null
+                    && options.getLaunchWindowingMode()
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
             }
