@@ -6,10 +6,12 @@ java_test_host {
     name: "CarServiceCrashDumpTest",
     srcs: ["src/**/CarServiceCrashDumpTest.java"],
     libs: [
-        "compatibility-host-util",
         "junit",
         "tradefed",
         "truth-prebuilt",
+    ],
+    static_libs: [
+        "compatibility-host-util",
     ],
     test_suites: [
         "automotive-tests",
