@@ -112,11 +112,25 @@ public class CarServiceHelperService extends SystemService
     private static final boolean DBG = true;
     private static final boolean VERBOSE = true;
 
-    private static final List<String> CAR_HAL_INTERFACES_OF_INTEREST = Arrays.asList(
-            "android.hardware.automotive.vehicle@2.0::IVehicle",
+    private static final List<String> CAR_HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
-            "android.hardware.automotive.audiocontrol@2.0::IAudioControl"
+            "android.hardware.automotive.audiocontrol@2.0::IAudioControl",
+            "android.hardware.automotive.can@1.0::ICanBus",
+            "android.hardware.automotive.can@1.0::ICanController",
+            "android.hardware.automotive.evs@1.0::IEvsEnumerator",
+            "android.hardware.automotive.sv@1.0::ISurroundViewService",
+            "android.hardware.automotive.vehicle@2.0::IVehicle"
     );
+
+    private static final String[] CAR_AIDL_INTERFACE_PREFIXES_OF_INTEREST = new String[] {
+            "android.hardware.automotive.audiocontrol.IAudioControl/",
+            "android.hardware.automotive.can.ICanController/",
+            "android.hardware.automotive.evs.IEvsEnumerator/",
+            "android.hardware.automotive.ivn.IIvnAndroidDevice/",
+            "android.hardware.automotive.occupant_awareness.IOccupantAwareness/",
+            "android.hardware.automotive.remoteaccess.IRemoteAccess/",
+            "android.hardware.automotive.vehicle.IVehicle/",
+    };
 
     // Message ID representing post-processing of process dumping.
     private static final int WHAT_POST_PROCESS_DUMPING = 1;
@@ -465,45 +479,67 @@ public class CarServiceHelperService extends SystemService
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
     // TODO(b/131861630) use implementation common with Watchdog.java
-    //
-    private static ArrayList<Integer> getInterestingHalPids() {
+    private static void addInterestingHidlPids(HashSet<Integer> pids) {
         try {
             IServiceManager serviceManager = IServiceManager.getService();
             ArrayList<IServiceManager.InstanceDebugInfo> dump =
                     serviceManager.debugDump();
-            HashSet<Integer> pids = new HashSet<>();
             for (IServiceManager.InstanceDebugInfo info : dump) {
                 if (info.pid == IServiceManager.PidConstant.NO_PID) {
                     continue;
                 }
 
                 if (Watchdog.HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName) ||
-                        CAR_HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
+                        CAR_HIDL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
                     pids.add(info.pid);
                 }
             }
-
-            return new ArrayList<Integer>(pids);
         } catch (RemoteException e) {
-            return new ArrayList<Integer>();
+            Slogf.w(TAG, "Remote exception while querying HIDL service manager", e);
         }
     }
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
     // TODO(b/131861630) use implementation common with Watchdog.java
-    //
+    private static void addInterestingAidlPids(HashSet<Integer> pids) {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) return;
+
+        for (ServiceDebugInfo info : infos) {
+            if (matchesInterestingAidlInterfacePrefixes(
+                    Watchdog.AIDL_INTERFACE_PREFIXES_OF_INTEREST, info.name)
+                    || matchesInterestingAidlInterfacePrefixes(
+                    CAR_AIDL_INTERFACE_PREFIXES_OF_INTEREST, info.name)) {
+                pids.add(info.debugPid);
+            }
+        }
+    }
+
+    private static boolean matchesInterestingAidlInterfacePrefixes(String[] interfacePrefixes,
+            String interfaceName) {
+        for (String prefix : interfacePrefixes) {
+            if (interfaceName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
+    // TODO(b/131861630) use implementation common with Watchdog.java
     private static ArrayList<Integer> getInterestingNativePids() {
-        ArrayList<Integer> pids = getInterestingHalPids();
+        HashSet<Integer> pids = new HashSet<Integer>();
+        addInterestingHidlPids(pids);
+        addInterestingAidlPids(pids);
 
         int[] nativePids = Process.getPidsForCommands(Watchdog.NATIVE_STACKS_OF_INTEREST);
         if (nativePids != null) {
-            pids.ensureCapacity(pids.size() + nativePids.length);
             for (int i : nativePids) {
                 pids.add(i);
             }
         }
 
-        return pids;
+        return new ArrayList<Integer>(pids);
     }
 
     /**
