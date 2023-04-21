@@ -15,6 +15,7 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
@@ -47,6 +48,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceDebugInfo;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -64,7 +67,7 @@ import com.android.internal.os.IResultReceiver;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
-import com.android.server.am.ActivityManagerService;
+import com.android.server.am.StackTracesDumpHelper;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
@@ -125,6 +128,8 @@ public class CarServiceHelperService extends SystemService
     private static final String PROC_PID_STAT_PATTERN =
             "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
+    private static final String AIDL_VHAL_INTERFACE_PREFIX =
+            "android.hardware.automotive.vehicle.IVehicle/";
 
     static  {
         // Load this JNI before other classes are loaded.
@@ -239,6 +244,7 @@ public class CarServiceHelperService extends SystemService
                             : USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
                     mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(eventType,
                             /* userFrom= */ null, UserHandle.of(userId));
+                    mCarLaunchParamsModifier.handleUserVisibilityChanged(userId, visible);
                 }
             });
         } else {
@@ -511,7 +517,7 @@ public class CarServiceHelperService extends SystemService
         pids.add(Process.myPid());
 
         // Use the long version used by Watchdog since the short version is removed by the compiler.
-        return ActivityManagerService.dumpStackTraces(
+        return StackTracesDumpHelper.dumpStackTraces(
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
@@ -537,6 +543,24 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void setProcessProfile(int pid, int uid, @NonNull String profile) {
         Util.setProcessProfile(pid, uid, profile);
+    }
+
+    @Override
+    public int fetchAidlVhalPid() {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) {
+            Slogf.w(TAG, "Service debug info returned by the service manager is null");
+            return INVALID_PID;
+        }
+
+        for (ServiceDebugInfo info : infos) {
+            if (info.name.startsWith(AIDL_VHAL_INTERFACE_PREFIX)) {
+                return info.debugPid;
+            }
+        }
+        Slogf.w(TAG, "Service manager doesn't have the AIDL VHAL service instance for interface"
+                + " prefix %s", AIDL_VHAL_INTERFACE_PREFIX);
+        return INVALID_PID;
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
@@ -633,11 +657,11 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public int getDisplayAssignedToUser(int userId) {
+    public int getMainDisplayAssignedToUser(int userId) {
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
-        int displayId = umi.getDisplayAssignedToUser(userId);
+        int displayId = umi.getMainDisplayAssignedToUser(userId);
         if (DBG) {
-            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+            Slogf.d(TAG, "getMainDisplayAssignedToUser(%d): %d", userId, displayId);
         }
         return displayId;
     }
@@ -739,7 +763,7 @@ public class CarServiceHelperService extends SystemService
             }
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
-            ActivityManagerService.dumpStackTraces(
+            StackTracesDumpHelper.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
                     /* nativePids= */ CompletableFuture.completedFuture(nativePids),
                     /* logExceptionCreatingFile= */ null,
