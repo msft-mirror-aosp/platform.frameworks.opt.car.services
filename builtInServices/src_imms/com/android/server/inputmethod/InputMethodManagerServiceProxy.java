@@ -85,12 +85,10 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     // Note: this flag only takes effects on non user builds.
     public static final String DISABLE_MU_IMMS = "persist.fw.car.test.disable_mu_imms";
 
-    private final Object mLock = new Object();
-
-    @GuardedBy("mLock")
+    @GuardedBy("ImfLock.class")
     private final SparseArray<CarInputMethodManagerService> mServicesForUser = new SparseArray<>();
 
-    @GuardedBy("mLock")
+    @GuardedBy("ImfLock.class")
     private final SparseArray<InputMethodManagerInternal> mLocalServicesForUser =
             new SparseArray<>();
 
@@ -115,7 +113,7 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     CarInputMethodManagerService createAndRegisterServiceFor(@UserIdInt int userId) {
         Slogf.d(IMMS_TAG, "Starting IMMS and IMMI for user {%d}", userId);
         CarInputMethodManagerService imms;
-        synchronized (mLock) {
+        synchronized (ImfLock.class) {
             if ((imms = mServicesForUser.get(userId)) != null) {
                 return imms;
             }
@@ -129,14 +127,14 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     }
 
     CarInputMethodManagerService getServiceForUser(@UserIdInt int userId) {
-        synchronized (mLock) {
+        synchronized (ImfLock.class) {
             CarInputMethodManagerService service = mServicesForUser.get(userId);
             return service;
         }
     }
 
     InputMethodManagerInternal getLocalServiceForUser(@UserIdInt int userId) {
-        synchronized (mLock) {
+        synchronized (ImfLock.class) {
             return mLocalServicesForUser.get(userId);
         }
     }
@@ -339,7 +337,7 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
 
         pw.println("*InputMethodManagerServiceProxy");
-        synchronized (mLock) {
+        synchronized (ImfLock.class) {
             pw.println("**mServicesForUser**");
             for (int i = 0; i < mServicesForUser.size(); i++) {
                 int userId = mServicesForUser.keyAt(i);
