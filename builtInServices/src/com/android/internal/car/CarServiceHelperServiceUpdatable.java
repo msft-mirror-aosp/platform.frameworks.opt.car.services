@@ -23,6 +23,7 @@ import android.os.Bundle;
 import android.os.UserHandle;
 
 import com.android.annotation.AddedIn;
+import com.android.server.wm.CarActivityInterceptorUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 
 import java.io.PrintWriter;
@@ -58,4 +59,7 @@ public interface CarServiceHelperServiceUpdatable {
 
     @AddedIn(PlatformVersion.TIRAMISU_0)
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
+
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
 }
