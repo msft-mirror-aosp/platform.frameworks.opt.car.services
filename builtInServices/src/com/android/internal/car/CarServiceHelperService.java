@@ -27,6 +27,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
+import static com.android.server.wm.ActivityInterceptorCallback.PRODUCT_ORDERED_ID;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -73,6 +74,7 @@ import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
+import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
@@ -291,6 +293,12 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    new CarActivityInterceptor(mCarServiceHelperServiceUpdatable
+                            .getCarActivityInterceptorUpdatable()));
             t.traceEnd();
         }
     }
