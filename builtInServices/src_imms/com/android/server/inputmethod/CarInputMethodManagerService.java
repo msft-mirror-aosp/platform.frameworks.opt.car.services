@@ -200,6 +200,7 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -300,7 +301,9 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @GuardedBy("ImfLock.class")
     @NonNull private final CarDefaultImeVisibilityApplier mVisibilityApplier;
 
-    private final LocalServiceImpl mImmi;  // CarInputMethodManagerService
+    private final LocalServiceImpl mImmi;
+
+    private final ExecutorService mExecutor;
     // end CarInputMethodManagerService
 
     /**
@@ -1635,15 +1638,16 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mHandler.post(task);
     }
 
-    public CarInputMethodManagerService(Context context) {
-        this(context, null, null);
+    public CarInputMethodManagerService(Context context, ExecutorService executor) {
+        this(context, null, null, executor);
     }
 
     @VisibleForTesting
     CarInputMethodManagerService(
             Context context,
             @Nullable ServiceThread serviceThreadForTesting,
-            @Nullable CarInputMethodBindingController bindingControllerForTesting) {
+            @Nullable CarInputMethodBindingController bindingControllerForTesting,
+            ExecutorService executor) {
         mContext = context;
         mRes = context.getResources();
         // TODO(b/196206770): Disallow I/O on this thread. Currently it's needed for loading
@@ -1708,6 +1712,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 new InkWindowInitializer());
         registerDeviceListenerAndCheckStylusSupport();
         mImmi = new LocalServiceImpl();  // CarInputMethodManagerService
+        mExecutor = executor;  // CarInputMethodManagerService
     }
 
     // CarInputMethodManagerService
@@ -1909,14 +1914,21 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 }
 
                 // begin CarInputMethodManagerService
-                mImeDrawsImeNavBarResLazyInitFuture = null;
-                Slog.d(TAG, "currentUserId(" + currentUserId
-                        + ") != mSettings.getCurrentUserId("
-                        + mSettings.getCurrentUserId() + ") : "
-                        + (currentUserId != mSettings.getCurrentUserId()));
-                if (currentUserId == mSettings.getCurrentUserId()) {
-                    maybeInitImeNavbarConfigLocked(currentUserId);
-                }
+                mImeDrawsImeNavBarResLazyInitFuture = mExecutor.submit(() -> {
+                    // Note that the synchronization block below guarantees that the task
+                    // can never be completed before the returned Future<?> object is assigned to
+                    // the "mImeDrawsImeNavBarResLazyInitFuture" field.
+                    synchronized (ImfLock.class) {
+                        mImeDrawsImeNavBarResLazyInitFuture = null;
+                        if (currentUserId != mSettings.getCurrentUserId()) {
+                            // This means that the current user is already switched to other user
+                            // before the background task is executed. In this scenario the relevant
+                            // field should already be initialized.
+                            return;
+                        }
+                        maybeInitImeNavbarConfigLocked(currentUserId);
+                    }
+                });
                 // end CarInputMethodManagerService
 
                 mMyPackageMonitor.register(mContext, null, UserHandle.ALL, true);
