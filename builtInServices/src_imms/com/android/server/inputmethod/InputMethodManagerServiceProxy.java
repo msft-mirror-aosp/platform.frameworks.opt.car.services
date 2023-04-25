@@ -67,6 +67,8 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Proxy used to host IMMSs per user and reroute requests to the user associated IMMS.
@@ -84,6 +86,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     // When set to true, Android Core's original IMMS will be launched instead.
     // Note: this flag only takes effects on non user builds.
     public static final String DISABLE_MU_IMMS = "persist.fw.car.test.disable_mu_imms";
+
+    private final ExecutorService mExecutor = Executors.newCachedThreadPool();
 
     @GuardedBy("ImfLock.class")
     private final SparseArray<CarInputMethodManagerService> mServicesForUser = new SparseArray<>();
@@ -117,7 +121,7 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             if ((imms = mServicesForUser.get(userId)) != null) {
                 return imms;
             }
-            imms = new CarInputMethodManagerService(mContext);
+            imms = new CarInputMethodManagerService(mContext, mExecutor);
             mServicesForUser.set(userId, imms);
             InputMethodManagerInternal localService = imms.getInputMethodManagerInternal();
             mLocalServicesForUser.set(userId, localService);
