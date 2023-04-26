@@ -21,6 +21,7 @@ import android.annotation.SystemApi;
 import android.app.ActivityOptions;
 import android.car.builtin.annotation.PlatformVersion;
 import android.os.Build;
+import android.os.IBinder;
 import android.window.WindowContainerToken;
 
 import com.android.annotation.AddedIn;
@@ -85,5 +86,16 @@ public final class ActivityOptionsWrapper {
         sb.append(" ,mLaunchDisplayId=");
         sb.append(mOptions.getLaunchDisplayId());
         return sb.toString();
+    }
+
+    /**
+     * Sets the given {@code windowContainerToken} as the launch root task. See
+     * {@link ActivityOptions#setLaunchRootTask(WindowContainerToken)} for more info.
+     */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void setLaunchRootTask(IBinder windowContainerToken) {
+        WindowContainerToken launchRootTaskToken = WindowContainer.fromBinder(windowContainerToken)
+                        .mRemoteToken.toWindowContainerToken();
+        mOptions.setLaunchRootTask(launchRootTaskToken);
     }
 }
