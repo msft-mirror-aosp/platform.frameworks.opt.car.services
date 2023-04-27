@@ -319,6 +319,13 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
+        public void setPersistentActivitiesOnRootTask(@NonNull List<ComponentName> activities,
+                IBinder rootTaskToken) {
+            mCarActivityInterceptorUpdatable.setPersistentActivityOnRootTask(activities,
+                    rootTaskToken);
+        }
+
+        @Override
         public void setSafetyMode(boolean safe) {
             mCarServiceHelperInterface.setSafetyMode(safe);
         }
