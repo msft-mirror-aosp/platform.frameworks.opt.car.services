@@ -43,7 +43,9 @@ public final class ActivityOptionsWrapper {
         mOptions = options;
     }
 
-    /** @hide */
+    /**
+     * Creates a new instance of {@link ActivityOptionsWrapper}.
+     */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public static ActivityOptionsWrapper create(ActivityOptions options) {
         if (options == null) return null;
