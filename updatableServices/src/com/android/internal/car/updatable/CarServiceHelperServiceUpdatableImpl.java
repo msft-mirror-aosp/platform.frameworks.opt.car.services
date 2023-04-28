@@ -126,7 +126,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceHelperInterface = carServiceHelperInterface;
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 carLaunchParamsModifierInterface);
-        mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl();
+        if (isPlatformVersionAtLeastU()) {
+            mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl();
+        } else {
+            mCarActivityInterceptorUpdatable = null;
+        }
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
