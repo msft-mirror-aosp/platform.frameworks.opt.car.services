@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
+import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -52,11 +53,14 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return null;
         }
         ComponentName componentName = info.getIntent().getComponent();
-        ActivityOptionsWrapper optionsWrapper = info.getCheckedOptions();
 
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);
             if (keyIndex >= 0) {
+                ActivityOptionsWrapper optionsWrapper = info.getCheckedOptions();
+                if (optionsWrapper == null) {
+                    optionsWrapper = ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
+                }
                 optionsWrapper.setLaunchRootTask(mActivityToRootTaskMap.valueAt(keyIndex));
                 return ActivityInterceptResultWrapper.create(info.getIntent(),
                         optionsWrapper.getOptions());
