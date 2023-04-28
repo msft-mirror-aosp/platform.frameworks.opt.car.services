@@ -67,6 +67,9 @@ import java.io.FileDescriptor;
 import java.io.PrintWriter;
 import java.util.Arrays;
 import java.util.List;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 /**
  * Proxy used to host IMMSs per user and reroute requests to the user associated IMMS.
@@ -85,12 +88,14 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     // Note: this flag only takes effects on non user builds.
     public static final String DISABLE_MU_IMMS = "persist.fw.car.test.disable_mu_imms";
 
-    private final Object mLock = new Object();
+    private static final ExecutorService sExecutor = Executors.newCachedThreadPool();
 
-    @GuardedBy("mLock")
+    private final ReentrantReadWriteLock mRwLock = new ReentrantReadWriteLock();
+
+    @GuardedBy("mRwLock")
     private final SparseArray<CarInputMethodManagerService> mServicesForUser = new SparseArray<>();
 
-    @GuardedBy("mLock")
+    @GuardedBy("mRwLock")
     private final SparseArray<InputMethodManagerInternal> mLocalServicesForUser =
             new SparseArray<>();
 
@@ -115,29 +120,38 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
     CarInputMethodManagerService createAndRegisterServiceFor(@UserIdInt int userId) {
         Slogf.d(IMMS_TAG, "Starting IMMS and IMMI for user {%d}", userId);
         CarInputMethodManagerService imms;
-        synchronized (mLock) {
+        try {
+            mRwLock.writeLock().lock();
             if ((imms = mServicesForUser.get(userId)) != null) {
                 return imms;
             }
-            imms = new CarInputMethodManagerService(mContext);
+            imms = new CarInputMethodManagerService(mContext, sExecutor);
             mServicesForUser.set(userId, imms);
             InputMethodManagerInternal localService = imms.getInputMethodManagerInternal();
             mLocalServicesForUser.set(userId, localService);
             imms.systemRunning();
+            Slogf.d(IMMS_TAG, "Started IMMS and IMMI for user {%d}", userId);
+            return imms;
+        } finally {
+            mRwLock.writeLock().unlock();
         }
-        return imms;
     }
 
     CarInputMethodManagerService getServiceForUser(@UserIdInt int userId) {
-        synchronized (mLock) {
-            CarInputMethodManagerService service = mServicesForUser.get(userId);
-            return service;
+        try {
+            mRwLock.readLock().lock();
+            return mServicesForUser.get(userId);
+        } finally {
+            mRwLock.readLock().unlock();
         }
     }
 
     InputMethodManagerInternal getLocalServiceForUser(@UserIdInt int userId) {
-        synchronized (mLock) {
+        try {
+            mRwLock.readLock().lock();
             return mLocalServicesForUser.get(userId);
+        } finally {
+            mRwLock.readLock().unlock();
         }
     }
 
@@ -250,17 +264,17 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
 
         @WorkerThread
         private void onUserStartingReceived(@NonNull TargetUser user) {
-            synchronized (ImfLock.class) {
-                CarInputMethodManagerService service = mServiceProxy.getServiceForUser(
+            // This method may be invoked under WindowManagerGlobalLock, therefore the code must be
+            // run on separated thread to avoid deadlock (imms#systemRUnning and
+            // imms#scheduleSwitchUserTaskLocked will try to acquire WindowManagerGlobalLock).
+            sExecutor.execute(() -> {
+                CarInputMethodManagerService imms = mServiceProxy.createAndRegisterServiceFor(
                         user.getUserIdentifier());
-                if (service == null) {
-                    Slogf.d(LIFECYCLE_TAG,
-                            "IMMS was not created for user={%s}", user.getUserIdentifier());
-                    service = mServiceProxy.createAndRegisterServiceFor(user.getUserIdentifier());
+                synchronized (ImfLock.class) {
+                    imms.scheduleSwitchUserTaskLocked(user.getUserIdentifier(),
+                            /* clientToBeReset= */ null);
                 }
-                service.scheduleSwitchUserTaskLocked(user.getUserIdentifier(),
-                        /* clientToBeReset= */ null);
-            }
+            });
         }
 
         @MainThread
@@ -339,7 +353,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         }
 
         pw.println("*InputMethodManagerServiceProxy");
-        synchronized (mLock) {
+        try {
+            mRwLock.readLock().lock();
             pw.println("**mServicesForUser**");
             for (int i = 0; i < mServicesForUser.size(); i++) {
                 int userId = mServicesForUser.keyAt(i);
@@ -353,6 +368,8 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
                 InputMethodManagerInternal immi = mLocalServicesForUser.valueAt(i);
                 pw.println(" userId=" + userId + " immi=" + immi.hashCode());
             }
+        } finally {
+            mRwLock.readLock().unlock();
         }
         pw.flush();
     }
