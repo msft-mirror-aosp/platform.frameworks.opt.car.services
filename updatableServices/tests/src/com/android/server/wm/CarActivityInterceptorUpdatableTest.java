@@ -74,7 +74,7 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     private ActivityInterceptorInfoWrapper createActivityInterceptorInfo(String packageName,
-            String activityName, Intent intent) {
+            String activityName, Intent intent, ActivityOptions options) {
         ActivityInfo activityInfo = new ActivityInfo();
         activityInfo.packageName = packageName;
         activityInfo.name = activityName;
@@ -83,21 +83,34 @@ public class CarActivityInterceptorUpdatableTest {
                         /* callingUId= */ 0, /* callingPid= */ 0, /* realCallingUid= */ 0,
                         /* realCallingPid= */ 0, /* userId= */ 56, intent, new ResolveInfo(),
                         activityInfo);
-        builder.setCheckedOptions(ActivityOptions.makeBasic());
+        builder.setCheckedOptions(options);
         return ActivityInterceptorInfoWrapper.create(builder.build());
     }
 
-    private ActivityInterceptorInfoWrapper createActivityInterceptorInfo(String packageName,
-            String activityName) {
+    private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithCustomIntent(
+            String packageName, String activityName, Intent intent) {
+        return createActivityInterceptorInfo(packageName, activityName, intent,
+                ActivityOptions.makeBasic());
+    }
+
+    private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithMainIntent(
+            String packageName, String activityName) {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.setComponent(ComponentName.unflattenFromString(packageName + "/" + activityName));
-        return createActivityInterceptorInfo(packageName, activityName, intent);
+        return createActivityInterceptorInfoWithCustomIntent(packageName, activityName, intent);
+    }
+
+    private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithMainIntent(
+            String packageName, String activityName, ActivityOptions options) {
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(ComponentName.unflattenFromString(packageName + "/" + activityName));
+        return createActivityInterceptorInfo(packageName, activityName, intent, options);
     }
 
     @Test
     public void interceptActivityLaunch_nullIntent_returnsNull() {
         ActivityInterceptorInfoWrapper info =
-                createActivityInterceptorInfo("com.example.app3",
+                createActivityInterceptorInfoWithCustomIntent("com.example.app3",
                         "com.example.app3.MainActivity", /* intent= */ null);
 
         ActivityInterceptResultWrapper result =
@@ -114,13 +127,33 @@ public class CarActivityInterceptorUpdatableTest {
         );
         mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken1);
         ActivityInterceptorInfoWrapper info =
-                createActivityInterceptorInfo("com.example.app3",
+                createActivityInterceptorInfoWithMainIntent("com.example.app3",
                         "com.example.app3.MainActivity");
 
         ActivityInterceptResultWrapper result =
                 mInterceptor.onInterceptActivityLaunch(info);
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    public void interceptActivityLaunch_nullOptions_persistedActivity_setsLaunchRootTask() {
+        List<ComponentName> activities = List.of(
+                ComponentName.unflattenFromString("com.example.app/com.example.app.MainActivity"),
+                ComponentName.unflattenFromString("com.example.app2/com.example.app2.MainActivity")
+        );
+        mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken1);
+        ActivityInterceptorInfoWrapper info =
+                createActivityInterceptorInfoWithMainIntent(activities.get(0).getPackageName(),
+                        activities.get(0).getClassName(), /* options= */ null);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(info);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getInterceptResult().getActivityOptions().getLaunchRootTask())
+                .isEqualTo(WindowContainer.fromBinder(mRootTaskToken1)
+                        .mRemoteToken.toWindowContainerToken());
     }
 
     @Test
@@ -131,7 +164,7 @@ public class CarActivityInterceptorUpdatableTest {
         );
         mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken1);
         ActivityInterceptorInfoWrapper info =
-                createActivityInterceptorInfo(activities.get(0).getPackageName(),
+                createActivityInterceptorInfoWithMainIntent(activities.get(0).getPackageName(),
                         activities.get(0).getClassName());
 
         ActivityInterceptResultWrapper result =
@@ -156,7 +189,7 @@ public class CarActivityInterceptorUpdatableTest {
         mInterceptor.setPersistentActivityOnRootTask(activities1, mRootTaskToken1);
         mInterceptor.setPersistentActivityOnRootTask(activities2, mRootTaskToken2);
         ActivityInterceptorInfoWrapper info =
-                createActivityInterceptorInfo(activities1.get(0).getPackageName(),
+                createActivityInterceptorInfoWithMainIntent(activities1.get(0).getPackageName(),
                         activities1.get(0).getClassName());
 
         mInterceptor.setPersistentActivityOnRootTask(activities1, null);
