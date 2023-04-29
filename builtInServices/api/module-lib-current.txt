@@ -42,6 +42,7 @@ package com.android.server.wm {
   }
 
   public final class ActivityOptionsWrapper {
+    method public static com.android.server.wm.ActivityOptionsWrapper create(android.app.ActivityOptions);
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
