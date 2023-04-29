@@ -16,10 +16,12 @@
 
 package com.android.server.wm;
 
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
 import android.car.builtin.annotation.PlatformVersion;
 import android.content.Intent;
+import android.os.Build;
 
 import com.android.annotation.AddedIn;
 
@@ -40,6 +42,7 @@ public final class ActivityInterceptResultWrapper {
     /**
      * Creates an instance of {@link ActivityInterceptResultWrapper}.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static ActivityInterceptResultWrapper create(Intent intent,
             ActivityOptions activityOptions) {
@@ -50,6 +53,7 @@ public final class ActivityInterceptResultWrapper {
     /**
      * @hide
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public ActivityInterceptorCallback.ActivityInterceptResult getInterceptResult() {
         return mActivityInterceptorInfo;
