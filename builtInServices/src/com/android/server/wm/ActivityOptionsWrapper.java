@@ -94,6 +94,7 @@ public final class ActivityOptionsWrapper {
      * Sets the given {@code windowContainerToken} as the launch root task. See
      * {@link ActivityOptions#setLaunchRootTask(WindowContainerToken)} for more info.
      */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public void setLaunchRootTask(IBinder windowContainerToken) {
         WindowContainerToken launchRootTaskToken = WindowContainer.fromBinder(windowContainerToken)
