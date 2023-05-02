@@ -129,12 +129,12 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             mServicesForUser.set(userId, imms);
             InputMethodManagerInternal localService = imms.getInputMethodManagerInternal();
             mLocalServicesForUser.set(userId, localService);
-            imms.systemRunning();
-            Slogf.d(IMMS_TAG, "Started IMMS and IMMI for user {%d}", userId);
-            return imms;
         } finally {
             mRwLock.writeLock().unlock();
         }
+        imms.systemRunning();
+        Slogf.d(IMMS_TAG, "Started IMMS and IMMI for user {%d}", userId);
+        return imms;
     }
 
     CarInputMethodManagerService getServiceForUser(@UserIdInt int userId) {
@@ -444,7 +444,7 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         final int callingUserId = getCallingUserId();
         if (DBG) {
             Slogf.d(IMMS_TAG,
-                    "User {%d} invoking getEnabledInputMethodSubtypeList with imiId={%d}",
+                    "User {%d} invoking getEnabledInputMethodSubtypeList with imiId={%s}",
                     callingUserId, imiId);
         }
         CarInputMethodManagerService imms = getServiceForUser(callingUserId);
