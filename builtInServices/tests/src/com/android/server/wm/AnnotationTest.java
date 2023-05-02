@@ -16,32 +16,30 @@
 
 package com.android.server.wm;
 
-import static com.google.common.truth.Truth.assertWithMessage;
+import static android.car.test.util.AnnotationHelper.checkForAnnotation;
+
+import androidx.test.core.app.ApplicationProvider;
 
 import com.android.annotation.AddedIn;
-
-import static android.car.test.util.AnnotationHelper.checkForAnnotation;
+import com.android.internal.car.R;
 
 import org.junit.Test;
 
+import java.io.IOException;
+import java.io.InputStream;
+
 public class AnnotationTest {
-    private static final String[] CAR_SERVICE_HELPER_SERVICE_CLASSES = new String[] {
-            "com.android.internal.car.CarServiceHelperInterface",
-            "com.android.internal.car.CarServiceHelperServiceUpdatable",
-            "com.android.server.wm.ActivityOptionsWrapper",
-            "com.android.server.wm.ActivityRecordWrapper",
-            "com.android.server.wm.CalculateParams",
-            "com.android.server.wm.CarLaunchParamsModifierInterface",
-            "com.android.server.wm.CarLaunchParamsModifierUpdatable",
-            "com.android.server.wm.LaunchParamsWrapper",
-            "com.android.server.wm.RequestWrapper",
-            "com.android.server.wm.TaskDisplayAreaWrapper",
-            "com.android.server.wm.TaskWrapper",
-            "com.android.server.wm.WindowLayoutWrapper"
-            };
     @Test
     public void testCarHelperServiceAPIAddedInAnnotation() throws Exception {
-        checkForAnnotation(CAR_SERVICE_HELPER_SERVICE_CLASSES, AddedIn.class);
+        checkForAnnotation(readFile(R.raw.CSHS_classes), AddedIn.class);
+    }
+
+
+    private String[] readFile(int resourceId) throws IOException {
+        try (InputStream configurationStream = ApplicationProvider.getApplicationContext()
+                .getResources().openRawResource(resourceId)) {
+            return new String(configurationStream.readAllBytes()).split("\n");
+        }
     }
 }
 

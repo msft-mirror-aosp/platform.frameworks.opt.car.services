@@ -66,7 +66,6 @@ public final class TaskWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mTask.toString();
     }
