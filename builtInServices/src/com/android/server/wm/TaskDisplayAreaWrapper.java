@@ -57,7 +57,6 @@ public final class TaskDisplayAreaWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mTaskDisplayArea.toString();
     }
