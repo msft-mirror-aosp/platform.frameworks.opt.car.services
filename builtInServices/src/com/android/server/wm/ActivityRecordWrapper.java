@@ -116,7 +116,6 @@ public final class ActivityRecordWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mActivityRecord.toString();
     }
