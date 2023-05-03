@@ -43,7 +43,6 @@ public final class WindowLayoutWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mLayout.toString();
     }
