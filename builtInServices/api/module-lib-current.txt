@@ -83,6 +83,8 @@ package com.android.server.wm {
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int);
     method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@NonNull com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getMainDisplayAssignedToUser(int);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getUserAssignedToDisplay(int);
   }
 
   public interface CarLaunchParamsModifierUpdatable {
