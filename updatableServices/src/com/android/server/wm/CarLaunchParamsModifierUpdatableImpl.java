@@ -355,17 +355,20 @@ public final class CarLaunchParamsModifierUpdatableImpl
             }
             if (userId == mDriverUser) {
                 // Respect the existing DisplayArea.
+                if (DBG) Slogf.d(TAG, "Skip the further check for Driver");
                 break decision;
             }
             if (userId == UserManagerHelper.USER_SYSTEM) {
                 // This will be only allowed if it has FLAG_SHOW_FOR_ALL_USERS.
                 // The flag is not immediately accessible here so skip the check.
                 // But other WM policy will enforce it.
+                if (DBG) Slogf.d(TAG, "Skip the further check for SystemUser");
                 break decision;
             }
             // Now user is a passenger.
             if (mPassengerDisplays.isEmpty()) {
                 // No displays for passengers. This could be old user and do not do anything.
+                if (DBG) Slogf.d(TAG, "Skip the further check for no PassengerDisplays");
                 break decision;
             }
             if (targetDisplayArea == null) {
@@ -379,16 +382,18 @@ public final class CarLaunchParamsModifierUpdatableImpl
             Display display = targetDisplayArea.getDisplay();
             if ((display.getFlags() & Display.FLAG_PRIVATE) != 0) {
                 // private display should follow its own restriction rule.
+                if (DBG) Slogf.d(TAG, "Skip the further check for the private display");
                 break decision;
             }
             if (DisplayHelper.getType(display) == DisplayHelper.TYPE_VIRTUAL) {
                 // TODO(b/132903422) : We need to update this after the bug is resolved.
                 // For now, don't change anything.
+                if (DBG) Slogf.d(TAG, "Skip the further check for the virtual display");
                 break decision;
             }
-            int userForDisplay = mDisplayToProfileUserMapping.get(display.getDisplayId(),
-                    UserManagerHelper.USER_NULL);
+            int userForDisplay = getUserForDisplayLocked(display.getDisplayId());
             if (userForDisplay == userId) {
+                if (DBG) Slogf.d(TAG, "The display is assigned for the user");
                 break decision;
             }
             targetDisplayArea = getAlternativeDisplayAreaForPassengerLocked(
@@ -408,6 +413,19 @@ public final class CarLaunchParamsModifierUpdatableImpl
         } else {
             return LaunchParamsWrapper.RESULT_SKIP;
         }
+    }
+
+    @GuardedBy("mLock")
+    private int getUserForDisplayLocked(int displayId) {
+        int userForDisplay = mDisplayToProfileUserMapping.get(displayId,
+                UserManagerHelper.USER_NULL);
+        if (userForDisplay != UserManagerHelper.USER_NULL) {
+            return userForDisplay;
+        }
+        if (VersionUtils.isPlatformVersionAtLeastU()) {
+            userForDisplay = mBuiltin.getUserAssignedToDisplay(displayId);
+        }
+        return userForDisplay;
     }
 
     @GuardedBy("mLock")
@@ -453,6 +471,12 @@ public final class CarLaunchParamsModifierUpdatableImpl
         if (displayIdForUserProfile != Display.INVALID_DISPLAY) {
             int displayId = mDefaultDisplayForProfileUser.get(userId);
             return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
+        }
+        if (VersionUtils.isPlatformVersionAtLeastU()) {
+            int displayId = mBuiltin.getMainDisplayAssignedToUser(userId);
+            if (displayId != Display.INVALID_DISPLAY) {
+                return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
+            }
         }
         if (!mPassengerDisplays.isEmpty()) {
             int displayId = mPassengerDisplays.get(0);
