@@ -31,6 +31,9 @@ import android.os.Looper;
 import android.util.Pair;
 import android.view.Display;
 
+import com.android.server.LocalServices;
+import com.android.server.pm.UserManagerInternal;
+
 import java.util.ArrayList;
 import java.util.List;
 
@@ -229,6 +232,20 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         @Override
         public Pair<Integer, Integer> getCurrentAndTargetUserIds() {
             return mAtm.mAmInternal.getCurrentAndTargetUserIds();
+        }
+
+        @Override
+        public int getUserAssignedToDisplay(int displayId) {
+            UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+            int userId = umi.getUserAssignedToDisplay(displayId);
+            return userId;
+        }
+
+        @Override
+        public int getMainDisplayAssignedToUser(int userId) {
+            UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+            int displayId = umi.getMainDisplayAssignedToUser(userId);
+            return displayId;
         }
     };
 }
