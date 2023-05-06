@@ -304,6 +304,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     private final LocalServiceImpl mImmi;
 
     private final ExecutorService mExecutor;
+
+    private ImmsBroadcastReceiverForAllUsers mBroadcastReceiver;
     // end CarInputMethodManagerService
 
     /**
@@ -1218,26 +1220,6 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     }
 
     /**
-     * {@link BroadcastReceiver} that is intended to listen to broadcasts sent to the system user
-     * only.
-     */
-    private final class ImmsBroadcastReceiverForSystemUser extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (Intent.ACTION_USER_ADDED.equals(action)
-                    || Intent.ACTION_USER_REMOVED.equals(action)) {
-                updateCurrentProfileIds();
-                return;
-            } else if (Intent.ACTION_LOCALE_CHANGED.equals(action)) {
-                onActionLocaleChanged();
-            } else {
-                Slog.w(TAG, "Unexpected intent " + intent);
-            }
-        }
-    }
-
-    /**
      * {@link BroadcastReceiver} that is intended to listen to broadcasts sent to all the users.
      */
     private final class ImmsBroadcastReceiverForAllUsers extends BroadcastReceiver {
@@ -1934,16 +1916,14 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 mMyPackageMonitor.register(mContext, null, UserHandle.ALL, true);
                 mSettingsObserver.registerContentObserverLocked(currentUserId);
 
-                final IntentFilter broadcastFilterForSystemUser = new IntentFilter();
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_USER_ADDED);
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_USER_REMOVED);
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_LOCALE_CHANGED);
-                mContext.registerReceiver(new ImmsBroadcastReceiverForSystemUser(),
-                        broadcastFilterForSystemUser);
+                // begin CarInputMethodManagerService
+                // ImmsBroadcastReceiverForSystemUser moved to IMMS Proxy
+                // end CarInputMethodManagerService
 
                 final IntentFilter broadcastFilterForAllUsers = new IntentFilter();
                 broadcastFilterForAllUsers.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
-                mContext.registerReceiverAsUser(new ImmsBroadcastReceiverForAllUsers(),
+                mBroadcastReceiver = new ImmsBroadcastReceiverForAllUsers();
+                mContext.registerReceiverAsUser(mBroadcastReceiver,
                         UserHandle.ALL, broadcastFilterForAllUsers, null, null,
                         Context.RECEIVER_EXPORTED);
 
@@ -1955,6 +1935,17 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                         getPackageManagerForUser(mContext, currentUserId),
                         mSettings.getEnabledInputMethodListLocked());
             }
+        }
+    }
+
+    /**
+     * Shutdown this service.
+     *
+     * This service can't be re-used once this method is invoked.
+     */
+    void systemShutdown() {
+        synchronized (ImfLock.class) {
+            mContext.unregisterReceiver(mBroadcastReceiver);
         }
     }
 
