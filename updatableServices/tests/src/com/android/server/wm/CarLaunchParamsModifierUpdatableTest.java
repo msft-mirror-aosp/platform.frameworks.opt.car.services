@@ -62,6 +62,7 @@ import com.android.internal.policy.AttributeCache;
 import com.android.server.LocalServices;
 import com.android.server.display.color.ColorDisplayService;
 import com.android.server.input.InputManagerService;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.policy.WindowManagerPolicy;
 
 import org.junit.After;
@@ -86,6 +87,7 @@ public class CarLaunchParamsModifierUpdatableTest {
     // mock variables.
     private static final int PASSENGER_DISPLAY_ID_10 = 10;
     private static final int PASSENGER_DISPLAY_ID_11 = 11;
+    private static final int RANDOM_DISPLAY_ID_99 = 99;
     private static final int VIRTUAL_DISPLAY_ID_2 = 2;
     private static final int FEATURE_MAP_ID = 1111;
 
@@ -117,6 +119,8 @@ public class CarLaunchParamsModifierUpdatableTest {
     private PackageConfigPersister mPackageConfigPersister;
     @Mock
     private InputManagerService mInputManagerService;
+    @Mock
+    private UserManagerInternal mUserManagerInternal;
 
     @Mock
     private Display mDisplay0ForDriver;
@@ -196,6 +200,13 @@ public class CarLaunchParamsModifierUpdatableTest {
         when(mActivityTaskManagerService.getRecentTasks()).thenReturn(mRecentTasks);
         when(mActivityTaskManagerService.getGlobalLock()).thenReturn(mWindowManagerGlobalLock);
         when(mActivityTaskManagerService.getUiContext()).thenReturn(mContext);
+
+        LocalServices.removeServiceForTest(UserManagerInternal.class);
+        LocalServices.addService(UserManagerInternal.class, mUserManagerInternal);
+        when(mUserManagerInternal.getUserAssignedToDisplay(anyInt()))
+                .thenReturn(UserHandle.USER_NULL);
+        when(mUserManagerInternal.getMainDisplayAssignedToUser(anyInt()))
+                .thenReturn(INVALID_DISPLAY);
 
         LocalServices.removeServiceForTest(WindowManagerInternal.class);
         LocalServices.removeServiceForTest(ImeTargetVisibilityPolicy.class);
@@ -802,6 +813,36 @@ public class CarLaunchParamsModifierUpdatableTest {
         assertThat(mOutParams.mWindowingMode).isEqualTo(6);
     }
 
+    @Test
+    public void testVisibleUserStartsButNoOccupantZoneIsAssigned() {
+        // We have a Passenger display, but a visible user is started, but not an occupant zone is
+        // assigned yet. This happens for Home when a visible user is started.
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(PASSENGER_DISPLAY_ID_11))
+                .thenReturn(visibleUserId);
+        when(mActivityOptions.getLaunchDisplayId()).thenReturn(PASSENGER_DISPLAY_ID_11);
+
+        // CarLaunchParamsModifier admires the launchDisplayId, not assigning a display.
+        assertNoDisplayIsAssigned(visibleUserId);
+    }
+
+    @Test
+    public void testVisibleUserUsesMainDisplayAsFallback_whenLaunchedOnRandomDisplay() {
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(PASSENGER_DISPLAY_ID_11))
+                .thenReturn(visibleUserId);
+        when(mUserManagerInternal.getMainDisplayAssignedToUser(visibleUserId))
+                .thenReturn(PASSENGER_DISPLAY_ID_11);
+        // Try to start Activity on the non-main display.
+        when(mActivityOptions.getLaunchDisplayId()).thenReturn(RANDOM_DISPLAY_ID_99);
+
+        // For the visible user, fallbacks to the main display.
+        assertDisplayIsAssigned(visibleUserId, mDisplayArea11ForPassenger);
+    }
 
     private static ActivityStarter.Request fakeRequest() {
         ActivityStarter.Request request = new ActivityStarter.Request();
