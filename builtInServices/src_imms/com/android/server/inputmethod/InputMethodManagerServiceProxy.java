@@ -25,7 +25,10 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
 import android.annotation.WorkerThread;
+import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
+import android.content.IntentFilter;
 import android.os.Binder;
 import android.os.Build;
 import android.os.Handler;
@@ -210,6 +213,14 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             mWorkerThread = new HandlerThread(IMMS_TAG);
             mWorkerThread.start();
             mHandler = new Handler(mWorkerThread.getLooper(), msg -> false, true);
+
+            // Register broadcast receivers for user state changes
+            IntentFilter broadcastFilterForSystemUser = new IntentFilter();
+            broadcastFilterForSystemUser.addAction(Intent.ACTION_LOCALE_CHANGED);
+            mContext.registerReceiver(new ImmsBroadcastReceiverForSystemUser(),
+                    broadcastFilterForSystemUser);
+
+            // Register binders
             LocalServices.addService(InputMethodManagerInternal.class,
                     mServiceProxy.getLocalServiceProxy());
             publishBinderService(Context.INPUT_METHOD_SERVICE, mServiceProxy,
@@ -306,7 +317,6 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
         @MainThread
         @Override
         public void onUserStopping(@NonNull TargetUser user) {
-            // TODO(b/245798405): Add proper logic to stop IMMS for the user passed as parameter.
             if (DBG) {
                 Slogf.d(LIFECYCLE_TAG,
                         "Entering #onUserStoppingReceived with userId={%d} (IMMS Proxy "
@@ -315,7 +325,11 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             }
             if (!isImmsProxyEnabled()) {
                 mCoreImmsLifecycle.onUserStopping(user);
+                return;
             }
+            sExecutor.execute(
+                    () -> mServiceProxy.removeCarInputMethodManagerServiceForUser(
+                            user.getUserIdentifier()));
         }
 
         @MainThread
@@ -331,6 +345,38 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
                 mCoreImmsLifecycle.onUserSwitching(from, to);
             }
         }
+
+        /**
+         * {@link BroadcastReceiver} that is intended to listen to broadcasts sent to the system
+         * user only.
+         */
+        private final class ImmsBroadcastReceiverForSystemUser extends BroadcastReceiver {
+            @Override
+            public void onReceive(Context context, Intent intent) {
+                String action = intent.getAction();
+                if (Intent.ACTION_LOCALE_CHANGED.equals(action)) {
+                    mServiceProxy.onActionLocaleChanged();
+                } else {
+                    Slogf.w(LIFECYCLE_TAG, "Unexpected intent " + intent);
+                }
+            }
+        }
+    }
+
+    private void removeCarInputMethodManagerServiceForUser(int userId) {
+        mRwLock.writeLock().lock();
+        try {
+            CarInputMethodManagerService imms = mServicesForUser.get(userId);
+            if (imms == null) {
+                return;
+            }
+            mServicesForUser.remove(userId);
+            mLocalServicesForUser.remove(userId);
+            imms.systemShutdown();
+        } finally {
+            mRwLock.writeLock().unlock();
+        }
+        Slogf.i(IMMS_TAG, "Removed CarIMMS for user {%d}", userId);
     }
 
     /**
@@ -400,6 +446,20 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             }
         }
         return UserHandle.USER_NULL;
+    }
+
+    private void onActionLocaleChanged() {
+        try {
+            mRwLock.readLock().lock();
+            for (int i = 0; i < mServicesForUser.size(); i++) {
+                int userId = mServicesForUser.keyAt(i);
+                Slogf.i(IMMS_TAG, "Updating location for user {%d} Car IMMS", userId);
+                CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
+                imms.onActionLocaleChanged();
+            }
+        } finally {
+            mRwLock.readLock().unlock();
+        }
     }
 
     // Delegate methods  ///////////////////////////////////////////////////////////////////////////
