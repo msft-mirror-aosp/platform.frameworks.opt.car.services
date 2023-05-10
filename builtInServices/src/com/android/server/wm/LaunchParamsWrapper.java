@@ -108,7 +108,6 @@ public final class LaunchParamsWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return "LaunchParams{" +
                 "mPreferredTaskDisplayArea=" + mLaunchParams.mPreferredTaskDisplayArea +

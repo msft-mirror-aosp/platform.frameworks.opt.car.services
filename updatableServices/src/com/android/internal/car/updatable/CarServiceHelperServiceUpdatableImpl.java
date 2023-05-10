@@ -15,11 +15,14 @@
  */
 package com.android.internal.car.updatable;
 
-import static android.car.PlatformVersion.VERSION_CODES.UPSIDE_DOWN_CAKE_0;
+import static android.view.Display.INVALID_DISPLAY;
 
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
-import static com.android.car.internal.util.VersionUtils.assertPlatformVersionAtLeast;
+import static com.android.car.internal.common.CommonConstants.INVALID_GID;
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
+import static com.android.car.internal.common.CommonConstants.INVALID_USER_ID;
+import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -49,6 +52,7 @@ import com.android.internal.annotations.Keep;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
+import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -102,6 +106,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarServiceHelperInterface mCarServiceHelperInterface;
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
+    private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
 
     public CarServiceHelperServiceUpdatableImpl(Context context,
             CarServiceHelperInterface carServiceHelperInterface,
@@ -121,6 +126,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceHelperInterface = carServiceHelperInterface;
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 carLaunchParamsModifierInterface);
+        if (isPlatformVersionAtLeastU()) {
+            mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl();
+        } else {
+            mCarActivityInterceptorUpdatable = null;
+        }
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -181,6 +191,11 @@ public final class CarServiceHelperServiceUpdatableImpl
     @Override
     public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
         return mCarLaunchParamsModifierUpdatable;
+    }
+
+    @Override
+    public CarActivityInterceptorUpdatableImpl getCarActivityInterceptorUpdatable() {
+        return mCarActivityInterceptorUpdatable;
     }
 
     @VisibleForTesting
@@ -308,6 +323,13 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
+        public void setPersistentActivitiesOnRootTask(@NonNull List<ComponentName> activities,
+                IBinder rootTaskToken) {
+            mCarActivityInterceptorUpdatable.setPersistentActivityOnRootTask(activities,
+                    rootTaskToken);
+        }
+
+        @Override
         public void setSafetyMode(boolean safe) {
             mCarServiceHelperInterface.setSafetyMode(safe);
         }
@@ -324,45 +346,59 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setProcessGroup(int pid, int group) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
+            if (!isPlatformVersionAtLeastU()) {
+                return;
+            }
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getProcessGroup(pid);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getProcessGroup(pid);
+            }
+            return INVALID_GID;
         }
 
         @Override
-        public int getDisplayAssignedToUser(int userId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getDisplayAssignedToUser(userId);
+        public int getMainDisplayAssignedToUser(int userId) {
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
+            }
+            return INVALID_DISPLAY;
         }
 
         @Override
         public int getUserAssignedToDisplay(int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+            }
+            return INVALID_USER_ID;
         }
 
         @Override
         public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
-            return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(userId,
-                    displayId);
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(
+                        userId, displayId);
+            }
+            return false;
         }
 
         @Override
         public void setProcessProfile(int pid, int uid, @NonNull String profile) {
-            assertPlatformVersionAtLeast(UPSIDE_DOWN_CAKE_0);
-
+            if (!isPlatformVersionAtLeastU()) {
+                return;
+            }
             mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
+        }
+
+        @Override
+        public int fetchAidlVhalPid() {
+            if (isPlatformVersionAtLeastU()) {
+                return mCarServiceHelperInterface.fetchAidlVhalPid();
+            }
+            return INVALID_PID;
         }
     }
 

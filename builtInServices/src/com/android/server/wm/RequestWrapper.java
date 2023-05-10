@@ -48,7 +48,6 @@ public final class RequestWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         return mRequest.toString();
     }

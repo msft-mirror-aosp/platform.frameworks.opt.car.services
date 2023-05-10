@@ -17,33 +17,31 @@
 package com.android.server.wm;
 
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.PlatformVersion;
-import android.content.pm.ActivityInfo;
+import android.os.Build;
 
 import com.android.annotation.AddedIn;
 
 /**
- * Wrapper of {@link android.content.pm.ActivityInfo.WindowLayout}.
+ * Updatable interface of CarActivityInterceptor.
+ *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public final class WindowLayoutWrapper {
-    private final ActivityInfo.WindowLayout mLayout;
-
-    private WindowLayoutWrapper(ActivityInfo.WindowLayout layout) {
-        mLayout = layout;
-    }
-
-    /** @hide */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
-    public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
-        if (layout == null) return null;
-        return new WindowLayoutWrapper(layout);
-    }
-
-    @Override
-    public String toString() {
-        return mLayout.toString();
-    }
+public interface CarActivityInterceptorUpdatable {
+    /**
+     * Intercepts the activity launch.
+     *
+     * @param info the activity info of the activity being launched.
+     * @return the result of the interception in the form of the modified intent & activity options.
+     *         {@code null} is returned when no modification is required on intent or activity
+     *         options.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @Nullable
+    ActivityInterceptResultWrapper onInterceptActivityLaunch(
+            ActivityInterceptorInfoWrapper info);
 }
