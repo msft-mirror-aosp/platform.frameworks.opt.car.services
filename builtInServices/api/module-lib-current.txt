@@ -16,6 +16,7 @@ package com.android.internal.car {
 
   public interface CarServiceHelperServiceUpdatable {
     method public void dump(@NonNull java.io.PrintWriter, @Nullable String[]);
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public com.android.server.wm.CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
     method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
     method public void initBootUser();
     method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
@@ -28,10 +29,24 @@ package com.android.internal.car {
 
 package com.android.server.wm {
 
+  public final class ActivityInterceptResultWrapper {
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static com.android.server.wm.ActivityInterceptResultWrapper create(android.content.Intent, android.app.ActivityOptions);
+  }
+
+  public final class ActivityInterceptorInfoWrapper {
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public android.content.pm.ActivityInfo getActivityInfo();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public String getCallingPackage();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public android.content.Intent getIntent();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getUserId();
+  }
+
   public final class ActivityOptionsWrapper {
+    method public static com.android.server.wm.ActivityOptionsWrapper create(android.app.ActivityOptions);
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void setLaunchRootTask(android.os.IBinder);
     field @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
   }
 
@@ -57,6 +72,10 @@ package com.android.server.wm {
     method public com.android.server.wm.TaskWrapper getTask();
     method public com.android.server.wm.WindowLayoutWrapper getWindowLayout();
     method public boolean supportsMultiDisplay();
+  }
+
+  public interface CarActivityInterceptorUpdatable {
+    method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(com.android.server.wm.ActivityInterceptorInfoWrapper);
   }
 
   public interface CarLaunchParamsModifierInterface {
