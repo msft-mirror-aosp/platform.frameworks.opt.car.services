@@ -77,8 +77,6 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 /**
  * Proxy used to host IMMSs per user and reroute requests to the user associated IMMS.
  *
- * TODO(b/245798405): Add the logic to handle user 0
- *
  * @hide
  */
 public final class InputMethodManagerServiceProxy extends IInputMethodManager.Stub {
@@ -397,27 +395,49 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
             mServicesForUser.get(userIdArg).dump(fd, pw, args);
             return;
         }
-
         pw.println("*InputMethodManagerServiceProxy");
+        pw.println("**mServicesForUser**");
         try {
             mRwLock.readLock().lock();
-            pw.println("**mServicesForUser**");
-            for (int i = 0; i < mServicesForUser.size(); i++) {
-                int userId = mServicesForUser.keyAt(i);
-                CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
-                pw.println(" userId=" + userId + " imms=" + imms.hashCode() + " {autofill="
-                        + imms.getAutofillController() + "}");
-            }
-            pw.println("**mLocalServicesForUser**");
-            for (int i = 0; i < mLocalServicesForUser.size(); i++) {
-                int userId = mLocalServicesForUser.keyAt(i);
-                InputMethodManagerInternal immi = mLocalServicesForUser.valueAt(i);
-                pw.println(" userId=" + userId + " immi=" + immi.hashCode());
+            if (parseBriefArg(args)) {
+                // Dump brief
+                for (int i = 0; i < mServicesForUser.size(); i++) {
+                    int userId = mServicesForUser.keyAt(i);
+                    CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
+                    pw.println(" userId=" + userId + " imms=" + imms.hashCode() + " {autofill="
+                            + imms.getAutofillController() + "}");
+                }
+                pw.println("**mLocalServicesForUser**");
+                for (int i = 0; i < mLocalServicesForUser.size(); i++) {
+                    int userId = mLocalServicesForUser.keyAt(i);
+                    InputMethodManagerInternal immi = mLocalServicesForUser.valueAt(i);
+                    pw.println(" userId=" + userId + " immi=" + immi.hashCode());
+                }
+            } else {
+                // Dump full
+                for (int i = 0; i < mServicesForUser.size(); i++) {
+                    int userId = mServicesForUser.keyAt(i);
+                    pw.println("**CarInputMethodManagerService for userId=" + userId);
+                    CarInputMethodManagerService imms = mServicesForUser.valueAt(i);
+                    imms.dump(fd, pw, args);
+                }
             }
         } finally {
             mRwLock.readLock().unlock();
         }
         pw.flush();
+    }
+
+    private boolean parseBriefArg(String[] args) {
+        if (args == null) {
+            return false;
+        }
+        for (int i = 0; i < args.length; i++) {
+            if (args[i].equals("--brief")) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**
@@ -571,9 +591,11 @@ public final class InputMethodManagerServiceProxy extends IInputMethodManager.St
                 windowFlags, editorInfo, inputConnection,
                 remoteAccessibilityInputConnection, unverifiedTargetSdkVersion, userId,
                 imeDispatcher);
-        Slogf.d(IMMS_TAG, "Returning {%s} for startInputOrWindowGainedFocus / user {%d}",
-                result,
-                userId);
+        if (DBG) {
+            Slogf.d(IMMS_TAG, "Returning {%s} for startInputOrWindowGainedFocus / user {%d}",
+                    result,
+                    userId);
+        }
         return result;
     }
 
