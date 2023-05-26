@@ -17,6 +17,7 @@
 package com.android.internal.car.updatable;
 
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
@@ -24,6 +25,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 
 import android.annotation.IntDef;
 import android.annotation.NonNull;
@@ -242,6 +244,28 @@ final class CarServiceProxy {
 
         if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_REMOVED) {
             sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_REMOVED,
+                    UserManagerHelper.USER_NULL, userId);
+            return;
+        }
+
+        // User visible and user invisible are unrelated to the user switching/unlocking flow.
+        // Return early to prevent them from going into the following logic
+        // that makes assumptions about the sequence of lifecycle event types
+        // following numerical order.
+        // If we don't return early here, because the user visible and visible event numbers are
+        // greater than user starting/switching/unlocking/unlocked events, they will cause these
+        // events to be sent which is an unintended effect.
+        // TODO(b/277148129): Refactor the entire lifecycle events replay logic taking into
+        // consideration the visible and invisible events. Currently only the last event per use is
+        // tracked so it's hard to infer events before user visible and user invisible.
+        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_VISIBLE) {
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_VISIBLE,
+                    UserManagerHelper.USER_NULL, userId);
+            return;
+        }
+
+        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_INVISIBLE) {
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_INVISIBLE,
                     UserManagerHelper.USER_NULL, userId);
             return;
         }

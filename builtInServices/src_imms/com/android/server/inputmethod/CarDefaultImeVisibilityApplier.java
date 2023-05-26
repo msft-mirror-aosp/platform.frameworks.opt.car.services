@@ -23,8 +23,10 @@ import static com.android.server.EventLogTags.IMF_SHOW_IME;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME_EXPLICIT;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME_NOT_ALWAYS;
+import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_REMOVE_IME_SNAPSHOT;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_SHOW_IME;
 import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_SHOW_IME_IMPLICIT;
+import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_SHOW_IME_SNAPSHOT;
 
 import android.annotation.Nullable;
 import android.os.IBinder;
@@ -136,17 +138,17 @@ final class CarDefaultImeVisibilityApplier implements ImeVisibilityApplier {
                 mWindowManagerInternal.showImePostLayout(windowToken, statsToken);
                 break;
             case STATE_HIDE_IME:
-                if (mService.mCurFocusedWindowClient != null) {
+                if (mService.hasAttachedClient()) {
                     ImeTracker.forLogging().onProgress(statsToken,
                             ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
                     // IMMS only knows of focused window, not the actual IME target.
                     // e.g. it isn't aware of any window that has both
                     // NOT_FOCUSABLE, ALT_FOCUSABLE_IM flags set and can the IME target.
                     // Send it to window manager to hide IME from IME target window.
-                    // TODO(b/139861270): send to mCurClient.client once IMMS is aware of
-                    // actual IME target.
+                    // Send it to window manager to hide IME from the actual IME control target
+                    // of the target display.
                     mWindowManagerInternal.hideIme(windowToken,
-                            mService.mCurFocusedWindowClient.mSelfReportedDisplayId, statsToken);
+                            mService.getDisplayIdToShowImeLocked(), statsToken);
                 } else {
                     ImeTracker.forLogging().onFailed(statsToken,
                             ImeTracker.PHASE_SERVER_APPLY_IME_VISIBILITY);
@@ -162,6 +164,12 @@ final class CarDefaultImeVisibilityApplier implements ImeVisibilityApplier {
             case STATE_SHOW_IME_IMPLICIT:
                 mService.showCurrentInputLocked(windowToken, statsToken,
                         InputMethodManager.SHOW_IMPLICIT, null, reason);
+                break;
+            case STATE_SHOW_IME_SNAPSHOT:
+                showImeScreenshot(windowToken, mService.getDisplayIdToShowImeLocked(), null);
+                break;
+            case STATE_REMOVE_IME_SNAPSHOT:
+                removeImeScreenshot(mService.getDisplayIdToShowImeLocked());
                 break;
             default:
                 throw new IllegalArgumentException("Invalid IME visibility state: " + state);
