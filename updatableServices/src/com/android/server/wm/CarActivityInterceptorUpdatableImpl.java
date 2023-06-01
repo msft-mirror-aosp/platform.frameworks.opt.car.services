@@ -16,9 +16,13 @@
 
 package com.android.server.wm;
 
+import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
+
 import android.annotation.NonNull;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
+import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
 import android.os.IBinder;
 import android.os.RemoteException;
@@ -38,13 +42,21 @@ import java.util.Set;
  *
  * @hide
  */
+@RequiresApi(UPSIDE_DOWN_CAKE)
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class CarActivityInterceptorUpdatableImpl implements CarActivityInterceptorUpdatable {
+    public static final String TAG = CarActivityInterceptorUpdatableImpl.class.getSimpleName();
+
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private final ArrayMap<ComponentName, IBinder> mActivityToRootTaskMap = new ArrayMap<>();
     @GuardedBy("mLock")
     private final Set<IBinder> mKnownRootTasks = new ArraySet<>();
+    private final CarActivityInterceptorInterface mBuiltIn;
+
+    public CarActivityInterceptorUpdatableImpl(CarActivityInterceptorInterface builtInInterface) {
+        mBuiltIn = builtInInterface;
+    }
 
     @Override
     public ActivityInterceptResultWrapper onInterceptActivityLaunch(
@@ -57,16 +69,36 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);
             if (keyIndex >= 0) {
+                IBinder rootTaskToken = mActivityToRootTaskMap.valueAt(keyIndex);
+                if (!isRootTaskUserSameAsActivityUser(rootTaskToken, info)) {
+                    return null;
+                }
+
                 ActivityOptionsWrapper optionsWrapper = info.getCheckedOptions();
                 if (optionsWrapper == null) {
                     optionsWrapper = ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
                 }
-                optionsWrapper.setLaunchRootTask(mActivityToRootTaskMap.valueAt(keyIndex));
+                optionsWrapper.setLaunchRootTask(rootTaskToken);
                 return ActivityInterceptResultWrapper.create(info.getIntent(),
                         optionsWrapper.getOptions());
             }
         }
         return null;
+    }
+
+    private boolean isRootTaskUserSameAsActivityUser(IBinder rootTaskToken,
+            ActivityInterceptorInfoWrapper activityInterceptorInfoWrapper) {
+        TaskWrapper rootTask = TaskWrapper.createFromToken(rootTaskToken);
+        int userIdFromActivity = activityInterceptorInfoWrapper.getUserId();
+        int userIdFromRootTask = mBuiltIn.getUserAssignedToDisplay(rootTask
+                .getTaskDisplayArea().getDisplay().getDisplayId());
+        if (userIdFromActivity == userIdFromRootTask) {
+            return true;
+        }
+        Slogf.w(TAG, "The user id of launched activity (%d) doesn't match the "
+                + "user id which the display (which the root task is added in) is "
+                + "assigned to (%d).", userIdFromActivity, userIdFromRootTask);
+        return false;
     }
 
     /**
