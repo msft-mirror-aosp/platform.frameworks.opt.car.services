@@ -20,11 +20,14 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.mockito.Mockito.when;
+
 import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ResolveInfo;
+import android.view.Display;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -40,15 +43,39 @@ import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
 public class CarActivityInterceptorUpdatableTest {
+    private static final int DEFAULT_CURRENT_USER_ID = 112;
+    private static final int PASSENGER_USER_ID = 198;
     private CarActivityInterceptorUpdatableImpl mInterceptor;
     private MockitoSession mMockingSession;
     private WindowContainer.RemoteToken mRootTaskToken1;
     private WindowContainer.RemoteToken mRootTaskToken2;
 
     @Mock
-    private WindowContainer mWindowContainer1;
+    private Task mWindowContainer1;
     @Mock
-    private WindowContainer mWindowContainer2;
+    private Task mWindowContainer2;
+
+    @Mock
+    private DisplayContent mDisplayContent;
+
+    @Mock
+    private Display mDisplay;
+
+    @Mock
+    private TaskDisplayArea mTda;
+
+    private final CarActivityInterceptorInterface mCarActivityInterceptorInterface =
+            new CarActivityInterceptorInterface() {
+                @Override
+                public int getUserAssignedToDisplay(int displayId) {
+                    return DEFAULT_CURRENT_USER_ID;
+                }
+
+                @Override
+                public int getMainDisplayAssignedToUser(int userId) {
+                    return 0;
+                }
+            };
 
     @Before
     public void setUp() {
@@ -57,12 +84,19 @@ public class CarActivityInterceptorUpdatableTest {
                 .strictness(Strictness.LENIENT)
                 .startMocking();
 
+        mTda.mDisplayContent = mDisplayContent;
+        when(mDisplayContent.getDisplay()).thenReturn(mDisplay);
+        when(mDisplay.getDisplayId()).thenReturn(0);
+
         mRootTaskToken1 = new WindowContainer.RemoteToken(mWindowContainer1);
         mWindowContainer1.mRemoteToken = mRootTaskToken1;
+        when(mWindowContainer1.getTaskDisplayArea()).thenReturn(mTda);
+
         mRootTaskToken2 = new WindowContainer.RemoteToken(mWindowContainer2);
+        when(mWindowContainer2.getTaskDisplayArea()).thenReturn(mTda);
         mWindowContainer2.mRemoteToken = mRootTaskToken2;
 
-        mInterceptor = new CarActivityInterceptorUpdatableImpl();
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mCarActivityInterceptorInterface);
     }
 
     @After
@@ -74,15 +108,15 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     private ActivityInterceptorInfoWrapper createActivityInterceptorInfo(String packageName,
-            String activityName, Intent intent, ActivityOptions options) {
+            String activityName, Intent intent, ActivityOptions options, int userId) {
         ActivityInfo activityInfo = new ActivityInfo();
         activityInfo.packageName = packageName;
         activityInfo.name = activityName;
         ActivityInterceptorCallback.ActivityInterceptorInfo.Builder builder =
                 new ActivityInterceptorCallback.ActivityInterceptorInfo.Builder(
                         /* callingUId= */ 0, /* callingPid= */ 0, /* realCallingUid= */ 0,
-                        /* realCallingPid= */ 0, /* userId= */ 56, intent, new ResolveInfo(),
-                        activityInfo);
+                        /* realCallingPid= */ 0, /* userId= */ userId, intent,
+                        new ResolveInfo(), activityInfo);
         builder.setCheckedOptions(options);
         return ActivityInterceptorInfoWrapper.create(builder.build());
     }
@@ -90,7 +124,13 @@ public class CarActivityInterceptorUpdatableTest {
     private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithCustomIntent(
             String packageName, String activityName, Intent intent) {
         return createActivityInterceptorInfo(packageName, activityName, intent,
-                ActivityOptions.makeBasic());
+                ActivityOptions.makeBasic(), DEFAULT_CURRENT_USER_ID);
+    }
+
+    private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithCustomIntent(
+            String packageName, String activityName, Intent intent, int userId) {
+        return createActivityInterceptorInfo(packageName, activityName, intent,
+                ActivityOptions.makeBasic(), userId);
     }
 
     private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithMainIntent(
@@ -101,10 +141,19 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithMainIntent(
+            String packageName, String activityName, int userId) {
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(ComponentName.unflattenFromString(packageName + "/" + activityName));
+        return createActivityInterceptorInfoWithCustomIntent(packageName, activityName, intent,
+                userId);
+    }
+
+    private ActivityInterceptorInfoWrapper createActivityInterceptorInfoWithMainIntent(
             String packageName, String activityName, ActivityOptions options) {
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.setComponent(ComponentName.unflattenFromString(packageName + "/" + activityName));
-        return createActivityInterceptorInfo(packageName, activityName, intent, options);
+        return createActivityInterceptorInfo(packageName, activityName, intent, options,
+                DEFAULT_CURRENT_USER_ID);
     }
 
     @Test
@@ -174,6 +223,23 @@ public class CarActivityInterceptorUpdatableTest {
         assertThat(result.getInterceptResult().getActivityOptions().getLaunchRootTask())
                 .isEqualTo(WindowContainer.fromBinder(mRootTaskToken1)
                         .mRemoteToken.toWindowContainerToken());
+    }
+
+    @Test
+    public void interceptActivityLaunch_persistedActivity_differentUser_doesNothing() {
+        List<ComponentName> activities = List.of(
+                ComponentName.unflattenFromString("com.example.app/com.example.app.MainActivity"),
+                ComponentName.unflattenFromString("com.example.app2/com.example.app2.MainActivity")
+        );
+        mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken1);
+        ActivityInterceptorInfoWrapper info =
+                createActivityInterceptorInfoWithMainIntent(activities.get(0).getPackageName(),
+                        activities.get(0).getClassName(), /* userId= */ PASSENGER_USER_ID);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(info);
+
+        assertThat(result).isNull();
     }
 
     @Test
