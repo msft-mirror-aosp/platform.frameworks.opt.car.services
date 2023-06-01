@@ -16,9 +16,14 @@
 
 package com.android.server.wm;
 
+import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
+
+import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.PlatformVersion;
+import android.os.IBinder;
 
 import com.android.annotation.AddedIn;
 
@@ -39,6 +44,13 @@ public final class TaskWrapper {
     public static TaskWrapper create(@Nullable Task task) {
         if (task == null) return null;
         return new TaskWrapper(task);
+    }
+
+    /** Creates an instance of {@link TaskWrapper} based on the task's remote {@code token}. */
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @RequiresApi(UPSIDE_DOWN_CAKE)
+    public static TaskWrapper createFromToken(@NonNull IBinder token) {
+        return new TaskWrapper((Task) WindowContainer.fromBinder(token));
     }
 
     /**

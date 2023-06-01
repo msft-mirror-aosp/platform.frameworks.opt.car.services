@@ -13,3 +13,4 @@ com.android.server.wm.LaunchParamsWrapper
 com.android.server.wm.ActivityOptionsWrapper
 com.android.server.wm.ActivityRecordWrapper
 com.android.server.wm.RequestWrapper
+com.android.server.wm.CarActivityInterceptorInterface
