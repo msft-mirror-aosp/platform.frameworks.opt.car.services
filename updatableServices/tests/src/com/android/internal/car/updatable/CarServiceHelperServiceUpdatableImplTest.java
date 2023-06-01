@@ -40,6 +40,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.car.internal.util.VersionUtils;
 import com.android.internal.car.CarServiceHelperInterface;
+import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
 import org.junit.Before;
@@ -68,6 +69,8 @@ public final class CarServiceHelperServiceUpdatableImplTest
     @Mock
     private CarLaunchParamsModifierInterface mCarLaunchParamsModifierInterface;
     @Mock
+    private CarActivityInterceptorInterface mCarActivityInterceptorInterface;
+    @Mock
     private ICar mICarBinder;
     @Mock
     private IBinder mIBinder;
@@ -84,6 +87,7 @@ public final class CarServiceHelperServiceUpdatableImplTest
                 mMockContext,
                 mCarServiceHelperInterface,
                 mCarLaunchParamsModifierInterface,
+                mCarActivityInterceptorInterface,
                 mCarServiceProxy);
     }
 
