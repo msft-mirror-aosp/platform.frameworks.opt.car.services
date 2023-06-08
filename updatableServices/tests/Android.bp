@@ -47,4 +47,8 @@ android_test {
         "libstaticjvmtiagent",
     ],
 
+    test_suites: [
+        "automotive-tests",
+        "automotive-general-tests",
+    ],
 }
