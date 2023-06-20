@@ -20,7 +20,6 @@ java_library {
             "android.car.builtin",
             "car-frameworks-service",
             "framework-annotations-lib",
-            "modules-utils-preconditions",
     ],
     srcs: [
         ":car-frameworks-updatable-service-sources",
