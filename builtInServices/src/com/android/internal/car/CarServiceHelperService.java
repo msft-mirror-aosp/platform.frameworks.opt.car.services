@@ -58,6 +58,7 @@ import android.os.UserManager;
 import android.system.Os;
 import android.system.OsConstants;
 import android.util.Dumpable;
+import android.util.Log;
 import android.util.TimeUtils;
 
 import com.android.car.internal.common.UserHelperLite;
@@ -111,9 +112,7 @@ public class CarServiceHelperService extends SystemService
     @VisibleForTesting
     static final String TAG = "CarServiceHelper";
 
-    // TODO(b/154033860): STOPSHIP if they're still true
-    private static final boolean DBG = true;
-    private static final boolean VERBOSE = true;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final List<String> CAR_HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
