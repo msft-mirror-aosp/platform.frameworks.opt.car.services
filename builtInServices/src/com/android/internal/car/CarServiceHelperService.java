@@ -15,6 +15,7 @@
  */
 package com.android.internal.car;
 
+import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_POST_UNLOCKED;
@@ -26,6 +27,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
+import static com.android.server.wm.ActivityInterceptorCallback.PRODUCT_ORDERED_ID;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -47,6 +49,8 @@ import android.os.Handler;
 import android.os.HandlerThread;
 import android.os.Process;
 import android.os.RemoteException;
+import android.os.ServiceDebugInfo;
+import android.os.ServiceManager;
 import android.os.SystemClock;
 import android.os.Trace;
 import android.os.UserHandle;
@@ -64,12 +68,14 @@ import com.android.internal.os.IResultReceiver;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
-import com.android.server.am.ActivityManagerService;
+import com.android.server.am.StackTracesDumpHelper;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.pm.UserManagerInternal.UserLifecycleListener;
 import com.android.server.pm.UserManagerInternal.UserVisibilityListener;
 import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
+import com.android.server.wm.ActivityTaskManagerInternal;
+import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
@@ -109,11 +115,25 @@ public class CarServiceHelperService extends SystemService
     private static final boolean DBG = true;
     private static final boolean VERBOSE = true;
 
-    private static final List<String> CAR_HAL_INTERFACES_OF_INTEREST = Arrays.asList(
-            "android.hardware.automotive.vehicle@2.0::IVehicle",
+    private static final List<String> CAR_HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
-            "android.hardware.automotive.audiocontrol@2.0::IAudioControl"
+            "android.hardware.automotive.audiocontrol@2.0::IAudioControl",
+            "android.hardware.automotive.can@1.0::ICanBus",
+            "android.hardware.automotive.can@1.0::ICanController",
+            "android.hardware.automotive.evs@1.0::IEvsEnumerator",
+            "android.hardware.automotive.sv@1.0::ISurroundViewService",
+            "android.hardware.automotive.vehicle@2.0::IVehicle"
     );
+
+    private static final String[] CAR_AIDL_INTERFACE_PREFIXES_OF_INTEREST = new String[] {
+            "android.hardware.automotive.audiocontrol.IAudioControl/",
+            "android.hardware.automotive.can.ICanController/",
+            "android.hardware.automotive.evs.IEvsEnumerator/",
+            "android.hardware.automotive.ivn.IIvnAndroidDevice/",
+            "android.hardware.automotive.occupant_awareness.IOccupantAwareness/",
+            "android.hardware.automotive.remoteaccess.IRemoteAccess/",
+            "android.hardware.automotive.vehicle.IVehicle/",
+    };
 
     // Message ID representing post-processing of process dumping.
     private static final int WHAT_POST_PROCESS_DUMPING = 1;
@@ -125,6 +145,8 @@ public class CarServiceHelperService extends SystemService
     private static final String PROC_PID_STAT_PATTERN =
             "(?<pid>[0-9]*)\\s\\((?<name>\\S+)\\)\\s\\S\\s(?:-?[0-9]*\\s){18}"
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
+    private static final String AIDL_VHAL_INTERFACE_PREFIX =
+            "android.hardware.automotive.vehicle.IVehicle/";
 
     static  {
         // Load this JNI before other classes are loaded.
@@ -137,6 +159,7 @@ public class CarServiceHelperService extends SystemService
     private boolean mSystemBootCompleted;
 
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
+    private final CarActivityInterceptor mCarActivityInterceptor;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
@@ -185,15 +208,18 @@ public class CarServiceHelperService extends SystemService
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
+        mCarActivityInterceptor = new CarActivityInterceptor();
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
                 mCarServiceHelperServiceUpdatable = (CarServiceHelperServiceUpdatable) Class
                         .forName(CSHS_UPDATABLE_CLASSNAME_STRING)
                         .getConstructor(Context.class, CarServiceHelperInterface.class,
-                                CarLaunchParamsModifierInterface.class)
+                                CarLaunchParamsModifierInterface.class,
+                                CarActivityInterceptorInterface.class)
                         .newInstance(mContext, this,
-                                mCarLaunchParamsModifier.getBuiltinInterface());
+                                mCarLaunchParamsModifier.getBuiltinInterface(),
+                                mCarActivityInterceptor.getBuiltinInterface());
                 Slogf.d(TAG, "CarServiceHelperServiceUpdatable created via reflection.");
             } else {
                 mCarServiceHelperServiceUpdatable = carServiceHelperServiceUpdatable;
@@ -210,6 +236,8 @@ public class CarServiceHelperService extends SystemService
         }
         mCarLaunchParamsModifier.setUpdatable(
                 mCarServiceHelperServiceUpdatable.getCarLaunchParamsModifierUpdatable());
+        mCarActivityInterceptor.setUpdatable(mCarServiceHelperServiceUpdatable
+                .getCarActivityInterceptorUpdatable());
 
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
         if (umi != null) {
@@ -239,6 +267,7 @@ public class CarServiceHelperService extends SystemService
                             : USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
                     mCarServiceHelperServiceUpdatable.sendUserLifecycleEvent(eventType,
                             /* userFrom= */ null, UserHandle.of(userId));
+                    mCarLaunchParamsModifier.handleUserVisibilityChanged(userId, visible);
                 }
             });
         } else {
@@ -271,6 +300,11 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    mCarActivityInterceptor);
             t.traceEnd();
         }
     }
@@ -459,45 +493,67 @@ public class CarServiceHelperService extends SystemService
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
     // TODO(b/131861630) use implementation common with Watchdog.java
-    //
-    private static ArrayList<Integer> getInterestingHalPids() {
+    private static void addInterestingHidlPids(HashSet<Integer> pids) {
         try {
             IServiceManager serviceManager = IServiceManager.getService();
             ArrayList<IServiceManager.InstanceDebugInfo> dump =
                     serviceManager.debugDump();
-            HashSet<Integer> pids = new HashSet<>();
             for (IServiceManager.InstanceDebugInfo info : dump) {
                 if (info.pid == IServiceManager.PidConstant.NO_PID) {
                     continue;
                 }
 
                 if (Watchdog.HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName) ||
-                        CAR_HAL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
+                        CAR_HIDL_INTERFACES_OF_INTEREST.contains(info.interfaceName)) {
                     pids.add(info.pid);
                 }
             }
-
-            return new ArrayList<Integer>(pids);
         } catch (RemoteException e) {
-            return new ArrayList<Integer>();
+            Slogf.w(TAG, "Remote exception while querying HIDL service manager", e);
         }
     }
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
     // TODO(b/131861630) use implementation common with Watchdog.java
-    //
+    private static void addInterestingAidlPids(HashSet<Integer> pids) {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) return;
+
+        for (ServiceDebugInfo info : infos) {
+            if (matchesInterestingAidlInterfacePrefixes(
+                    Watchdog.AIDL_INTERFACE_PREFIXES_OF_INTEREST, info.name)
+                    || matchesInterestingAidlInterfacePrefixes(
+                    CAR_AIDL_INTERFACE_PREFIXES_OF_INTEREST, info.name)) {
+                pids.add(info.debugPid);
+            }
+        }
+    }
+
+    private static boolean matchesInterestingAidlInterfacePrefixes(String[] interfacePrefixes,
+            String interfaceName) {
+        for (String prefix : interfacePrefixes) {
+            if (interfaceName.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
+    // TODO(b/131861630) use implementation common with Watchdog.java
     private static ArrayList<Integer> getInterestingNativePids() {
-        ArrayList<Integer> pids = getInterestingHalPids();
+        HashSet<Integer> pids = new HashSet<Integer>();
+        addInterestingHidlPids(pids);
+        addInterestingAidlPids(pids);
 
         int[] nativePids = Process.getPidsForCommands(Watchdog.NATIVE_STACKS_OF_INTEREST);
         if (nativePids != null) {
-            pids.ensureCapacity(pids.size() + nativePids.length);
             for (int i : nativePids) {
                 pids.add(i);
             }
         }
 
-        return pids;
+        return new ArrayList<Integer>(pids);
     }
 
     /**
@@ -511,7 +567,7 @@ public class CarServiceHelperService extends SystemService
         pids.add(Process.myPid());
 
         // Use the long version used by Watchdog since the short version is removed by the compiler.
-        return ActivityManagerService.dumpStackTraces(
+        return StackTracesDumpHelper.dumpStackTraces(
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
@@ -537,6 +593,24 @@ public class CarServiceHelperService extends SystemService
     @Override
     public void setProcessProfile(int pid, int uid, @NonNull String profile) {
         Util.setProcessProfile(pid, uid, profile);
+    }
+
+    @Override
+    public int fetchAidlVhalPid() {
+        ServiceDebugInfo[] infos = ServiceManager.getServiceDebugInfo();
+        if (infos == null) {
+            Slogf.w(TAG, "Service debug info returned by the service manager is null");
+            return INVALID_PID;
+        }
+
+        for (ServiceDebugInfo info : infos) {
+            if (info.name.startsWith(AIDL_VHAL_INTERFACE_PREFIX)) {
+                return info.debugPid;
+            }
+        }
+        Slogf.w(TAG, "Service manager doesn't have the AIDL VHAL service instance for interface"
+                + " prefix %s", AIDL_VHAL_INTERFACE_PREFIX);
+        return INVALID_PID;
     }
 
     private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
@@ -633,11 +707,11 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public int getDisplayAssignedToUser(int userId) {
+    public int getMainDisplayAssignedToUser(int userId) {
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
-        int displayId = umi.getDisplayAssignedToUser(userId);
+        int displayId = umi.getMainDisplayAssignedToUser(userId);
         if (DBG) {
-            Slogf.d(TAG, "getDisplayAssignedToUser(%d): %d", userId, displayId);
+            Slogf.d(TAG, "getMainDisplayAssignedToUser(%d): %d", userId, displayId);
         }
         return displayId;
     }
@@ -739,7 +813,7 @@ public class CarServiceHelperService extends SystemService
             }
             nativePids.addAll(getInterestingNativePids());
             long startDumpTime = SystemClock.uptimeMillis();
-            ActivityManagerService.dumpStackTraces(
+            StackTracesDumpHelper.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
                     /* nativePids= */ CompletableFuture.completedFuture(nativePids),
                     /* logExceptionCreatingFile= */ null,

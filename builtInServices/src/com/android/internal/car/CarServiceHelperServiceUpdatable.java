@@ -17,12 +17,15 @@ package com.android.internal.car;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.car.builtin.annotation.PlatformVersion;
+import android.os.Build;
 import android.os.Bundle;
 import android.os.UserHandle;
 
 import com.android.annotation.AddedIn;
+import com.android.server.wm.CarActivityInterceptorUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 
 import java.io.PrintWriter;
@@ -58,4 +61,8 @@ public interface CarServiceHelperServiceUpdatable {
 
     @AddedIn(PlatformVersion.TIRAMISU_0)
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
+
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
 }
