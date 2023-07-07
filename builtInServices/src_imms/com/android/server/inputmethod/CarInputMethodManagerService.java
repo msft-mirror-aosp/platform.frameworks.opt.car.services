@@ -200,6 +200,7 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.WeakHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
+import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -300,7 +301,11 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @GuardedBy("ImfLock.class")
     @NonNull private final CarDefaultImeVisibilityApplier mVisibilityApplier;
 
-    private final LocalServiceImpl mImmi;  // CarInputMethodManagerService
+    private final LocalServiceImpl mImmi;
+
+    private final ExecutorService mExecutor;
+
+    private ImmsBroadcastReceiverForAllUsers mBroadcastReceiver;
     // end CarInputMethodManagerService
 
     /**
@@ -858,13 +863,15 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @GuardedBy("ImfLock.class")
     private final WeakHashMap<IBinder, IBinder> mImeTargetWindowMap = new WeakHashMap<>();
 
-    private static final class SoftInputShowHideHistory {
+    @VisibleForTesting
+    static final class SoftInputShowHideHistory {
         private final Entry[] mEntries = new Entry[16];
         private int mNextIndex = 0;
         private static final AtomicInteger sSequenceNumber = new AtomicInteger(0);
 
-        private static final class Entry {
+        static final class Entry {
             final int mSequenceNumber = sSequenceNumber.getAndIncrement();
+            @Nullable
             final ClientState mClientState;
             @SoftInputModeFlags
             final int mFocusedWindowSoftInputMode;
@@ -876,7 +883,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             final boolean mInFullscreenMode;
             @NonNull
             final String mFocusedWindowName;
-            @NonNull
+            @Nullable
             final EditorInfo mEditorInfo;
             @NonNull
             final String mRequestWindowName;
@@ -955,9 +962,13 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
 
                 pw.print(prefix);
                 pw.print(" editorInfo: ");
-                pw.print(" inputType=" + entry.mEditorInfo.inputType);
-                pw.print(" privateImeOptions=" + entry.mEditorInfo.privateImeOptions);
-                pw.println(" fieldId (viewId)=" + entry.mEditorInfo.fieldId);
+                if (entry.mEditorInfo != null) {
+                    pw.print(" inputType=" + entry.mEditorInfo.inputType);
+                    pw.print(" privateImeOptions=" + entry.mEditorInfo.privateImeOptions);
+                    pw.println(" fieldId (viewId)=" + entry.mEditorInfo.fieldId);
+                } else {
+                    pw.println("null");
+                }
 
                 pw.print(prefix);
                 pw.println(" focusedWindowSoftInputMode=" + InputMethodDebug.softInputModeToString(
@@ -1211,26 +1222,6 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         public String toString() {
             return "SettingsObserver{mUserId=" + mUserId + " mRegistered=" + mRegistered
                     + " mLastEnabled=" + mLastEnabled + "}";
-        }
-    }
-
-    /**
-     * {@link BroadcastReceiver} that is intended to listen to broadcasts sent to the system user
-     * only.
-     */
-    private final class ImmsBroadcastReceiverForSystemUser extends BroadcastReceiver {
-        @Override
-        public void onReceive(Context context, Intent intent) {
-            final String action = intent.getAction();
-            if (Intent.ACTION_USER_ADDED.equals(action)
-                    || Intent.ACTION_USER_REMOVED.equals(action)) {
-                updateCurrentProfileIds();
-                return;
-            } else if (Intent.ACTION_LOCALE_CHANGED.equals(action)) {
-                onActionLocaleChanged();
-            } else {
-                Slog.w(TAG, "Unexpected intent " + intent);
-            }
         }
     }
 
@@ -1635,15 +1626,16 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         mHandler.post(task);
     }
 
-    public CarInputMethodManagerService(Context context) {
-        this(context, null, null);
+    public CarInputMethodManagerService(Context context, ExecutorService executor) {
+        this(context, null, null, executor);
     }
 
     @VisibleForTesting
     CarInputMethodManagerService(
             Context context,
             @Nullable ServiceThread serviceThreadForTesting,
-            @Nullable CarInputMethodBindingController bindingControllerForTesting) {
+            @Nullable CarInputMethodBindingController bindingControllerForTesting,
+            ExecutorService executor) {
         mContext = context;
         mRes = context.getResources();
         // TODO(b/196206770): Disallow I/O on this thread. Currently it's needed for loading
@@ -1708,6 +1700,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 new InkWindowInitializer());
         registerDeviceListenerAndCheckStylusSupport();
         mImmi = new LocalServiceImpl();  // CarInputMethodManagerService
+        mExecutor = executor;  // CarInputMethodManagerService
     }
 
     // CarInputMethodManagerService
@@ -1909,29 +1902,34 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 }
 
                 // begin CarInputMethodManagerService
-                mImeDrawsImeNavBarResLazyInitFuture = null;
-                Slog.d(TAG, "currentUserId(" + currentUserId
-                        + ") != mSettings.getCurrentUserId("
-                        + mSettings.getCurrentUserId() + ") : "
-                        + (currentUserId != mSettings.getCurrentUserId()));
-                if (currentUserId == mSettings.getCurrentUserId()) {
-                    maybeInitImeNavbarConfigLocked(currentUserId);
-                }
+                mImeDrawsImeNavBarResLazyInitFuture = mExecutor.submit(() -> {
+                    // Note that the synchronization block below guarantees that the task
+                    // can never be completed before the returned Future<?> object is assigned to
+                    // the "mImeDrawsImeNavBarResLazyInitFuture" field.
+                    synchronized (ImfLock.class) {
+                        mImeDrawsImeNavBarResLazyInitFuture = null;
+                        if (currentUserId != mSettings.getCurrentUserId()) {
+                            // This means that the current user is already switched to other user
+                            // before the background task is executed. In this scenario the relevant
+                            // field should already be initialized.
+                            return;
+                        }
+                        maybeInitImeNavbarConfigLocked(currentUserId);
+                    }
+                });
                 // end CarInputMethodManagerService
 
                 mMyPackageMonitor.register(mContext, null, UserHandle.ALL, true);
                 mSettingsObserver.registerContentObserverLocked(currentUserId);
 
-                final IntentFilter broadcastFilterForSystemUser = new IntentFilter();
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_USER_ADDED);
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_USER_REMOVED);
-                broadcastFilterForSystemUser.addAction(Intent.ACTION_LOCALE_CHANGED);
-                mContext.registerReceiver(new ImmsBroadcastReceiverForSystemUser(),
-                        broadcastFilterForSystemUser);
+                // begin CarInputMethodManagerService
+                // ImmsBroadcastReceiverForSystemUser moved to IMMS Proxy
+                // end CarInputMethodManagerService
 
                 final IntentFilter broadcastFilterForAllUsers = new IntentFilter();
                 broadcastFilterForAllUsers.addAction(Intent.ACTION_CLOSE_SYSTEM_DIALOGS);
-                mContext.registerReceiverAsUser(new ImmsBroadcastReceiverForAllUsers(),
+                mBroadcastReceiver = new ImmsBroadcastReceiverForAllUsers();
+                mContext.registerReceiverAsUser(mBroadcastReceiver,
                         UserHandle.ALL, broadcastFilterForAllUsers, null, null,
                         Context.RECEIVER_EXPORTED);
 
@@ -1943,6 +1941,17 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                         getPackageManagerForUser(mContext, currentUserId),
                         mSettings.getEnabledInputMethodListLocked());
             }
+        }
+    }
+
+    /**
+     * Shutdown this service.
+     *
+     * This service can't be re-used once this method is invoked.
+     */
+    void systemShutdown() {
+        synchronized (ImfLock.class) {
+            mContext.unregisterReceiver(mBroadcastReceiver);
         }
     }
 
@@ -4809,6 +4818,14 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
+    void onApplyImeVisibilityFromComputer(IBinder windowToken,
+            @NonNull ImeVisibilityResult result) {
+        synchronized (ImfLock.class) {
+            mVisibilityApplier.applyImeVisibility(windowToken, null, result.getState(),
+                    result.getReason());
+        }
+    }
+
     @GuardedBy("ImfLock.class")
     void setEnabledSessionLocked(SessionState session) {
         if (mEnabledSession != session) {
@@ -5045,6 +5062,14 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 return;
             }
             if (mImePlatformCompatUtils.shouldUseSetInteractiveProtocol(getCurMethodUidLocked())) {
+                // Handle IME visibility when interactive changed before finishing the input to
+                // ensure we preserve the last state as possible.
+                final ImeVisibilityResult imeVisRes = mVisibilityStateComputer.onInteractiveChanged(
+                        mCurFocusedWindow, interactive);
+                if (imeVisRes != null) {
+                    mVisibilityApplier.applyImeVisibility(mCurFocusedWindow, null,
+                            imeVisRes.getState(), imeVisRes.getReason());
+                }
                 // Eligible IME processes use new "setInteractive" protocol.
                 mCurClient.mClient.setInteractive(mIsInteractive, mInFullscreenMode);
             } else {

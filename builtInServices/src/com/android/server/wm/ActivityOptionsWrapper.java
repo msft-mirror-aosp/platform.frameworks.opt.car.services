@@ -21,6 +21,7 @@ import android.annotation.SystemApi;
 import android.app.ActivityOptions;
 import android.car.builtin.annotation.PlatformVersion;
 import android.os.Build;
+import android.os.IBinder;
 import android.window.WindowContainerToken;
 
 import com.android.annotation.AddedIn;
@@ -42,7 +43,9 @@ public final class ActivityOptionsWrapper {
         mOptions = options;
     }
 
-    /** @hide */
+    /**
+     * Creates a new instance of {@link ActivityOptionsWrapper}.
+     */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     public static ActivityOptionsWrapper create(ActivityOptions options) {
         if (options == null) return null;
@@ -79,11 +82,22 @@ public final class ActivityOptionsWrapper {
     }
 
     @Override
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public String toString() {
         StringBuilder sb = new StringBuilder(mOptions.toString());
         sb.append(" ,mLaunchDisplayId=");
         sb.append(mOptions.getLaunchDisplayId());
         return sb.toString();
+    }
+
+    /**
+     * Sets the given {@code windowContainerToken} as the launch root task. See
+     * {@link ActivityOptions#setLaunchRootTask(WindowContainerToken)} for more info.
+     */
+    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    public void setLaunchRootTask(IBinder windowContainerToken) {
+        WindowContainerToken launchRootTaskToken = WindowContainer.fromBinder(windowContainerToken)
+                        .mRemoteToken.toWindowContainerToken();
+        mOptions.setLaunchRootTask(launchRootTaskToken);
     }
 }
