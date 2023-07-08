@@ -30,7 +30,6 @@ java_sdk_library {
        "--include-annotations --pass-through-annotation android.annotation.RequiresApi"
     ],
 
-    min_sdk_version: "33",
     apex_available: [
         "//apex_available:platform",
         "com.android.car.framework"

@@ -17,11 +17,15 @@ package com.android.internal.car;
 
 import android.annotation.Nullable;
 import android.app.TaskInfo;
+import android.car.builtin.util.Slogf;
 import android.content.pm.ActivityInfo;
 
+import com.android.server.LocalServices;
+import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.ActivityInterceptResultWrapper;
 import com.android.server.wm.ActivityInterceptorCallback;
 import com.android.server.wm.ActivityInterceptorInfoWrapper;
+import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatable;
 
 /**
@@ -30,15 +34,28 @@ import com.android.server.wm.CarActivityInterceptorUpdatable;
  * @hide
  */
 public final class CarActivityInterceptor implements ActivityInterceptorCallback {
+    private static final String TAG  = CarActivityInterceptor.class.getSimpleName();
     private CarActivityInterceptorUpdatable mCarActivityInterceptorUpdatable;
 
-    CarActivityInterceptor(CarActivityInterceptorUpdatable carActivityInterceptorUpdatable) {
+    public CarActivityInterceptor() {
+        mCarActivityInterceptorUpdatable = null;
+    }
+
+    /**
+     * Sets the given {@link CarActivityInterceptorUpdatable} which this internal class will
+     * communicate with.
+     */
+    public void setUpdatable(CarActivityInterceptorUpdatable carActivityInterceptorUpdatable) {
         mCarActivityInterceptorUpdatable = carActivityInterceptorUpdatable;
     }
 
     @Nullable
     @Override
     public ActivityInterceptResult onInterceptActivityLaunch(ActivityInterceptorInfo info) {
+        if (mCarActivityInterceptorUpdatable == null) {
+            Slogf.w(TAG, "mCarActivityInterceptorUpdatable not set");
+            return null;
+        }
         ActivityInterceptResultWrapper interceptResultWrapper = mCarActivityInterceptorUpdatable
                 .onInterceptActivityLaunch(ActivityInterceptorInfoWrapper.create(info));
         if (interceptResultWrapper == null) {
@@ -51,5 +68,23 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
     public void onActivityLaunched(TaskInfo taskInfo, ActivityInfo activityInfo,
             ActivityInterceptorInfo info) {
         // do nothing
+    }
+
+    CarActivityInterceptorInterface getBuiltinInterface() {
+        return new CarActivityInterceptorInterface() {
+            @Override
+            public int getUserAssignedToDisplay(int displayId) {
+                UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+                int userId = umi.getUserAssignedToDisplay(displayId);
+                return userId;
+            }
+
+            @Override
+            public int getMainDisplayAssignedToUser(int userId) {
+                UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+                int displayId = umi.getMainDisplayAssignedToUser(userId);
+                return displayId;
+            }
+        };
     }
 }
