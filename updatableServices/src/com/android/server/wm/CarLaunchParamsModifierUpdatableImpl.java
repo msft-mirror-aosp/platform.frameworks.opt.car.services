@@ -132,26 +132,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
     }
 
-    /**
-     * Sets {@code sourcePreferred} configuration. When {@code sourcePreferred} is enabled and
-     * there is no pre-assigned display for the Activity, CarLauncherParamsModifier will launch
-     * the Activity in the display of the source. When {@code sourcePreferredComponents} isn't null
-     * the {@code sourcePreferred} is applied for the {@code sourcePreferredComponents} only.
-     *
-     * @param enableSourcePreferred whether to enable sourcePreferred mode
-     * @param sourcePreferredComponents null for all components, or the list of components to apply
-     */
-    public void setSourcePreferredComponents(boolean enableSourcePreferred,
-            @Nullable List<ComponentName> sourcePreferredComponents) {
-        synchronized (mLock) {
-            mIsSourcePreferred = enableSourcePreferred;
-            mSourcePreferredComponents = sourcePreferredComponents;
-            if (mSourcePreferredComponents != null) {
-                Collections.sort(mSourcePreferredComponents);
-            }
-        }
-    }
-
     @Override
     public void handleUserVisibilityChanged(int userId, boolean visible) {
         synchronized (mLock) {

@@ -325,13 +325,6 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
-        public void setSourcePreferredComponents(boolean enableSourcePreferred,
-                @Nullable List<ComponentName> sourcePreferredComponents) {
-            mCarLaunchParamsModifierUpdatable.setSourcePreferredComponents(
-                    enableSourcePreferred, sourcePreferredComponents);
-        }
-
-        @Override
         public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
             return mCarLaunchParamsModifierUpdatable.setPersistentActivity(
                     activity, displayId, featureId);
