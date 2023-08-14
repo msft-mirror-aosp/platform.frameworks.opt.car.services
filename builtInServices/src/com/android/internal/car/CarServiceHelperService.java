@@ -57,6 +57,7 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.system.Os;
 import android.system.OsConstants;
+import android.util.ArrayMap;
 import android.util.Dumpable;
 import android.util.Log;
 import android.util.TimeUtils;
@@ -93,6 +94,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -211,14 +213,16 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
+                Map<String, Object> interfaces = new ArrayMap<>();
+                interfaces.put(CarServiceHelperInterface.class.getSimpleName(), this);
+                interfaces.put(CarLaunchParamsModifierInterface.class.getSimpleName(),
+                        mCarLaunchParamsModifier.getBuiltinInterface());
+                interfaces.put(CarActivityInterceptorInterface.class.getSimpleName(),
+                        mCarActivityInterceptor.getBuiltinInterface());
                 mCarServiceHelperServiceUpdatable = (CarServiceHelperServiceUpdatable) Class
                         .forName(CSHS_UPDATABLE_CLASSNAME_STRING)
-                        .getConstructor(Context.class, CarServiceHelperInterface.class,
-                                CarLaunchParamsModifierInterface.class,
-                                CarActivityInterceptorInterface.class)
-                        .newInstance(mContext, this,
-                                mCarLaunchParamsModifier.getBuiltinInterface(),
-                                mCarActivityInterceptor.getBuiltinInterface());
+                        .getConstructor(Context.class, Map.class)
+                        .newInstance(mContext, interfaces);
                 Slogf.d(TAG, "CarServiceHelperServiceUpdatable created via reflection.");
             } else {
                 mCarServiceHelperServiceUpdatable = carServiceHelperServiceUpdatable;

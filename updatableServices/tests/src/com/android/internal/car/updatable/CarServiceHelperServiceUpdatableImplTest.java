@@ -35,6 +35,7 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
@@ -49,6 +50,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
@@ -83,12 +85,18 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
     @Before
     public void setTestFixtures() {
+        Map<String, Object> interfaces = new ArrayMap<>();
+        interfaces.put(CarServiceHelperInterface.class.getSimpleName(),
+                mCarServiceHelperInterface);
+        interfaces.put(CarLaunchParamsModifierInterface.class.getSimpleName(),
+                mCarLaunchParamsModifierInterface);
+        interfaces.put(CarActivityInterceptorInterface.class.getSimpleName(),
+                mCarActivityInterceptorInterface);
+        interfaces.put(CarServiceProxy.class.getSimpleName(), mCarServiceProxy);
+
         mCarServiceHelperServiceUpdatableImpl = new CarServiceHelperServiceUpdatableImpl(
                 mMockContext,
-                mCarServiceHelperInterface,
-                mCarLaunchParamsModifierInterface,
-                mCarActivityInterceptorInterface,
-                mCarServiceProxy);
+                interfaces);
     }
 
     @Override

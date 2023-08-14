@@ -61,6 +61,7 @@ import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -114,42 +115,23 @@ public final class CarServiceHelperServiceUpdatableImpl
      * shouldn't be changed as it is called from the platform with version {@link TIRAMISU}.
      */
     public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface) {
-        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
-                /* carActivityInterceptorInterface= */ null);
-    }
-
-    public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
-            CarActivityInterceptorInterface carActivityInterceptorInterface) {
-        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
-                carActivityInterceptorInterface, /* carServiceProxy= */ null);
-    }
-
-    @VisibleForTesting
-    CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
-            @Nullable CarActivityInterceptorInterface carActivityInterceptorInterface,
-            @Nullable CarServiceProxy carServiceProxy) {
+            @Nullable Map<String, Object> interfaces) {
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mCarServiceHelperInterface = carServiceHelperInterface;
+        mCarServiceHelperInterface = (CarServiceHelperInterface) interfaces
+                .get(CarServiceHelperInterface.class.getSimpleName());
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
-                carLaunchParamsModifierInterface);
-        if (isPlatformVersionAtLeastU()) {
-            mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
-                    (CarActivityInterceptorInterface) carActivityInterceptorInterface);
-        } else {
-            mCarActivityInterceptorUpdatable = null;
-        }
+                (CarLaunchParamsModifierInterface) interfaces
+                        .get(CarLaunchParamsModifierInterface.class.getSimpleName()));
+        mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
+                (CarActivityInterceptorInterface) interfaces
+                        .get(CarActivityInterceptorInterface.class.getSimpleName()));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
-        mCarServiceProxy = carServiceProxy == null ? new CarServiceProxy(this) : carServiceProxy;
+        mCarServiceProxy = (CarServiceProxy) interfaces.getOrDefault(
+                CarServiceProxy.class.getSimpleName(), new CarServiceProxy(this));
         mCallbackForCarServiceUnresponsiveness = () -> handleCarServiceUnresponsive();
     }
 
