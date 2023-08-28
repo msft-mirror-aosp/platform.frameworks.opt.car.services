@@ -290,7 +290,10 @@ public final class CarServiceHelperServiceUpdatableImpl
             return;
         }
 
-        mCarServiceProxy.dump(new IndentingPrintWriter(writer));
+        IndentingPrintWriter pw = new IndentingPrintWriter(writer);
+        mCarServiceProxy.dump(pw);
+        mCarLaunchParamsModifierUpdatable.dump(pw);
+        mCarActivityInterceptorUpdatable.dump(pw);
     }
 
     @VisibleForTesting

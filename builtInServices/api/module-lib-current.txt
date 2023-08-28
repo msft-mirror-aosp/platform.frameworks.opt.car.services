@@ -118,6 +118,7 @@ package com.android.server.wm {
 
   public final class TaskDisplayAreaWrapper {
     method public android.view.Display getDisplay();
+    method public int getFeatureId();
   }
 
   public final class TaskWrapper {
