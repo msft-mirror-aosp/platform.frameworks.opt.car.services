@@ -16,10 +16,7 @@
 
 package com.android.server.wm;
 
-import static android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE;
-
 import android.annotation.NonNull;
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
 import android.car.builtin.util.Slogf;
@@ -42,7 +39,6 @@ import java.util.Set;
  *
  * @hide
  */
-@RequiresApi(UPSIDE_DOWN_CAKE)
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class CarActivityInterceptorUpdatableImpl implements CarActivityInterceptorUpdatable {
     public static final String TAG = CarActivityInterceptorUpdatableImpl.class.getSimpleName();
