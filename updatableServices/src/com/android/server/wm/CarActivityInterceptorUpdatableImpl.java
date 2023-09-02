@@ -16,6 +16,8 @@
 
 package com.android.server.wm;
 
+import static android.view.Display.INVALID_DISPLAY;
+
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
@@ -25,6 +27,7 @@ import android.os.IBinder;
 import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.util.ArraySet;
+import android.util.Log;
 
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -42,6 +45,7 @@ import java.util.Set;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class CarActivityInterceptorUpdatableImpl implements CarActivityInterceptorUpdatable {
     public static final String TAG = CarActivityInterceptorUpdatableImpl.class.getSimpleName();
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
 
     private final Object mLock = new Object();
     @GuardedBy("mLock")
@@ -74,12 +78,46 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 if (optionsWrapper == null) {
                     optionsWrapper = ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
                 }
+
+                // Even if the activity is assigned a root task to open in, the launch display ID
+                // should take preference when opening the activity. More details in b/295893892.
+                if (!isRootTaskDisplayIdSameAsLaunchDisplayId(rootTaskToken, optionsWrapper)) {
+                    return null;
+                }
+
                 optionsWrapper.setLaunchRootTask(rootTaskToken);
                 return ActivityInterceptResultWrapper.create(info.getIntent(),
                         optionsWrapper.getOptions());
             }
         }
         return null;
+    }
+
+    private boolean isRootTaskDisplayIdSameAsLaunchDisplayId(IBinder rootTaskToken,
+            ActivityOptionsWrapper optionsWrapper) {
+        int launchDisplayId = optionsWrapper.getOptions().getLaunchDisplayId();
+        if (launchDisplayId == INVALID_DISPLAY) {
+            if (DBG) {
+                Slogf.d(TAG,
+                        "The launch display Id of the activity is unset, let it open root task");
+            }
+            return true;
+        }
+        TaskWrapper rootTask = TaskWrapper.createFromToken(rootTaskToken);
+        int rootTaskDisplayId = rootTask.getTaskDisplayArea().getDisplay().getDisplayId();
+        if (launchDisplayId == rootTaskDisplayId) {
+            if (DBG) {
+                Slogf.d(TAG, "The launch display Id of the activity is (%d)", launchDisplayId);
+            }
+            return true;
+        }
+        if (DBG) {
+            Slogf.d(TAG,
+                    "The launch display Id (%d) of the activity doesn't match the display Id (%d)"
+                            + " (which the root task is added in).",
+                    launchDisplayId, rootTaskDisplayId);
+        }
+        return false;
     }
 
     private boolean isRootTaskUserSameAsActivityUser(IBinder rootTaskToken,
@@ -91,9 +129,12 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
         if (userIdFromActivity == userIdFromRootTask) {
             return true;
         }
-        Slogf.w(TAG, "The user id of launched activity (%d) doesn't match the "
-                + "user id which the display (which the root task is added in) is "
-                + "assigned to (%d).", userIdFromActivity, userIdFromRootTask);
+        if (DBG) {
+            Slogf.d(TAG,
+                    "The user id of launched activity (%d) doesn't match the user id which the "
+                            + "display (which the root task is added in) is assigned to (%d).",
+                    userIdFromActivity, userIdFromRootTask);
+        }
         return false;
     }
 
