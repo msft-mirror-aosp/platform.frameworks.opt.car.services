@@ -51,6 +51,13 @@ public final class TaskDisplayAreaWrapper {
         return mTaskDisplayArea.mDisplayContent.getDisplay();
     }
 
+    /**
+     * Gets the feature Id for this {@link TaskDisplayAreaWrapper}.
+     */
+    public int getFeatureId() {
+        return mTaskDisplayArea.mFeatureId;
+    }
+
     @Override
     public String toString() {
         return mTaskDisplayArea.toString();
