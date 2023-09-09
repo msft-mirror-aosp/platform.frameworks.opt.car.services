@@ -37,6 +37,7 @@ import android.util.Pair;
 import android.util.SparseIntArray;
 import android.view.Display;
 
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.VersionUtils;
 import com.android.internal.annotations.GuardedBy;
 
@@ -53,7 +54,7 @@ import java.util.List;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public final class CarLaunchParamsModifierUpdatableImpl
         implements CarLaunchParamsModifierUpdatable {
-    private static final String TAG = "CAR.LAUNCH";
+    private static final String TAG = CarLaunchParamsModifierUpdatableImpl.class.getSimpleName();
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
     // Comes from android.os.UserHandle.USER_NULL.
     private static final int USER_NULL = -10000;
@@ -497,5 +498,31 @@ public final class CarLaunchParamsModifierUpdatableImpl
             mPersistentActivities.put(activity, tda);
         }
         return CarActivityManager.RESULT_SUCCESS;
+    }
+
+    /**
+     * Dump {code CarLaunchParamsModifierUpdatableImpl#mPersistentActivities}
+     */
+    public void dump(IndentingPrintWriter writer) {
+        writer.println(TAG);
+        writer.increaseIndent();
+        writer.println("Persistent Activities:");
+        writer.increaseIndent();
+        synchronized (mLock) {
+            if (mPersistentActivities.size() == 0) {
+                writer.println("No activity persisted on a task display area");
+            } else {
+                for (int i = 0; i < mPersistentActivities.size(); i++) {
+                    TaskDisplayAreaWrapper taskDisplayAreaWrapper =
+                            mPersistentActivities.valueAt(i);
+                    writer.println(
+                            "Activity name: " + mPersistentActivities.keyAt(i) + " - Display ID: "
+                                    + taskDisplayAreaWrapper.getDisplay().getDisplayId()
+                                    + " , Feature ID: " + taskDisplayAreaWrapper.getFeatureId());
+                }
+            }
+        }
+        writer.decreaseIndent();
+        writer.decreaseIndent();
     }
 }
