@@ -16,13 +16,10 @@
 
 package com.android.server.wm;
 
-import static android.car.PlatformVersion.VERSION_CODES;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.PlatformVersionMismatchException;
 import android.car.app.CarActivityManager;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slogf;
@@ -38,7 +35,6 @@ import android.util.SparseIntArray;
 import android.view.Display;
 
 import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.internal.util.VersionUtils;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
@@ -149,9 +145,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
     }
 
     private int getCurrentOrTargetUserId() {
-        if (!VersionUtils.isPlatformVersionAtLeastU()) {
-            throw new PlatformVersionMismatchException(VERSION_CODES.UPSIDE_DOWN_CAKE_0);
-        }
         Pair<Integer, Integer> currentAndTargetUserIds = mBuiltin.getCurrentAndTargetUserIds();
         int currentUserId = currentAndTargetUserIds.first;
         int targetUserId = currentAndTargetUserIds.second;
@@ -384,8 +377,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
             Slogf.i(TAG, "Changed launching display, user:%d requested display area:%s"
                     + " target display area:%s", userId, originalDisplayArea, targetDisplayArea);
             outParams.setPreferredTaskDisplayArea(targetDisplayArea);
-            if (VersionUtils.isPlatformVersionAtLeastU()
-                    && options != null
+            if (options != null
                     && options.getLaunchWindowingMode()
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
@@ -403,10 +395,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
         if (userForDisplay != UserManagerHelper.USER_NULL) {
             return userForDisplay;
         }
-        if (VersionUtils.isPlatformVersionAtLeastU()) {
-            userForDisplay = mBuiltin.getUserAssignedToDisplay(displayId);
-        }
-        return userForDisplay;
+        return mBuiltin.getUserAssignedToDisplay(displayId);
     }
 
     @GuardedBy("mLock")
@@ -453,14 +442,13 @@ public final class CarLaunchParamsModifierUpdatableImpl
             int displayId = mDefaultDisplayForProfileUser.get(userId);
             return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
         }
-        if (VersionUtils.isPlatformVersionAtLeastU()) {
-            int displayId = mBuiltin.getMainDisplayAssignedToUser(userId);
-            if (displayId != Display.INVALID_DISPLAY) {
-                return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
-            }
+        int displayId = mBuiltin.getMainDisplayAssignedToUser(userId);
+        if (displayId != Display.INVALID_DISPLAY) {
+            return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
         }
+
         if (!mPassengerDisplays.isEmpty()) {
-            int displayId = mPassengerDisplays.get(0);
+            displayId = mPassengerDisplays.get(0);
             if (DBG) {
                 Slogf.d(TAG, "fallbackDisplayAreaForUserLocked: userId=%d, displayId=%d",
                         userId, displayId);
