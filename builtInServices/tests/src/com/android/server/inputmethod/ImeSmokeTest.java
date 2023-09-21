@@ -16,6 +16,8 @@
 
 package com.android.server.inputmethod;
 
+import static com.google.common.truth.Truth.assertThat;
+
 import android.app.Instrumentation;
 import android.content.Intent;
 import android.view.accessibility.AccessibilityWindowInfo;
@@ -33,6 +35,9 @@ import org.junit.Test;
 
 import java.io.IOException;
 
+/**
+ * This is a simple smoke test to help finding culprit CLs when using bisect.
+ */
 public final class ImeSmokeTest {
 
     private static final long KEYBOARD_LAUNCH_TIMEOUT = 5_000;
@@ -77,7 +82,7 @@ public final class ImeSmokeTest {
                 PLAIN_TEXT_EDIT_RESOURCE_ID)));
         editText.click();
 
-        mDevice.wait(isKeyboardOpened(), KEYBOARD_LAUNCH_TIMEOUT);
+        assertThat(mDevice.wait(isKeyboardOpened(), KEYBOARD_LAUNCH_TIMEOUT)).isTrue();
     }
 
     private static Condition<UiDevice, Boolean> isKeyboardOpened() {
