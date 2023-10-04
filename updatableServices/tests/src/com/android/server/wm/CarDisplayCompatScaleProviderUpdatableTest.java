@@ -87,7 +87,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     public void requiresDisplayCompat_returnsTrue() throws NameNotFoundException {
         FeatureInfo[] features = new FeatureInfo[1];
         features[0] = new FeatureInfo();
-        features[0].name = "android.automotive.autoenhance";
+        features[0].name = "android.car.displaycompatibility";
         mPackageInfo.reqFeatures = features;
         when(mPackageManager.getPackageInfo(eq("package1"), any(PackageInfoFlags.class)))
                 .thenReturn(mPackageInfo);
@@ -106,7 +106,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     public void requiresDisplayCompat_packageStateIsCached() throws NameNotFoundException {
         FeatureInfo[] features = new FeatureInfo[1];
         features[0] = new FeatureInfo();
-        features[0].name = "android.automotive.autoenhance";
+        features[0].name = "android.car.displaycompatibility";
         mPackageInfo.reqFeatures = features;
         when(mPackageManager.getPackageInfo(eq("package1"), any(PackageInfoFlags.class)))
                 .thenReturn(mPackageInfo);

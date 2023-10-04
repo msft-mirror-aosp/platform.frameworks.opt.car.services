@@ -21,6 +21,7 @@ import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.ActivityTaskManager;
 import android.car.builtin.util.Slogf;
+import android.car.feature.Flags;
 import android.content.Context;
 import android.content.pm.PackageManager;
 import android.content.res.CompatScaleWrapper;
@@ -39,7 +40,7 @@ import com.android.server.pm.UserManagerInternal;
  */
 public final class CarDisplayCompatScaleProvider implements CompatScaleProvider {
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
-    public static final String AUTOENHANCE_SYSTEM_FEATURE = "android.automotive.autoenhance";
+    public static final String AUTOENHANCE_SYSTEM_FEATURE = "android.car.displaycompatibility";
 
     private CarDisplayCompatScaleProviderUpdatable mCarCompatScaleProviderUpdatable;
     private ActivityTaskManagerService mAtms;
@@ -48,6 +49,10 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
      * Registers {@link CarDisplayCompatScaleProvider} with {@link ActivityTaskManagerService}
      */
     public void init(Context context) {
+        if (!Flags.displayCompatibility()) {
+            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            return;
+        }
         PackageManager packageManager = context.getPackageManager();
         if (packageManager.hasSystemFeature(AUTOENHANCE_SYSTEM_FEATURE)) {
             mAtms = (ActivityTaskManagerService) ActivityTaskManager.getService();

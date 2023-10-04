@@ -4,6 +4,9 @@ package {
 
 java_sdk_library {
     name: "car-frameworks-service",
+    defaults: [
+        "car-framework-aconfig-libraries",
+    ],
     libs: [
         "services",
         "android.car",

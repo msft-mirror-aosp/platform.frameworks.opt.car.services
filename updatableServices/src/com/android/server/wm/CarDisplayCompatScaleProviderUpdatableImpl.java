@@ -55,7 +55,7 @@ import java.io.IOException;
 public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatScaleProviderUpdatable {
     private static final String TAG = "CarDisplayCompatScaleProvider";
-    private static final String AUTOENHANCE_SYSTEM_FEATURE = "android.automotive.autoenhance";
+    private static final String AUTOENHANCE_SYSTEM_FEATURE = "android.car.displaycompatibility";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
     private static final String NS = null;
 
@@ -90,13 +90,17 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @Nullable
     @Override
     public CompatScaleWrapper getCompatScale(@NonNull String packageName, @UserIdInt int userId) {
-        if (requiresDisplayCompat(packageName)) {
-            int display = mCarCompatScaleProviderInterface.getMainDisplayAssignedToUser(userId);
-            if (display == INVALID_DISPLAY) {
-                display = DEFAULT_DISPLAY;
+        try {
+            if (requiresDisplayCompat(packageName)) {
+                int display = mCarCompatScaleProviderInterface.getMainDisplayAssignedToUser(userId);
+                if (display == INVALID_DISPLAY) {
+                    display = DEFAULT_DISPLAY;
+                }
+                float scale =  mConfig.get(display, 1.0f);
+                return new CompatScaleWrapper(1.0f, scale);
             }
-            float scale =  mConfig.get(display, 1.0f);
-            return new CompatScaleWrapper(1.0f, scale);
+        } catch (ServiceSpecificException e) {
+            return null;
         }
         return null;
     }
