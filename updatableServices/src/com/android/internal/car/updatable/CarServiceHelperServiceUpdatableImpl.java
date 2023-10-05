@@ -48,6 +48,8 @@ import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
+import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
+import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -103,6 +105,8 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
+    private final CarDisplayCompatScaleProviderUpdatableImpl
+            mCarDisplayCompatScaleProviderUpdatable;
 
     /**
      * This constructor is meant to be called using reflection by the builtin service and hence it
@@ -121,6 +125,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
                 (CarActivityInterceptorInterface) interfaces
                         .get(CarActivityInterceptorInterface.class.getSimpleName()));
+        mCarDisplayCompatScaleProviderUpdatable =
+                new CarDisplayCompatScaleProviderUpdatableImpl(
+                    mContext,
+                    (CarDisplayCompatScaleProviderInterface) interfaces
+                        .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -187,6 +196,12 @@ public final class CarServiceHelperServiceUpdatableImpl
     @Override
     public CarActivityInterceptorUpdatableImpl getCarActivityInterceptorUpdatable() {
         return mCarActivityInterceptorUpdatable;
+    }
+
+    @Override
+    public CarDisplayCompatScaleProviderUpdatableImpl
+            getCarDisplayCompatScaleProviderUpdatable() {
+        return mCarDisplayCompatScaleProviderUpdatable;
     }
 
     @VisibleForTesting
@@ -288,6 +303,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.dump(pw);
         mCarLaunchParamsModifierUpdatable.dump(pw);
         mCarActivityInterceptorUpdatable.dump(pw);
+        mCarDisplayCompatScaleProviderUpdatable.dump(pw);
     }
 
     @VisibleForTesting
@@ -365,6 +381,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public int fetchAidlVhalPid() {
             return mCarServiceHelperInterface.fetchAidlVhalPid();
+        }
+
+        @Override
+        public boolean requiresDisplayCompat(String packageName) {
+            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName);
         }
     }
 

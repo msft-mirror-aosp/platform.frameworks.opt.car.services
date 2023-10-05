@@ -1,4 +1,14 @@
 // Signature format: 2.0
+package android.content.res {
+
+  public final class CompatScaleWrapper {
+    ctor public CompatScaleWrapper(float, float);
+    method public float getDensityScaleFactor();
+    method public float getScaleFactor();
+  }
+
+}
+
 package com.android.internal.car {
 
   public interface CarServiceHelperInterface {
@@ -17,6 +27,7 @@ package com.android.internal.car {
   public interface CarServiceHelperServiceUpdatable {
     method public void dump(@NonNull java.io.PrintWriter, @Nullable String[]);
     method public com.android.server.wm.CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
+    method public com.android.server.wm.CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
     method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
     method public void initBootUser();
     method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
@@ -81,6 +92,15 @@ package com.android.server.wm {
 
   public interface CarActivityInterceptorUpdatable {
     method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(com.android.server.wm.ActivityInterceptorInfoWrapper);
+  }
+
+  public interface CarDisplayCompatScaleProviderInterface {
+    method public int getMainDisplayAssignedToUser(int);
+  }
+
+  public interface CarDisplayCompatScaleProviderUpdatable {
+    method @Nullable public android.content.res.CompatScaleWrapper getCompatScale(@NonNull String, int);
+    method public boolean requiresDisplayCompat(@NonNull String);
   }
 
   public interface CarLaunchParamsModifierInterface {

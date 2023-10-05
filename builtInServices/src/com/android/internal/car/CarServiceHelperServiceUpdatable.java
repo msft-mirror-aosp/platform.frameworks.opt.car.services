@@ -22,6 +22,7 @@ import android.os.Bundle;
 import android.os.UserHandle;
 
 import com.android.server.wm.CarActivityInterceptorUpdatable;
+import com.android.server.wm.CarDisplayCompatScaleProviderUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 
 import java.io.PrintWriter;
@@ -52,4 +53,9 @@ public interface CarServiceHelperServiceUpdatable {
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
 
     CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
+
+    /**
+     * @return updatable implemtantion of CarDisplayCompatScaleProvider
+     */
+    CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
 }
