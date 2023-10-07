@@ -8,7 +8,7 @@ java_test_host {
     libs: [
         "junit",
         "tradefed",
-        "truth-prebuilt",
+        "truth",
     ],
     static_libs: [
         "compatibility-host-util",

@@ -38,7 +38,7 @@ android_test {
         "mockito-target-extended-minus-junit4",
         "services.core",
         "testng",
-        "truth-prebuilt",
+        "truth",
     ],
 
     // mockito-target-extended dependencies
