@@ -8,7 +8,7 @@ android_test {
     name: "FrameworkOptCarServicesTest",
 
     srcs: [
-        "src/**/*.java"
+        "src/**/*.java",
     ],
 
     platform_apis: true,
@@ -36,7 +36,7 @@ android_test {
         "mockito-target-extended-minus-junit4",
         "services.core",
         "testng",
-        "truth-prebuilt",
+        "truth",
         "car-frameworks-service.impl",
     ],
 
