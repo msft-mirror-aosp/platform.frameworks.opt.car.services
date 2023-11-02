@@ -41,6 +41,7 @@ public final class TaskWrapper {
 
     /** @hide */
     @AddedIn(PlatformVersion.TIRAMISU_0)
+    @Nullable
     public static TaskWrapper create(@Nullable Task task) {
         if (task == null) return null;
         return new TaskWrapper(task);
@@ -49,8 +50,9 @@ public final class TaskWrapper {
     /** Creates an instance of {@link TaskWrapper} based on the task's remote {@code token}. */
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @RequiresApi(UPSIDE_DOWN_CAKE)
+    @Nullable
     public static TaskWrapper createFromToken(@NonNull IBinder token) {
-        return new TaskWrapper((Task) WindowContainer.fromBinder(token));
+        return create((Task) WindowContainer.fromBinder(token));
     }
 
     /**
