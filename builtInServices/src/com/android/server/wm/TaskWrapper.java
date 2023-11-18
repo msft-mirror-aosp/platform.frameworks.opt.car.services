@@ -35,14 +35,16 @@ public final class TaskWrapper {
     }
 
     /** @hide */
+    @Nullable
     public static TaskWrapper create(@Nullable Task task) {
         if (task == null) return null;
         return new TaskWrapper(task);
     }
 
     /** Creates an instance of {@link TaskWrapper} based on the task's remote {@code token}. */
+    @Nullable
     public static TaskWrapper createFromToken(@NonNull IBinder token) {
-        return new TaskWrapper((Task) WindowContainer.fromBinder(token));
+        return create((Task) WindowContainer.fromBinder(token));
     }
 
     /**
