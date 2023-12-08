@@ -29,6 +29,7 @@ import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 
+import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
@@ -164,5 +165,27 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
         synchronized (mLock) {
             return mActivityToRootTaskMap;
         }
+    }
+
+    /**
+     * Dump {code CarActivityInterceptorUpdatableImpl#mActivityToRootTaskMap}
+     */
+    public void dump(IndentingPrintWriter writer) {
+        writer.println(TAG);
+        writer.increaseIndent();
+        writer.println("Activity to root task map:");
+        writer.increaseIndent();
+        synchronized (mLock) {
+            if (mActivityToRootTaskMap.size() == 0) {
+                writer.println("No activity persisted on a root task");
+            } else {
+                for (int i = 0; i < mActivityToRootTaskMap.size(); i++) {
+                    writer.println("Activity name: " + mActivityToRootTaskMap.keyAt(i)
+                            + " - Binder object: " + mActivityToRootTaskMap.valueAt(i));
+                }
+            }
+        }
+        writer.decreaseIndent();
+        writer.decreaseIndent();
     }
 }

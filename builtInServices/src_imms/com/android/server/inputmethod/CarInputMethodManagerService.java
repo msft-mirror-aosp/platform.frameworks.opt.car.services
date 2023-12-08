@@ -46,6 +46,7 @@ import static android.view.WindowManager.DISPLAY_IME_POLICY_LOCAL;
 import static com.android.server.inputmethod.CarImeVisibilityStateComputer.ImeTargetWindowState;
 import static com.android.server.inputmethod.CarImeVisibilityStateComputer.ImeVisibilityResult;
 import static com.android.server.inputmethod.CarInputMethodBindingController.TIME_TO_RECONNECT;
+import static com.android.server.inputmethod.ImeVisibilityStateComputer.STATE_HIDE_IME;
 import static com.android.server.inputmethod.InputMethodUtils.isSoftInputModeStateVisibleAllowed;
 
 import static java.lang.annotation.RetentionPolicy.SOURCE;
@@ -2332,6 +2333,28 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
         }
     }
 
+    /**
+     * Called when {@link #resetCurrentMethodAndClientLocked(int)} invoked for clean-up states
+     * before unbinding the current method.
+     */
+    @GuardedBy("ImfLock.class")
+    void onUnbindCurrentMethodByReset() {
+        final ImeTargetWindowState winState = mVisibilityStateComputer.getWindowStateOrNull(
+                mCurFocusedWindow);
+        if (winState != null && !winState.isRequestedImeVisible()
+                && !mVisibilityStateComputer.isInputShown()) {
+            // Normally, the focus window will apply the IME visibility state to
+            // WindowManager when the IME has applied it. But it would be too late when
+            // switching IMEs in between different users. (Since the focused IME will
+            // first unbind the service to switch to bind the next user of the IME
+            // service, that wouldn't make the attached IME token validity check in time)
+            // As a result, we have to notify WM to apply IME visibility before clearing the
+            // binding states in the first place.
+            mVisibilityApplier.applyImeVisibility(mCurFocusedWindow, mCurStatsToken,
+                    STATE_HIDE_IME);
+        }
+    }
+
     /** {@code true} when a {@link ClientState} has attached from starting the input connection. */
     @GuardedBy("ImfLock.class")
     boolean hasAttachedClient() {
@@ -2803,6 +2826,8 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @GuardedBy("ImfLock.class")
     void resetCurrentMethodAndClientLocked(@UnbindReason int unbindClientReason) {
         setSelectedMethodIdLocked(null);
+        // Callback before clean-up binding states.
+        onUnbindCurrentMethodByReset();
         mBindingController.unbindCurrentMethod();
         unbindCurrentClientLocked(unbindClientReason);
     }
@@ -3015,7 +3040,12 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
     @GuardedBy("ImfLock.class")
     private boolean shouldShowImeSwitcherLocked(int visibility) {
         if (!mShowOngoingImeSwitcherForPhones) return false;
+        // When the IME switcher dialog is shown, the IME switcher button should be hidden.
         if (mMenuController.getSwitchingDialogLocked() != null) return false;
+        // When we are switching IMEs, the IME switcher button should be hidden.
+        if (!Objects.equals(getCurIdLocked(), getSelectedMethodIdLocked())) {
+            return false;
+        }
         if (mWindowManagerInternal.isKeyguardShowingAndNotOccluded()
                 && mWindowManagerInternal.isKeyguardSecure(mSettings.getCurrentUserId())) {
             return false;
@@ -3170,7 +3200,12 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
             } else {
                 vis &= ~InputMethodService.IME_VISIBLE_IMPERCEPTIBLE;
             }
-            // mImeWindowVis should be updated before calling shouldShowImeSwitcherLocked().
+            if (mMenuController.getSwitchingDialogLocked() != null
+                    || !Objects.equals(getCurIdLocked(), getSelectedMethodIdLocked())) {
+                // When the IME switcher dialog is shown, or we are switching IMEs,
+                // the back button should be in the default state (as if the IME is not shown).
+                backDisposition = InputMethodService.BACK_DISPOSITION_ADJUST_NOTHING;
+            }
             final boolean needsToShowImeSwitcher = shouldShowImeSwitcherLocked(vis);
             if (mStatusBarManagerInternal != null) {
                 mStatusBarManagerInternal.setImeWindowStatus(mCurTokenDisplayId,
@@ -5740,7 +5775,7 @@ public final class CarInputMethodManagerService extends IInputMethodManager.Stub
                 // input target changed, in case seeing the dialog dismiss flickering during
                 // the next focused window starting the input connection.
                 if (mLastImeTargetWindow != mCurFocusedWindow) {
-                    mMenuController.hideInputMethodMenu();
+                    mMenuController.hideInputMethodMenuLocked();
                 }
             }
         }
