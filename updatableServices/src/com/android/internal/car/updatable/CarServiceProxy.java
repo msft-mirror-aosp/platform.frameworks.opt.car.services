@@ -46,7 +46,6 @@ import com.android.car.internal.util.DebugUtils;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
-import com.android.internal.util.Preconditions;
 
 import java.lang.annotation.Retention;
 import java.lang.annotation.RetentionPolicy;
@@ -383,8 +382,6 @@ final class CarServiceProxy {
         }
         switch (operationId) {
             case PO_ON_USER_REMOVED:
-                Preconditions.checkArgument((value instanceof UserHandle),
-                        "invalid value passed to ON_USER_REMOVED", value);
                 if (pendingOperation.value instanceof ArrayList) {
                     if (DBG) Slogf.d(TAG, "Adding " + value + " to existing " + pendingOperation);
                     ((ArrayList) pendingOperation.value).add(value);
@@ -443,8 +440,6 @@ final class CarServiceProxy {
 
     @GuardedBy("mLock")
     private void onUserRemovedLocked(@NonNull Object value) throws RemoteException {
-        Preconditions.checkArgument((value instanceof UserHandle),
-                "Invalid value for ON_USER_REMOVED: %s", value);
         UserHandle user = (UserHandle) value;
         // TODO(235524989): Consolidating logging with other lifecycle events,
         // including user metrics.
