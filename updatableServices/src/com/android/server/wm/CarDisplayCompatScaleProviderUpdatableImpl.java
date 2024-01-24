@@ -65,7 +65,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private final CarDisplayCompatScaleProviderInterface mCarCompatScaleProviderInterface;
 
     @GuardedBy("mLock")
-    private final ArrayMap<String, Boolean> mRequiresAutoEnhance = new ArrayMap<>();
+    private final ArrayMap<String, Boolean> mRequiresDisplayCompat = new ArrayMap<>();
 
     private Config mConfig = new Config();
 
@@ -127,7 +127,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         synchronized (mLock) {
             // TODO(b/300642384): need to listen to add/remove of packages from PackageManager so
             // the list doesn't have stale data.
-            Boolean res = mRequiresAutoEnhance.get(packageName);
+            Boolean res = mRequiresDisplayCompat.get(packageName);
             if (res != null) {
                 return res.booleanValue();
             }
@@ -153,18 +153,18 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                         e.getMessage());
             }
 
-            mRequiresAutoEnhance.put(packageName, result);
+            mRequiresDisplayCompat.put(packageName, result);
         }
         return result;
     }
 
     /**
-     * Dump {code CarDisplayCompatScaleProviderUpdatableImpl#mRequiresAutoEnhance}
+     * Dump {code CarDisplayCompatScaleProviderUpdatableImpl#mRequiresDisplayCompat}
      */
     public void dump(IndentingPrintWriter writer) {
         writer.println(TAG);
         writer.increaseIndent();
-        writer.println("AutoEnhance Config:");
+        writer.println("DisplayCompat Config:");
         writer.increaseIndent();
         if (mConfig.size() == 0) {
             writer.println("Config is empty.");
@@ -177,15 +177,15 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             }
         }
         writer.decreaseIndent();
-        writer.println("List of AutoEnhance packages:");
+        writer.println("List of DisplayCompat packages:");
         writer.increaseIndent();
         synchronized (mLock) {
-            if (mRequiresAutoEnhance.size() == 0) {
+            if (mRequiresDisplayCompat.size() == 0) {
                 writer.println("No package is enabled.");
             } else {
-                for (int i = 0; i < mRequiresAutoEnhance.size(); i++) {
-                    if (mRequiresAutoEnhance.valueAt(i)) {
-                        writer.println("Package name: " + mRequiresAutoEnhance.keyAt(i));
+                for (int i = 0; i < mRequiresDisplayCompat.size(); i++) {
+                    if (mRequiresDisplayCompat.valueAt(i)) {
+                        writer.println("Package name: " + mRequiresDisplayCompat.keyAt(i));
                     }
                 }
             }

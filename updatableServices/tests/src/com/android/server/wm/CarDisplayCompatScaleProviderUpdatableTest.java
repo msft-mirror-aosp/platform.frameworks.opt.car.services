@@ -78,6 +78,8 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .strictness(Strictness.LENIENT)
                 .startMocking();
         when(mContext.getPackageManager()).thenReturn(mPackageManager);
+        when(mPackageManager.hasSystemFeature(eq("android.car.displaycompatibility")))
+                .thenReturn(true);
         mImpl = new CarDisplayCompatScaleProviderUpdatableImpl(mContext, mInterface);
     }
 
