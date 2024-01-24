@@ -18,11 +18,8 @@ package com.android.server.wm;
 
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
-import android.car.builtin.annotation.PlatformVersion;
 import android.content.pm.ActivityInfo;
-import android.view.WindowLayout;
 
-import com.android.annotation.AddedIn;
 
 /**
  * Wrapper of the parameters of {@code LaunchParamsController.LaunchParamsModifier.onCalculate()}
@@ -44,7 +41,6 @@ public final class CalculateParams {
     private CalculateParams() {}
 
     /** @hide */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public static CalculateParams create(Task task, ActivityInfo.WindowLayout layout,
             ActivityRecord actvity, ActivityRecord source,
             ActivityOptions options, ActivityStarter.Request request, int phase,
@@ -68,7 +64,6 @@ public final class CalculateParams {
     /**
      * Gets the {@link TaskWrapper} currently being positioned.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public TaskWrapper getTask() {
         return mTask;
     }
@@ -76,7 +71,6 @@ public final class CalculateParams {
     /**
      * Gets the specified {@link WindowLayoutWrapper}.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public WindowLayoutWrapper getWindowLayout() {
         return mLayout;
     }
@@ -84,7 +78,6 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityRecordWrapper} currently being positioned.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityRecordWrapper getActivity() {
         return mActivity;
     }
@@ -92,7 +85,6 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityRecordWrapper} from which activity was started from.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityRecordWrapper getSource() {
         return mSource;
     }
@@ -100,7 +92,6 @@ public final class CalculateParams {
     /**
      * Gets the {@link ActivityOptionsWrapper} specified for the activity.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public ActivityOptionsWrapper getOptions() {
         return mOptions;
     }
@@ -108,7 +99,6 @@ public final class CalculateParams {
     /**
      * Gets the optional {@link RequestWrapper} from the activity starter.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public RequestWrapper getRequest() {
         return mRequest;
     }
@@ -117,7 +107,6 @@ public final class CalculateParams {
      * Gets the {@link LaunchParamsController.LaunchParamsModifier.Phase} that the resolution should
      * finish.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public int getPhase() {
         return mPhase;
     }
@@ -125,7 +114,6 @@ public final class CalculateParams {
     /**
      * Gets the current {@link LaunchParamsWrapper}.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public LaunchParamsWrapper getCurrentParams() {
         return mCurrentParams;
     }
@@ -133,7 +121,6 @@ public final class CalculateParams {
     /**
      * Gets the resulting {@link LaunchParamsWrapper}.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public LaunchParamsWrapper getOutParams() {
         return mOutParams;
     }
@@ -141,7 +128,6 @@ public final class CalculateParams {
     /**
      * Returns whether the current system supports the multiple display.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     public boolean supportsMultiDisplay() {
         return mSupportsMultiDisplay;
     }

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -13,34 +13,36 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package android.content.res;
 
-package com.android.server.wm;
-
-import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.content.pm.ActivityInfo;
-
 
 /**
- * Wrapper of {@link android.content.pm.ActivityInfo.WindowLayout}.
+ * Wrapper for {@link CompatibilityInfo.CompatScale} class.
+ *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public final class WindowLayoutWrapper {
-    private final ActivityInfo.WindowLayout mLayout;
+public final class CompatScaleWrapper {
+    private final float mScaleFactor;
+    private final float mDensityScaleFactor;
 
-    private WindowLayoutWrapper(ActivityInfo.WindowLayout layout) {
-        mLayout = layout;
+    public CompatScaleWrapper(float scaleFactor, float densityScaleFactor) {
+        mScaleFactor = scaleFactor;
+        mDensityScaleFactor = densityScaleFactor;
     }
 
-    /** @hide */
-    public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
-        if (layout == null) return null;
-        return new WindowLayoutWrapper(layout);
+    /**
+     * @return application scale factor
+     */
+    public float getScaleFactor() {
+        return mScaleFactor;
     }
 
-    @Override
-    public String toString() {
-        return mLayout.toString();
+    /**
+     * @return application's density scale factor
+     */
+    public float getDensityScaleFactor() {
+        return mDensityScaleFactor;
     }
 }

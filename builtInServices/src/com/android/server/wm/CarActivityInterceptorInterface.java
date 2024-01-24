@@ -16,13 +16,9 @@
 
 package com.android.server.wm;
 
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.builtin.annotation.PlatformVersion;
-import android.os.Build;
 
-import com.android.annotation.AddedIn;
 
 /**
  * Interface implemented by {@link com.android.internal.car.CarActivityInterceptor} and used by
@@ -42,8 +38,6 @@ public interface CarActivityInterceptorInterface {
      * See {@link com.android.server.pm.UserManagerInternal#getUserAssignedToDisplay(int)} for
      * the detail.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @UserIdInt int getUserAssignedToDisplay(int displayId);
 
     /**
@@ -52,7 +46,5 @@ public interface CarActivityInterceptorInterface {
      * See {@link com.android.server.pm.UserManagerInternal#getMainDisplayAssignedToUser(int)} for
      * the detail.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     int getMainDisplayAssignedToUser(@UserIdInt int userId);
 }

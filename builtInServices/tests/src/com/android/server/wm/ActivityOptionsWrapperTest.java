@@ -20,6 +20,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.app.ActivityOptions;
 
+import androidx.test.filters.FlakyTest;
+
 import org.junit.Test;
 
 /**
@@ -27,6 +29,7 @@ import org.junit.Test;
  */
 public final class ActivityOptionsWrapperTest {
     @Test
+    @FlakyTest(bugId = 284947065)
     public void create_returnsActivityOptionWrapper() {
         ActivityOptions options = ActivityOptions.makeBasic();
         ActivityOptionsWrapper wrapper = ActivityOptionsWrapper.create(options);
