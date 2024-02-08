@@ -15,7 +15,13 @@
  */
 package com.android.server.wm;
 
+import static android.content.pm.ApplicationInfo.FLAG_SYSTEM;
+import static android.content.pm.FeatureInfo.FLAG_REQUIRED;
+import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
+import static android.content.pm.PackageManager.GET_ACTIVITIES;
 import static android.content.pm.PackageManager.GET_CONFIGURATIONS;
+import static android.content.pm.PackageManager.GET_META_DATA;
+import static android.content.pm.PackageManager.SIGNATURE_MATCH;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 
@@ -29,12 +35,17 @@ import android.annotation.UserIdInt;
 import android.car.builtin.util.Slogf;
 import android.car.feature.Flags;
 import android.content.Context;
+import android.content.pm.ActivityInfo;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
+import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.ApplicationInfoFlags;
 import android.content.pm.PackageManager.PackageInfoFlags;
 import android.content.res.CompatScaleWrapper;
 import android.database.ContentObserver;
 import android.net.Uri;
+import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.ServiceSpecificException;
@@ -42,6 +53,7 @@ import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
+import android.util.Log;
 import android.util.Pair;
 
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -65,10 +77,16 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatScaleProviderUpdatable {
-    private static final String TAG = "CarDisplayCompatScaleProvider";
-    private static final String FEATURE_DISPLAYCOMPAT = "android.car.displaycompatibility";
-    static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
-            "android.car.displaycompatibility:settings:secure";
+    private static final String TAG =
+            CarDisplayCompatScaleProviderUpdatableImpl.class.getSimpleName();
+    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
+    // {@code PackageManager#FEATURE_CAR_DISPLAY_COMPATIBILITY}
+    static final String FEATURE_CAR_DISPLAY_COMPATIBILITY =
+            "android.software.car.display_compatibility";
+    @VisibleForTesting
+    static final String META_DATA_DISTRACTION_OPTIMIZED = "distractionOptimized";
+    @VisibleForTesting
+    static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
     // {@code android.os.UserHandle.USER_NULL}
     @VisibleForTesting
@@ -77,6 +95,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     static final float NO_SCALE = -1f;
     // {@code CarPackageManager#ERROR_CODE_NO_PACKAGE}
     private static final int ERROR_CODE_NO_PACKAGE = -100;
+    static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
+            FEATURE_CAR_DISPLAY_COMPATIBILITY + ":settings:secure";
 
     @NonNull
     private Context mContext;
@@ -105,8 +125,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return;
         }
         if (mPackageManager != null
-                && !mPackageManager.hasSystemFeature(FEATURE_DISPLAYCOMPAT)) {
-            Slogf.i(TAG, FEATURE_DISPLAYCOMPAT + " is not available");
+                && !mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            Slogf.i(TAG, FEATURE_CAR_DISPLAY_COMPATIBILITY + " is not available");
             return;
         }
 
@@ -146,7 +166,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return null;
         }
         if (mPackageManager != null
-                && !mPackageManager.hasSystemFeature(FEATURE_DISPLAYCOMPAT)) {
+                && !mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
             return null;
         }
         try {
@@ -179,45 +199,138 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
     @Override
     public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId) {
-        boolean result = false;
         mRWLock.readLock().lock();
         try {
             // TODO(b/300642384): need to listen to add/remove of packages from PackageManager so
             // the list doesn't have stale data.
             Boolean res = mRequiresDisplayCompat.get(packageName);
             if (res != null) {
+                if (DBG) {
+                    Slogf.d(TAG, "Package %s is cached %b", packageName, res.booleanValue());
+                }
                 return res.booleanValue();
             }
         } finally {
             mRWLock.readLock().unlock();
         }
 
+        mRWLock.writeLock().lock();
         try {
-            PackageInfoFlags flags = PackageInfoFlags.of(GET_CONFIGURATIONS);
-            FeatureInfo[] features = mPackageManager.getPackageInfo(packageName, flags)
-                    .reqFeatures;
-            if (features != null) {
-                for (FeatureInfo feature: features) {
-                    // TODO: get the string from PackageManager
-                    if (FEATURE_DISPLAYCOMPAT.equals(feature.name)) {
-                        result = true;
-                        break;
-                    }
-                }
-            }
+            boolean result = requiresDisplayCompatNotCached(packageName, userId);
+            mRequiresDisplayCompat.put(packageName, result);
+            return result;
         } catch (PackageManager.NameNotFoundException e) {
+            // This shouldn't be the case if the user requesting the package is the same as
+            // the user launching the app.
             Slogf.e(TAG, "Package " + packageName + " not found", e);
             throw new ServiceSpecificException(
                     ERROR_CODE_NO_PACKAGE,
                     e.getMessage());
-        }
-        mRWLock.writeLock().lock();
-        try {
-            mRequiresDisplayCompat.put(packageName, result);
         } finally {
             mRWLock.writeLock().unlock();
         }
-        return result;
+    }
+
+    @GuardedBy("mRWLock")
+    private boolean requiresDisplayCompatNotCached(@NonNull String packageName,
+            @UserIdInt int userId) throws PackageManager.NameNotFoundException {
+
+        UserHandle userHandle = UserHandle.of(userId);
+        ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(GET_META_DATA);
+        ApplicationInfo applicationInfo = mPackageManager
+                .getApplicationInfoAsUser(packageName, appFlags, userHandle);
+
+        // application has {@code FEATURE_CAR_DISPLAY_COMPATIBILITY} metadata
+        if (applicationInfo != null &&  applicationInfo.metaData != null
+                && applicationInfo.metaData.containsKey(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            if (DBG) {
+                Slogf.d(TAG, "Package %s has %s metadata", packageName,
+                        FEATURE_CAR_DISPLAY_COMPATIBILITY);
+            }
+            return applicationInfo.metaData.getBoolean(FEATURE_CAR_DISPLAY_COMPATIBILITY);
+        }
+
+        PackageInfoFlags pkgFlags = PackageInfoFlags
+                .of(GET_CONFIGURATIONS | GET_ACTIVITIES);
+        PackageInfo pkgInfo = mCarCompatScaleProviderInterface
+                .getPackageInfoAsUser(packageName, pkgFlags, userId);
+
+        // Opt out if has {@code FEATURE_AUTOMOTIVE} or
+        // {@code FEATURE_CAR_DISPLAY_COMPATIBILITY}
+        if (pkgInfo != null && pkgInfo.reqFeatures != null) {
+            FeatureInfo[] features = pkgInfo.reqFeatures;
+            for (FeatureInfo feature: features) {
+                if (FEATURE_AUTOMOTIVE.equals(feature.name)) {
+                    boolean required = ((feature.flags & FLAG_REQUIRED) != 0);
+                    if (DBG) {
+                        Slogf.d(TAG, "Package %s has %s %b",
+                                packageName, FEATURE_AUTOMOTIVE, required);
+                    }
+                    return false;
+                }
+                if (FEATURE_CAR_DISPLAY_COMPATIBILITY.equals(feature.name)) {
+                    if (DBG) {
+                        boolean required = ((feature.flags & FLAG_REQUIRED) != 0);
+                        Slogf.d(TAG, "Package %s has %s %b",
+                                packageName, FEATURE_CAR_DISPLAY_COMPATIBILITY, required);
+                    }
+                    return true;
+                }
+            }
+        }
+
+        // Opt out if has no activities
+        if (pkgInfo == null || pkgInfo.activities == null) {
+            if (DBG) {
+                Slogf.d(TAG, "Package %s has no Activity", packageName);
+            }
+            return false;
+        }
+
+        // Opt out if has at least 1 activity that has
+        // {@code META_DATA_DISTRACTION_OPTIMIZED} metadata set to true
+        // This case should prevent NDO apps to accidentally launch in display compat host.
+        for (ActivityInfo ai : pkgInfo.activities) {
+            Bundle activityMetaData = ai.metaData;
+            if (activityMetaData != null && activityMetaData
+                    .getBoolean(META_DATA_DISTRACTION_OPTIMIZED)) {
+                if (DBG) {
+                    Slogf.d(TAG, "Package %s has %s", packageName,
+                            META_DATA_DISTRACTION_OPTIMIZED);
+                }
+                return false;
+            }
+        }
+
+        if (applicationInfo != null) {
+            // Opt out if it's a privileged package
+            if (applicationInfo.isPrivilegedApp()) {
+                if (DBG) {
+                    Slogf.d(TAG, "Package %s isPrivileged", packageName);
+                }
+                return false;
+            }
+
+            // Opt out if it's a system package
+            if ((applicationInfo.flags & FLAG_SYSTEM) != 0) {
+                if (DBG) {
+                    Slogf.d(TAG, "Package %s has FLAG_SYSTEM", packageName);
+                }
+                return false;
+            }
+        }
+
+        // Opt out if package has platform signature
+        if (mPackageManager.checkSignatures(PLATFORM_PACKAGE_NAME, packageName)
+                == SIGNATURE_MATCH) {
+            if (DBG) {
+                Slogf.d(TAG, "Package %s is platform signed", packageName);
+            }
+            return false;
+        }
+
+        // Opt in by default
+        return true;
     }
 
     /**

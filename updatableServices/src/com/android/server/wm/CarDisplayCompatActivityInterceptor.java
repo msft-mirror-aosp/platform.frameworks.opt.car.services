@@ -19,6 +19,8 @@ import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 
+import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
@@ -44,7 +46,6 @@ import com.android.internal.annotations.VisibleForTesting;
 public final class CarDisplayCompatActivityInterceptor implements CarActivityInterceptorUpdatable {
 
     public static final String TAG = CarDisplayCompatActivityInterceptor.class.getSimpleName();
-    private static final String DISPLAYCOMPAT_SYSTEM_FEATURE = "android.car.displaycompatibility";
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
     private static final ActivityOptionsWrapper EMPTY_LAUNCH_OPTIONS_WRAPPER =
             ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
@@ -74,8 +75,8 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
         }
         PackageManager packageManager = context.getPackageManager();
         if (packageManager != null
-                && !packageManager.hasSystemFeature(DISPLAYCOMPAT_SYSTEM_FEATURE)) {
-            Slogf.i(TAG, DISPLAYCOMPAT_SYSTEM_FEATURE + " is not available");
+                && !packageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            Slogf.i(TAG, FEATURE_CAR_DISPLAY_COMPATIBILITY + " is not available");
             return;
         }
         Resources r = context.getResources();
