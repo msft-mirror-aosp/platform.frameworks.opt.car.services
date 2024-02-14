@@ -20,6 +20,12 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityOptions;
@@ -35,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
@@ -71,6 +78,10 @@ public class CarActivityInterceptorUpdatableTest {
     private TaskDisplayArea mTda1;
     @Mock
     private TaskDisplayArea mTda2;
+    @Mock
+    private CarActivityInterceptorUpdatable mMockInterceptor;
+    @Mock
+    private ActivityInterceptorInfoWrapper mMockInfo;
 
     private final CarActivityInterceptorInterface mCarActivityInterceptorInterface =
             new CarActivityInterceptorInterface() {
@@ -298,5 +309,58 @@ public class CarActivityInterceptorUpdatableTest {
                 activities2.get(0), mRootTaskToken2,
                 activities2.get(1), mRootTaskToken2
         );
+    }
+
+    @Test
+    public void registerInterceptor_works() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+        verify(mMockInterceptor, times(1)).onInterceptActivityLaunch(eq(mMockInfo));
+    }
+
+    @Test
+    public void unregisterInterceptor_works() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        mInterceptor.unregisterInterceptor(0);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+        verify(mMockInterceptor, times(1)).onInterceptActivityLaunch(eq(mMockInfo));
+    }
+
+    @Test
+    public void registerInterceptor_respectsOrder() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        CarActivityInterceptorUpdatable interceptor1 = mock(CarActivityInterceptorUpdatable.class);
+        CarActivityInterceptorUpdatable interceptor2 = mock(CarActivityInterceptorUpdatable.class);
+
+        mInterceptor.registerInterceptor(0, interceptor1);
+        mInterceptor.registerInterceptor(1, interceptor2);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        InOrder inOrder = inOrder(interceptor1, interceptor2);
+        inOrder.verify(interceptor1).onInterceptActivityLaunch(mMockInfo);
+        inOrder.verify(interceptor2).onInterceptActivityLaunch(mMockInfo);
+    }
+
+    @Test
+    public void registerInterceptor_existingIndex_throwsException() throws Exception {
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        var thrown =
+                assertThrows(IllegalArgumentException.class,
+                        () -> mInterceptor.registerInterceptor(0, mMockInterceptor));
+        assertThat(thrown).hasMessageThat()
+                .contains("Another interceptor is registered at index: 0");
+    }
+
+    @Test
+    public void unregisterInterceptor_throwsException() {
+        var thrown =
+                assertThrows(IllegalArgumentException.class,
+                        () -> mInterceptor.unregisterInterceptor(0));
+        assertThat(thrown).hasMessageThat()
+                .contains("No interceptor is registered at index: 0");
     }
 }
