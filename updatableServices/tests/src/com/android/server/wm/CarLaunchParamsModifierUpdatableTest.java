@@ -73,7 +73,6 @@ import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
-import java.util.Arrays;
 import java.util.function.Function;
 
 /**
@@ -535,62 +534,6 @@ public class CarLaunchParamsModifierUpdatableTest {
         assertDisplayIsReassigned(passenger, mDisplay0ForDriver, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passenger, mDisplay10ForPassenger);
         assertDisplayIsAllowed(passenger, mDisplay11ForPassenger);
-    }
-
-    @Test
-    public void testPreferSourceForDriver() {
-        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
-
-        // When no sourcePreferredComponents is set, it doesn't set the display for system user.
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-
-        mUpdatable.setSourcePreferredComponents(true, null);
-        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
-    }
-
-    @Test
-    public void testPreferSourceForPassenger() {
-        mUpdatable.setPassengerDisplays(
-                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
-        int passengerUserId = 100;
-        mUpdatable.setDisplayAllowListForUser(passengerUserId,
-                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
-        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea11ForPassenger);
-
-        // When no sourcePreferredComponents is set, it returns the default passenger display.
-        assertDisplayIsAssigned(passengerUserId, mDisplayArea10ForPassenger);
-
-        mUpdatable.setSourcePreferredComponents(true, null);
-        assertDisplayIsAssigned(passengerUserId, mDisplayArea11ForPassenger);
-    }
-
-    @Test
-    public void testPreferSourceDoNotOverrideActivityOptions() {
-        when(mActivityOptions.getLaunchDisplayId()).thenReturn(PASSENGER_DISPLAY_ID_10);
-        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
-
-        mUpdatable.setSourcePreferredComponents(true, null);
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
-    }
-
-    @Test
-    public void testPreferSourceForSpecifiedActivity() {
-        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
-        mActivityRecordActivity = buildActivityRecord("testPackage", "testActivity");
-        mUpdatable.setSourcePreferredComponents(true,
-                Arrays.asList(new ComponentName("testPackage", "testActivity")));
-
-        assertDisplayIsAssigned(UserHandle.USER_SYSTEM, mDisplayArea0ForDriver);
-    }
-
-    @Test
-    public void testPreferSourceDoNotAssignDisplayForNonSpecifiedActivity() {
-        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea0ForDriver);
-        mActivityRecordActivity = buildActivityRecord("placeholderPackage", "placeholderActivity");
-        mUpdatable.setSourcePreferredComponents(true,
-                Arrays.asList(new ComponentName("testPackage", "testActivity")));
-
-        assertNoDisplayIsAssigned(UserHandle.USER_SYSTEM);
     }
 
     @Test

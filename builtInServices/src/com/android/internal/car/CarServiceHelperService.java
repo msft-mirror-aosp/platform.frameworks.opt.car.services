@@ -57,7 +57,9 @@ import android.os.UserHandle;
 import android.os.UserManager;
 import android.system.Os;
 import android.system.OsConstants;
+import android.util.ArrayMap;
 import android.util.Dumpable;
+import android.util.Log;
 import android.util.TimeUtils;
 
 import com.android.car.internal.common.UserHelperLite;
@@ -76,6 +78,8 @@ import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CarActivityInterceptorInterface;
+import com.android.server.wm.CarDisplayCompatScaleProvider;
+import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
@@ -92,6 +96,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
@@ -111,9 +116,7 @@ public class CarServiceHelperService extends SystemService
     @VisibleForTesting
     static final String TAG = "CarServiceHelper";
 
-    // TODO(b/154033860): STOPSHIP if they're still true
-    private static final boolean DBG = true;
-    private static final boolean VERBOSE = true;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final List<String> CAR_HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
@@ -160,6 +163,7 @@ public class CarServiceHelperService extends SystemService
 
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
     private final CarActivityInterceptor mCarActivityInterceptor;
+    private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
@@ -209,17 +213,22 @@ public class CarServiceHelperService extends SystemService
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
         mCarActivityInterceptor = new CarActivityInterceptor();
+        mCarDisplayCompatScaleProvider = new CarDisplayCompatScaleProvider();
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
+                Map<String, Object> interfaces = new ArrayMap<>();
+                interfaces.put(CarServiceHelperInterface.class.getSimpleName(), this);
+                interfaces.put(CarLaunchParamsModifierInterface.class.getSimpleName(),
+                        mCarLaunchParamsModifier.getBuiltinInterface());
+                interfaces.put(CarActivityInterceptorInterface.class.getSimpleName(),
+                        mCarActivityInterceptor.getBuiltinInterface());
+                interfaces.put(CarDisplayCompatScaleProviderInterface.class.getSimpleName(),
+                        mCarDisplayCompatScaleProvider.getBuiltinInterface());
                 mCarServiceHelperServiceUpdatable = (CarServiceHelperServiceUpdatable) Class
                         .forName(CSHS_UPDATABLE_CLASSNAME_STRING)
-                        .getConstructor(Context.class, CarServiceHelperInterface.class,
-                                CarLaunchParamsModifierInterface.class,
-                                CarActivityInterceptorInterface.class)
-                        .newInstance(mContext, this,
-                                mCarLaunchParamsModifier.getBuiltinInterface(),
-                                mCarActivityInterceptor.getBuiltinInterface());
+                        .getConstructor(Context.class, Map.class)
+                        .newInstance(mContext, interfaces);
                 Slogf.d(TAG, "CarServiceHelperServiceUpdatable created via reflection.");
             } else {
                 mCarServiceHelperServiceUpdatable = carServiceHelperServiceUpdatable;
@@ -238,6 +247,8 @@ public class CarServiceHelperService extends SystemService
                 mCarServiceHelperServiceUpdatable.getCarLaunchParamsModifierUpdatable());
         mCarActivityInterceptor.setUpdatable(mCarServiceHelperServiceUpdatable
                 .getCarActivityInterceptorUpdatable());
+        mCarDisplayCompatScaleProvider.setUpdatable(mCarServiceHelperServiceUpdatable
+                .getCarDisplayCompatScaleProviderUpdatable());
 
         UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
         if (umi != null) {
@@ -305,6 +316,7 @@ public class CarServiceHelperService extends SystemService
             activityTaskManagerInternal.registerActivityStartInterceptor(
                     PRODUCT_ORDERED_ID,
                     mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init(mContext);
             t.traceEnd();
         }
     }

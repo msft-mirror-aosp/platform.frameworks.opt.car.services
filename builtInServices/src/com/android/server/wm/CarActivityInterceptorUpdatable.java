@@ -17,12 +17,8 @@
 package com.android.server.wm;
 
 import android.annotation.Nullable;
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
-import android.car.builtin.annotation.PlatformVersion;
-import android.os.Build;
 
-import com.android.annotation.AddedIn;
 
 /**
  * Updatable interface of CarActivityInterceptor.
@@ -39,8 +35,6 @@ public interface CarActivityInterceptorUpdatable {
      *         {@code null} is returned when no modification is required on intent or activity
      *         options.
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     @Nullable
     ActivityInterceptResultWrapper onInterceptActivityLaunch(
             ActivityInterceptorInfoWrapper info);

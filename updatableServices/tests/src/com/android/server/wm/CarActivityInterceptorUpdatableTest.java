@@ -20,6 +20,12 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 
 import static com.google.common.truth.Truth.assertThat;
 
+import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.inOrder;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityOptions;
@@ -35,6 +41,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
+import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
@@ -45,6 +52,8 @@ import java.util.List;
 public class CarActivityInterceptorUpdatableTest {
     private static final int DEFAULT_CURRENT_USER_ID = 112;
     private static final int PASSENGER_USER_ID = 198;
+    private static final int DISPLAY_ID_1 = 0;
+    private static final int DISPLAY_ID_2 = 2;
     private CarActivityInterceptorUpdatableImpl mInterceptor;
     private MockitoSession mMockingSession;
     private WindowContainer.RemoteToken mRootTaskToken1;
@@ -56,13 +65,23 @@ public class CarActivityInterceptorUpdatableTest {
     private Task mWindowContainer2;
 
     @Mock
-    private DisplayContent mDisplayContent;
+    private DisplayContent mDisplayContent1;
+    @Mock
+    private DisplayContent mDisplayContent2;
 
     @Mock
-    private Display mDisplay;
+    private Display mDisplay1;
+    @Mock
+    private Display mDisplay2;
 
     @Mock
-    private TaskDisplayArea mTda;
+    private TaskDisplayArea mTda1;
+    @Mock
+    private TaskDisplayArea mTda2;
+    @Mock
+    private CarActivityInterceptorUpdatable mMockInterceptor;
+    @Mock
+    private ActivityInterceptorInfoWrapper mMockInfo;
 
     private final CarActivityInterceptorInterface mCarActivityInterceptorInterface =
             new CarActivityInterceptorInterface() {
@@ -84,16 +103,22 @@ public class CarActivityInterceptorUpdatableTest {
                 .strictness(Strictness.LENIENT)
                 .startMocking();
 
-        mTda.mDisplayContent = mDisplayContent;
-        when(mDisplayContent.getDisplay()).thenReturn(mDisplay);
-        when(mDisplay.getDisplayId()).thenReturn(0);
+        mTda1.mDisplayContent = mDisplayContent1;
+        when(mDisplayContent1.getDisplay()).thenReturn(mDisplay1);
+        when(mTda1.getDisplayId()).thenReturn(DISPLAY_ID_1);
+        when(mDisplay1.getDisplayId()).thenReturn(DISPLAY_ID_1);
 
         mRootTaskToken1 = new WindowContainer.RemoteToken(mWindowContainer1);
         mWindowContainer1.mRemoteToken = mRootTaskToken1;
-        when(mWindowContainer1.getTaskDisplayArea()).thenReturn(mTda);
+        when(mWindowContainer1.getTaskDisplayArea()).thenReturn(mTda1);
+
+        when(mDisplayContent2.getDisplay()).thenReturn(mDisplay2);
+        when(mTda2.getDisplayId()).thenReturn(DISPLAY_ID_2);
+        when(mDisplay2.getDisplayId()).thenReturn(DISPLAY_ID_2);
+        mTda2.mDisplayContent = mDisplayContent2;
 
         mRootTaskToken2 = new WindowContainer.RemoteToken(mWindowContainer2);
-        when(mWindowContainer2.getTaskDisplayArea()).thenReturn(mTda);
+        when(mWindowContainer2.getTaskDisplayArea()).thenReturn(mTda2);
         mWindowContainer2.mRemoteToken = mRootTaskToken2;
 
         mInterceptor = new CarActivityInterceptorUpdatableImpl(mCarActivityInterceptorInterface);
@@ -206,6 +231,24 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     @Test
+    public void interceptActivityLaunch_persistedActivity_differentLaunchDisplayId_returnsNull() {
+        List<ComponentName> activities = List.of(
+                ComponentName.unflattenFromString("com.example.app/com.example.app.MainActivity")
+        );
+        mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken2);
+        ActivityOptions options = ActivityOptions.makeBasic();
+        options.setLaunchDisplayId(DISPLAY_ID_1);
+
+        ActivityInterceptorInfoWrapper info =
+                createActivityInterceptorInfoWithMainIntent(activities.get(0).getPackageName(),
+                        activities.get(0).getClassName(), /* options= */ options);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(info);
+        assertThat(result).isNull();
+    }
+
+    @Test
     public void interceptActivityLaunch_persistedActivity_setsLaunchRootTask() {
         List<ComponentName> activities = List.of(
                 ComponentName.unflattenFromString("com.example.app/com.example.app.MainActivity"),
@@ -266,5 +309,58 @@ public class CarActivityInterceptorUpdatableTest {
                 activities2.get(0), mRootTaskToken2,
                 activities2.get(1), mRootTaskToken2
         );
+    }
+
+    @Test
+    public void registerInterceptor_works() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+        verify(mMockInterceptor, times(1)).onInterceptActivityLaunch(eq(mMockInfo));
+    }
+
+    @Test
+    public void unregisterInterceptor_works() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        mInterceptor.unregisterInterceptor(0);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+        verify(mMockInterceptor, times(1)).onInterceptActivityLaunch(eq(mMockInfo));
+    }
+
+    @Test
+    public void registerInterceptor_respectsOrder() {
+        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        CarActivityInterceptorUpdatable interceptor1 = mock(CarActivityInterceptorUpdatable.class);
+        CarActivityInterceptorUpdatable interceptor2 = mock(CarActivityInterceptorUpdatable.class);
+
+        mInterceptor.registerInterceptor(0, interceptor1);
+        mInterceptor.registerInterceptor(1, interceptor2);
+        mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        InOrder inOrder = inOrder(interceptor1, interceptor2);
+        inOrder.verify(interceptor1).onInterceptActivityLaunch(mMockInfo);
+        inOrder.verify(interceptor2).onInterceptActivityLaunch(mMockInfo);
+    }
+
+    @Test
+    public void registerInterceptor_existingIndex_throwsException() throws Exception {
+        mInterceptor.registerInterceptor(0, mMockInterceptor);
+        var thrown =
+                assertThrows(IllegalArgumentException.class,
+                        () -> mInterceptor.registerInterceptor(0, mMockInterceptor));
+        assertThat(thrown).hasMessageThat()
+                .contains("Another interceptor is registered at index: 0");
+    }
+
+    @Test
+    public void unregisterInterceptor_throwsException() {
+        var thrown =
+                assertThrows(IllegalArgumentException.class,
+                        () -> mInterceptor.unregisterInterceptor(0));
+        assertThat(thrown).hasMessageThat()
+                .contains("No interceptor is registered at index: 0");
     }
 }

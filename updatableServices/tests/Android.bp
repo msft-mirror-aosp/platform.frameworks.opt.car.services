@@ -1,4 +1,5 @@
 package {
+    default_team: "trendy_team_aaos_framework",
     // See: http://go/android-license-faq
     default_applicable_licenses: [
         "Android-Apache-2.0",
@@ -38,7 +39,7 @@ android_test {
         "mockito-target-extended-minus-junit4",
         "services.core",
         "testng",
-        "truth-prebuilt",
+        "truth",
     ],
 
     // mockito-target-extended dependencies
@@ -47,4 +48,9 @@ android_test {
         "libstaticjvmtiagent",
     ],
 
+    test_suites: [
+        "automotive-tests",
+        "automotive-general-tests",
+        "general-tests",
+    ],
 }
