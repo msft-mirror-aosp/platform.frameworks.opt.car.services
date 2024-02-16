@@ -29,6 +29,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
@@ -63,6 +64,11 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 public int getMainDisplayAssignedToUser(int userId) {
                     return DEFAULT_DISPLAY;
                 }
+
+                @Override
+                public boolean isPrivileged(ApplicationInfo applicationInfo) {
+                    return false;
+                }
             };
 
     @Before
@@ -92,14 +98,14 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         when(mPackageManager.getPackageInfo(eq("package1"), any(PackageInfoFlags.class)))
                 .thenReturn(mPackageInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1")).isTrue();
+        assertThat(mImpl.requiresDisplayCompat("package1", 10)).isTrue();
     }
 
     @Test
     public void requiresDisplayCompat_returnsFalse() throws NameNotFoundException {
         when(mPackageManager.getPackageInfo(eq("package1"), any(PackageInfoFlags.class)))
                 .thenReturn(mPackageInfo);
-        assertThat(mImpl.requiresDisplayCompat("package1")).isFalse();
+        assertThat(mImpl.requiresDisplayCompat("package1", 10)).isFalse();
     }
 
     @Test
@@ -110,9 +116,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mPackageInfo.reqFeatures = features;
         when(mPackageManager.getPackageInfo(eq("package1"), any(PackageInfoFlags.class)))
                 .thenReturn(mPackageInfo);
-        mImpl.requiresDisplayCompat("package1");
+        mImpl.requiresDisplayCompat("package1", 10);
 
-        assertThat(mImpl.requiresDisplayCompat("package1")).isTrue();
+        assertThat(mImpl.requiresDisplayCompat("package1", 10)).isTrue();
         // Verify the number of calls to PackageManager#getPackageInfo did not increase.
         verify(mPackageManager, times(1)).getPackageInfo(eq("package1"),
                 any(PackageInfoFlags.class));
