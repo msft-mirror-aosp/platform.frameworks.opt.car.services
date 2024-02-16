@@ -54,6 +54,7 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
     private final ArrayMap<ComponentName, IBinder> mActivityToRootTaskMap = new ArrayMap<>();
     @GuardedBy("mLock")
     private final Set<IBinder> mKnownRootTasks = new ArraySet<>();
+    @NonNull
     private final CarActivityInterceptorInterface mBuiltIn;
     @GuardedBy("mLock")
     @NonNull
