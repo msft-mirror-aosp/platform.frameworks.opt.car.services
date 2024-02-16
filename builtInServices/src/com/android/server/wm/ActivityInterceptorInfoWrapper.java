@@ -13,13 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.server.wm;
 
 import android.annotation.SystemApi;
+import android.annotation.UserIdInt;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-
 
 /**
  * A wrapper over {@link com.android.server.wm.ActivityInterceptorCallback.ActivityInterceptorInfo}.
@@ -63,7 +62,16 @@ public final class ActivityInterceptorInfoWrapper {
         return mActivityInterceptorInfo.getCallingPackage();
     }
 
+    @UserIdInt
     public int getUserId() {
         return mActivityInterceptorInfo.getUserId();
+    }
+
+    public int getCallingUid() {
+        return mActivityInterceptorInfo.getCallingUid();
+    }
+
+    public int getCallingPid() {
+        return mActivityInterceptorInfo.getCallingPid();
     }
 }

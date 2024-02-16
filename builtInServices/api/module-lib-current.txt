@@ -47,6 +47,8 @@ package com.android.server.wm {
   public final class ActivityInterceptorInfoWrapper {
     method public android.content.pm.ActivityInfo getActivityInfo();
     method public String getCallingPackage();
+    method public int getCallingPid();
+    method public int getCallingUid();
     method public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
     method public android.content.Intent getIntent();
     method public int getUserId();
@@ -57,6 +59,7 @@ package com.android.server.wm {
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
     method public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
+    method public void setLaunchDisplayId(int);
     method public void setLaunchRootTask(android.os.IBinder);
     field public static final int WINDOWING_MODE_UNDEFINED = 0; // 0x0
   }
@@ -96,11 +99,12 @@ package com.android.server.wm {
 
   public interface CarDisplayCompatScaleProviderInterface {
     method public int getMainDisplayAssignedToUser(int);
+    method public boolean isPrivileged(@NonNull android.content.pm.ApplicationInfo);
   }
 
   public interface CarDisplayCompatScaleProviderUpdatable {
     method @Nullable public android.content.res.CompatScaleWrapper getCompatScale(@NonNull String, int);
-    method public boolean requiresDisplayCompat(@NonNull String);
+    method public boolean requiresDisplayCompat(@NonNull String, int);
   }
 
   public interface CarLaunchParamsModifierInterface {
