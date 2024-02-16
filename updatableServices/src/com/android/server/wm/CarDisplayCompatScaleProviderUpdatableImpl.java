@@ -24,6 +24,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.car.builtin.util.Slogf;
+import android.car.feature.Flags;
 import android.content.Context;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageManager;
@@ -55,7 +56,7 @@ import java.io.IOException;
 public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatScaleProviderUpdatable {
     private static final String TAG = "CarDisplayCompatScaleProvider";
-    private static final String AUTOENHANCE_SYSTEM_FEATURE = "android.car.displaycompatibility";
+    private static final String FEATURE_DISPLAYCOMPAT = "android.car.displaycompatibility";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
     private static final String NS = null;
 
@@ -72,9 +73,15 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface) {
         mPackageManager = context.getPackageManager();
         mCarCompatScaleProviderInterface = carCompatScaleProviderInterface;
-
-        // TODO(b/300505673): remove once Chrome is ready
-        mRequiresAutoEnhance.put("com.android.chrome", true);
+        if (!Flags.displayCompatibility()) {
+            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            return;
+        }
+        if (mPackageManager != null
+                && !mPackageManager.hasSystemFeature(FEATURE_DISPLAYCOMPAT)) {
+            Slogf.i(TAG, FEATURE_DISPLAYCOMPAT + " is not available");
+            return;
+        }
 
         try (FileInputStream in = getConfigFile().openRead();) {
             XmlPullParser parser = Xml.newPullParser();
@@ -90,8 +97,17 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @Nullable
     @Override
     public CompatScaleWrapper getCompatScale(@NonNull String packageName, @UserIdInt int userId) {
+        if (!Flags.displayCompatibility()) {
+            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            return null;
+        }
+        if (mPackageManager != null
+                && !mPackageManager.hasSystemFeature(FEATURE_DISPLAYCOMPAT)) {
+            Slogf.i(TAG, FEATURE_DISPLAYCOMPAT + " is not available");
+            return null;
+        }
         try {
-            if (requiresDisplayCompat(packageName)) {
+            if (requiresDisplayCompat(packageName, userId)) {
                 int display = mCarCompatScaleProviderInterface.getMainDisplayAssignedToUser(userId);
                 if (display == INVALID_DISPLAY) {
                     display = DEFAULT_DISPLAY;
@@ -106,7 +122,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     }
 
     @Override
-    public boolean requiresDisplayCompat(@NonNull String packageName) {
+    public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId) {
         boolean result = false;
         synchronized (mLock) {
             // TODO(b/300642384): need to listen to add/remove of packages from PackageManager so
@@ -123,7 +139,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 if (features != null) {
                     for (FeatureInfo feature: features) {
                         // TODO: get the string from PackageManager
-                        if (AUTOENHANCE_SYSTEM_FEATURE.equals(feature.name)) {
+                        if (FEATURE_DISPLAYCOMPAT.equals(feature.name)) {
                             Slogf.i(TAG, "detected autoenhance package: " + packageName);
                             result = true;
                             break;
