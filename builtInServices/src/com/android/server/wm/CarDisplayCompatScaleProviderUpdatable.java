@@ -43,7 +43,8 @@ public interface CarDisplayCompatScaleProviderUpdatable {
 
     /**
      * @param packageName package name of the running application
+     * @param userId user id that the package is installed for
      * @return true if package requires launching in automotive compatibility mode
      */
-    boolean requiresDisplayCompat(@NonNull String packageName);
+    boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId);
 }
