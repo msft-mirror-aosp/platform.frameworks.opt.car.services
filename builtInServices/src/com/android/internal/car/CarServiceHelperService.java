@@ -76,6 +76,7 @@ import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CarActivityInterceptorInterface;
+import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
@@ -186,12 +187,15 @@ public class CarServiceHelperService extends SystemService
      */
     private long mFirstUnlockedUserDuration;
 
+    private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
+
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
-                /* carDevicePolicySafetyChecker= */ null
+                /* carDevicePolicySafetyChecker= */ null,
+                new CarDisplayCompatScaleProvider()
         );
     }
 
@@ -201,7 +205,8 @@ public class CarServiceHelperService extends SystemService
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
-            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
+            CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
         super(context);
 
         mContext = context;
@@ -276,6 +281,7 @@ public class CarServiceHelperService extends SystemService
         mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
+        mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
     }
 
     @Override
@@ -305,6 +311,7 @@ public class CarServiceHelperService extends SystemService
             activityTaskManagerInternal.registerActivityStartInterceptor(
                     PRODUCT_ORDERED_ID,
                     mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init(mContext);
             t.traceEnd();
         }
     }
