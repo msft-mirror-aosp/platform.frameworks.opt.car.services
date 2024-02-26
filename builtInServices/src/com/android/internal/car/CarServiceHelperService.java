@@ -439,6 +439,7 @@ public class CarServiceHelperService extends SystemService
                 to.getUserHandle());
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
+        mCarDisplayCompatScaleProvider.handleCurrentUserSwitching(userId);
     }
 
     @Override
