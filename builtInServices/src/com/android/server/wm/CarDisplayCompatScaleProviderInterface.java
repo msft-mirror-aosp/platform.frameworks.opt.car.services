@@ -17,9 +17,16 @@
 package com.android.server.wm;
 
 import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.content.pm.ApplicationInfo;
+import android.content.ContentResolver;
+import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.PackageInfoFlags;
+import android.os.UserHandle;
+import android.provider.Settings;
+import android.util.Pair;
 
 /**
  * Interface implemented by {@link com.android.server.wm.CarDisplayCompatScaleProvider} and
@@ -30,6 +37,15 @@ import android.content.pm.ApplicationInfo;
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public interface CarDisplayCompatScaleProviderInterface {
     /**
+     * @return a pair of the current userId and the target userId.
+     * The target userId is the user to switch during switching the driver,
+     * or {@link android.os.UserHandle.USER_NULL}.
+     *
+     * See {@link android.app.ActivityManagerInternal#getCurrentAndTargetUserIds}
+     */
+    @NonNull Pair<Integer, Integer> getCurrentAndTargetUserIds();
+
+    /**
      * Returns the main display id assigned to the user, or {@code Display.INVALID_DISPLAY} if the
      * user is not assigned to any main display.
      * See {@link com.android.server.pm.UserManagerInternal#getMainDisplayAssignedToUser(int)} for
@@ -38,8 +54,28 @@ public interface CarDisplayCompatScaleProviderInterface {
     int getMainDisplayAssignedToUser(@UserIdInt int userId);
 
     /**
-     * returns true if the given application has {@code PackageManager#PRIVATE_FLAG_PRIVILEGED}
-     * false otherwise.
+     * See {@link PackageManager#getPackageInfoAsUser(String, PackageInfoFlags, int)} for details.
      */
-    boolean isPrivileged(@NonNull ApplicationInfo applicationInfo);
+    @Nullable
+    PackageInfo getPackageInfoAsUser(@NonNull String packageName,
+            @NonNull PackageInfoFlags flags, @UserIdInt int userId)
+            throws PackageManager.NameNotFoundException;
+
+    /**
+     * See {@link Settings.Secure#getStringForUser(ContentResolver, String, int)}
+     */
+    String getStringForUser(ContentResolver resolver, String name, @UserIdInt int userId);
+
+    /**
+     * See {@link Settings.Secure#setStringForUser(ContentResolver, String, String, int)}
+     */
+    boolean putStringForUser(ContentResolver resolver, String name, String value,
+            @UserIdInt int userId);
+
+    /**
+     * Returns the compat mode scale if framework already set a scaling for this package.
+     * see {@link CompatChanges#isChangeEnabled}
+     */
+    float getCompatModeScalingFactor(@NonNull String packageName,
+            @NonNull UserHandle user);
 }

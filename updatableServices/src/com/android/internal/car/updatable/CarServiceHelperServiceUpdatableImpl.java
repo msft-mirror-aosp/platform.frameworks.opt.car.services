@@ -17,6 +17,7 @@ package com.android.internal.car.updatable;
 
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -285,6 +286,9 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.sendUserLifecycleEvent(eventType,
                 userFrom == null ? UserManagerHelper.USER_NULL : userFrom.getIdentifier(),
                 userTo.getIdentifier());
+        if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
+            mCarDisplayCompatScaleProviderUpdatable.handleCurrentUserSwitching(userTo);
+        }
     }
 
     @Override
