@@ -16,6 +16,8 @@
 package com.android.server.wm;
 
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.Display.INVALID_DISPLAY;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -138,10 +140,12 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
                 // Launch host on the display that the app was supposed to be launched.
                 ActivityOptionsWrapper optionsWrapper =
                         ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
-                int hostDisplayId = launchOptions.getOptions().getLaunchDisplayId();
+                int launchDisplayId = launchOptions.getOptions().getLaunchDisplayId();
+                int hostDisplayId = (launchDisplayId == INVALID_DISPLAY)
+                        ? DEFAULT_DISPLAY : launchDisplayId;
                 if (DBG) {
                     Slogf.d(TAG, "DisplayCompat host displayId %d LaunchDisplayId %d",
-                            hostDisplayId, launchOptions.getOptions().getLaunchDisplayId());
+                            hostDisplayId, launchDisplayId);
                 }
                 optionsWrapper.setLaunchDisplayId(hostDisplayId);
                 return ActivityInterceptResultWrapper.create(intent, optionsWrapper.getOptions());
