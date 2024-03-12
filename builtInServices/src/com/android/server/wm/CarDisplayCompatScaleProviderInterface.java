@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2022 The Android Open Source Project
+ * Copyright (C) 2023 The Android Open Source Project
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -16,31 +16,22 @@
 
 package com.android.server.wm;
 
-import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.content.pm.ActivityInfo;
-
+import android.annotation.UserIdInt;
 
 /**
- * Wrapper of {@link android.content.pm.ActivityInfo.WindowLayout}.
+ * Interface implemented by {@link com.android.server.wm.CarDisplayCompatScaleProvider} and
+ * used by {@link CarDisplayCompatScaleProviderUpdatable}.
+ *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public final class WindowLayoutWrapper {
-    private final ActivityInfo.WindowLayout mLayout;
-
-    private WindowLayoutWrapper(ActivityInfo.WindowLayout layout) {
-        mLayout = layout;
-    }
-
-    /** @hide */
-    public static WindowLayoutWrapper create(@Nullable ActivityInfo.WindowLayout layout) {
-        if (layout == null) return null;
-        return new WindowLayoutWrapper(layout);
-    }
-
-    @Override
-    public String toString() {
-        return mLayout.toString();
-    }
+public interface CarDisplayCompatScaleProviderInterface {
+    /**
+     * Returns the main display id assigned to the user, or {@code Display.INVALID_DISPLAY} if the
+     * user is not assigned to any main display.
+     * See {@link com.android.server.pm.UserManagerInternal#getMainDisplayAssignedToUser(int)} for
+     * the detail.
+     */
+    int getMainDisplayAssignedToUser(@UserIdInt int userId);
 }
