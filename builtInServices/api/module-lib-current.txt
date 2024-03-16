@@ -98,8 +98,12 @@ package com.android.server.wm {
   }
 
   public interface CarDisplayCompatScaleProviderInterface {
+    method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
+    method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method public int getMainDisplayAssignedToUser(int);
-    method public boolean isPrivileged(@NonNull android.content.pm.ApplicationInfo);
+    method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
+    method public String getStringForUser(android.content.ContentResolver, String, int);
+    method public boolean putStringForUser(android.content.ContentResolver, String, String, int);
   }
 
   public interface CarDisplayCompatScaleProviderUpdatable {
