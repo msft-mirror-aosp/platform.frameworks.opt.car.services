@@ -56,7 +56,7 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
             "android.car.app.CarDisplayCompatManager.launch_activity_options";
     @VisibleForTesting
     static final String PERMISSION_DISPLAY_COMPATIBILITY =
-            "android.car.permission.QUERY_DISPLAY_COMPATIBILITY";
+            "android.car.permission.MANAGE_DISPLAY_COMPATIBILITY";
     @NonNull
     private final Context mContext;
     @NonNull
