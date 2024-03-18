@@ -213,7 +213,7 @@ public class CarServiceHelperService extends SystemService
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
-        mCarActivityInterceptor = new CarActivityInterceptor();
+        mCarActivityInterceptor = new CarActivityInterceptor(context);
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
@@ -311,7 +311,7 @@ public class CarServiceHelperService extends SystemService
             activityTaskManagerInternal.registerActivityStartInterceptor(
                     PRODUCT_ORDERED_ID,
                     mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mContext);
+            mCarDisplayCompatScaleProvider.init(mContext, mCarActivityInterceptor);
             t.traceEnd();
         }
     }

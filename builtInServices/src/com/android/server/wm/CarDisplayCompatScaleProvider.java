@@ -16,7 +16,6 @@
 package com.android.server.wm;
 
 import static android.content.pm.PackageManager.FEATURE_CAR_DISPLAY_COMPATIBILITY;
-import static android.view.Display.DEFAULT_DISPLAY;
 
 import static com.android.server.wm.CarDisplayCompatConfig.ANY_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
@@ -38,6 +37,7 @@ import android.provider.Settings;
 import android.util.AtomicFile;
 
 import com.android.internal.annotations.GuardedBy;
+import com.android.internal.car.CarActivityInterceptor;
 import com.android.server.LocalServices;
 import com.android.server.utils.Slogf;
 
@@ -62,6 +62,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     private static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
             FEATURE_CAR_DISPLAY_COMPATIBILITY + ":settings:secure";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
+    private static final float NO_SCALE = -1f;
     @NonNull
     private Context mContext;
 
@@ -69,16 +70,19 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     @GuardedBy("mRWLock")
     @NonNull
     private final CarDisplayCompatConfig mConfig = new CarDisplayCompatConfig();
-    private static final float NO_SCALE = -1f;
+
+    @NonNull
+    private CarActivityInterceptor mActivityInterceptor;
 
     /**
      * Registers {@link CarDisplayCompatScaleProvider} with {@link ActivityTaskManagerService}
      */
-    public void init(@NonNull Context context) {
+    public void init(@NonNull Context context, CarActivityInterceptor activityInterceptor) {
         mContext = context;
+        mActivityInterceptor = activityInterceptor;
         PackageManager packageManager = context.getPackageManager();
         if (!packageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
-            Slogf.i(TAG, "Feature not available " + FEATURE_CAR_DISPLAY_COMPATIBILITY);
+            Slogf.i(TAG, "Feature %s not available ", FEATURE_CAR_DISPLAY_COMPATIBILITY);
             return;
         }
 
@@ -112,8 +116,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     @Nullable
     @Override
     public CompatScale getCompatScale(@NonNull String packageName, int uid) {
-        // TODO: get display for user.
-        int displayId = DEFAULT_DISPLAY;
+        int displayId = mActivityInterceptor.getPackageDisplay(uid);
         return getCompatScaleForPackageAsUser(displayId, packageName,
                 UserHandle.getUserHandleForUid(uid), true);
     }
