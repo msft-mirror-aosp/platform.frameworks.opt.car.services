@@ -24,6 +24,7 @@ import static android.view.Display.INVALID_DISPLAY;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.server.wm.CarDisplayCompatActivityInterceptor.LAUNCHED_FROM_HOST;
 import static com.android.server.wm.CarDisplayCompatActivityInterceptor.PERMISSION_DISPLAY_COMPATIBILITY;
+import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -36,6 +37,9 @@ import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.ResolveInfoFlags;
+import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.platform.test.annotations.RequiresFlagsEnabled;
 import android.platform.test.flag.junit.CheckFlagsRule;
@@ -66,7 +70,9 @@ public class CarDisplayCompatActivityInterceptorTest {
     @Mock
     private Context mMockContext;
     @Mock
-    private CarDisplayCompatScaleProviderUpdatable mMockCarDisplayCompatScaleProvider;
+    private PackageManager mMockPackageManager;
+    @Mock
+    private CarDisplayCompatScaleProviderUpdatableImpl mMockCarDisplayCompatScaleProvider;
     @Mock
     private ActivityInterceptorInfoWrapper mMockInfo;
 
@@ -87,6 +93,11 @@ public class CarDisplayCompatActivityInterceptorTest {
         )).thenReturn(1);
         when(mMockResources.getString(eq(1))).thenReturn(mHostActitivy.flattenToString());
         when(mMockContext.getResources()).thenReturn(mMockResources);
+        when(mMockPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY))
+                .thenReturn(true);
+        when(mMockPackageManager.resolveActivity(any(Intent.class), any(ResolveInfoFlags.class)))
+                .thenReturn(mock(ResolveInfo.class));
+        when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
 
         mInterceptor = new CarDisplayCompatActivityInterceptor(mMockContext,
                 mMockCarDisplayCompatScaleProvider);

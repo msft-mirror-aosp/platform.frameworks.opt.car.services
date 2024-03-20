@@ -324,6 +324,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -353,6 +356,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -383,6 +389,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.requiresDisplayCompat("package1", ANOTHER_USER)).isTrue();
@@ -415,6 +424,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -422,6 +434,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package2")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package2"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package2", 11)).isTrue();
 
@@ -455,6 +470,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -489,6 +507,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -522,6 +543,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
+        when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
+                any(ApplicationInfoFlags.class), any(UserHandle.class)))
+                        .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 

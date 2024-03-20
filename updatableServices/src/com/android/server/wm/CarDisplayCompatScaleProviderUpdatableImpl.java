@@ -55,6 +55,7 @@ import android.util.ArrayMap;
 import android.util.AtomicFile;
 import android.util.Log;
 import android.util.Pair;
+import android.util.SparseIntArray;
 
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
@@ -76,7 +77,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
 public class CarDisplayCompatScaleProviderUpdatableImpl implements
-        CarDisplayCompatScaleProviderUpdatable {
+        CarDisplayCompatScaleProviderUpdatable, CarActivityInterceptorUpdatable {
     private static final String TAG =
             CarDisplayCompatScaleProviderUpdatableImpl.class.getSimpleName();
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
@@ -115,18 +116,38 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @VisibleForTesting
     ContentObserver mSettingsContentObserver;
 
+    private final ReentrantReadWriteLock mPackageUidToLastLaunchedActivityDisplayIdMapRWLock =
+            new ReentrantReadWriteLock();
+    /**
+     * Maps package names to the id of the display that the package is set up to launch on.
+     *
+     * TODO(b/331089039): This is needed in order to get the correct scaling factor from the config
+     * file. For example, a package might need a different scaling on display 0 vs display 2.
+     *
+     * Note that this value is cached based on when the process is created for the first activity
+     * of the package. Therefore, if subsequent activities of the package launch on different
+     * displays their configuration will be based on the new display's configuration.
+     *
+     * Also, the package scaling will be based on the {@link DEFAULT_DISPLAY}'s configuration
+     * if the process of a package is created because of a broadcast receiver or a content provider.
+     */
+    @GuardedBy("mPackageUidToLastLaunchedActivityDisplayIdMapRWLock")
+    @NonNull
+    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap =
+            new SparseIntArray();
+
     public CarDisplayCompatScaleProviderUpdatableImpl(Context context,
             CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface) {
         mContext = context;
         mPackageManager = context.getPackageManager();
         mCarCompatScaleProviderInterface = carCompatScaleProviderInterface;
         if (!Flags.displayCompatibility()) {
-            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
         if (mPackageManager != null
                 && !mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
-            Slogf.i(TAG, FEATURE_CAR_DISPLAY_COMPATIBILITY + " is not available");
+            Slogf.i(TAG, "Feature %s is not available", FEATURE_CAR_DISPLAY_COMPATIBILITY);
             return;
         }
 
@@ -177,6 +198,25 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                     displayId = DEFAULT_DISPLAY;
                 }
                 UserHandle user = UserHandle.of(userId);
+                mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.readLock().lock();
+                try {
+                    ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(/* flags */ 0);
+                    ApplicationInfo applicationInfo = mPackageManager
+                            .getApplicationInfoAsUser(packageName, appFlags, user);
+                    // TODO(b/331089039): {@link Activity} should start on the display of the
+                    // calling package if {@code ActivityOptions#launchDisplayId} is set to
+                    // {@link INVALID_DISPLAY}. Therefore, the display will be set to
+                    // {@link DEFAULT_DISPLAY} if the calling package's display isn't available in
+                    // the cache.
+                    displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
+                            .get(applicationInfo.uid, displayId);
+                } catch (PackageManager.NameNotFoundException e) {
+                    // This shouldn't be the case if the user requesting the package is the same as
+                    // the user launching the app.
+                    Slogf.e(TAG, "Package " + packageName + " not found", e);
+                } finally {
+                    mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.readLock().unlock();
+                }
                 CompatScaleWrapper compatScale = getCompatScaleForPackageAsUser(displayId,
                         packageName, user);
                 float compatModeScalingFactor = mCarCompatScaleProviderInterface
@@ -193,6 +233,35 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             }
         } catch (ServiceSpecificException e) {
             return null;
+        }
+        return null;
+    }
+
+    @Override
+    public ActivityInterceptResultWrapper onInterceptActivityLaunch(
+            ActivityInterceptorInfoWrapper info) {
+        if (info.getIntent() != null && info.getIntent().getComponent() != null
+                && info.getCheckedOptions() != null) {
+            int displayId = info.getCheckedOptions().getOptions().getLaunchDisplayId();
+            if (displayId == INVALID_DISPLAY) {
+                displayId = DEFAULT_DISPLAY;
+                if (info.getCallingUid() != -1) {
+                    mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.readLock().lock();
+                    try {
+                        displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
+                                .get(info.getCallingUid(), displayId);
+                    } finally {
+                        mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.readLock().unlock();
+                    }
+                }
+            }
+            mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.writeLock().lock();
+            try {
+                mPackageUidToLastLaunchedActivityDisplayIdMap
+                        .put(info.getActivityInfo().applicationInfo.uid, displayId);
+            } finally {
+                mPackageUidToLastLaunchedActivityDisplayIdMapRWLock.writeLock().unlock();
+            }
         }
         return null;
     }

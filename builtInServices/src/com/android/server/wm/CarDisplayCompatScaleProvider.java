@@ -72,7 +72,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
      */
     public void init(Context context) {
         if (!Flags.displayCompatibility()) {
-            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
         mPackageManager = context.getPackageManager();

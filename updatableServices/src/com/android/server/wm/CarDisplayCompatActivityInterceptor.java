@@ -15,6 +15,7 @@
  */
 package com.android.server.wm;
 
+import static android.content.pm.PackageManager.MATCH_SYSTEM_ONLY;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
@@ -31,6 +32,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.os.ServiceSpecificException;
 import android.util.Log;
@@ -61,22 +63,25 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
     @NonNull
     private final Context mContext;
     @NonNull
-    private final CarDisplayCompatScaleProviderUpdatable mDisplayCompatProvider;
+    private final CarDisplayCompatScaleProviderUpdatableImpl mDisplayCompatProvider;
     @Nullable
     private ComponentName mHostActivity;
 
     public CarDisplayCompatActivityInterceptor(@NonNull Context context,
-            @NonNull CarDisplayCompatScaleProviderUpdatable carDisplayCompatProvider) {
+            @NonNull CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatProvider) {
         mContext = context;
         mDisplayCompatProvider = carDisplayCompatProvider;
         if (!Flags.displayCompatibility()) {
-            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
         PackageManager packageManager = context.getPackageManager();
-        if (packageManager != null
-                && !packageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
-            Slogf.i(TAG, FEATURE_CAR_DISPLAY_COMPATIBILITY + " is not available");
+        if (packageManager == null) {
+            // This happens during tests where mock context is used.
+            return;
+        }
+        if (!packageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            Slogf.i(TAG, "Feature %s is not available", FEATURE_CAR_DISPLAY_COMPATIBILITY);
             return;
         }
         Resources r = context.getResources();
@@ -90,6 +95,16 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
             mHostActivity = ComponentName.unflattenFromString(r.getString(id));
             if (mHostActivity == null) {
                 Slogf.e(TAG, "Couldn't read DisplayCompat host activity.");
+                return;
+            }
+            Intent intent = new Intent();
+            intent.setComponent(mHostActivity);
+            ResolveInfo ri = packageManager.resolveActivity(intent,
+                    PackageManager.ResolveInfoFlags.of(MATCH_SYSTEM_ONLY));
+            if (ri == null) {
+                Slogf.e(TAG, "Couldn't resolve DisplayCompat host activity. %s", mHostActivity);
+                mHostActivity = null;
+                return;
             }
         }
     }
@@ -125,6 +140,8 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
                         PERMISSION_DISPLAY_COMPATIBILITY);
                 // fall-through, we'll launch the host instead.
             }
+
+            mDisplayCompatProvider.onInterceptActivityLaunch(info);
 
             ActivityOptionsWrapper launchOptions = info.getCheckedOptions();
             if (launchOptions == null) {
