@@ -15,6 +15,7 @@
  */
 package com.android.server.wm;
 
+import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.view.Display.DEFAULT_DISPLAY;
@@ -36,19 +37,27 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.res.Resources;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
+@RequiresFlagsEnabled(FLAG_DISPLAY_COMPATIBILITY)
 @RunWith(AndroidJUnit4.class)
 public class CarDisplayCompatActivityInterceptorTest {
+
+    @Rule
+    public final CheckFlagsRule checkFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private MockitoSession mMockingSession;
 

@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
 import static android.content.ContentResolver.NOTIFY_INSERT;
 import static android.content.pm.ApplicationInfo.FLAG_SYSTEM;
 import static android.content.pm.FeatureInfo.FLAG_REQUIRED;
@@ -56,6 +57,9 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Looper;
 import android.os.UserHandle;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 import android.provider.Settings;
 import android.util.Pair;
 
@@ -63,6 +67,7 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -75,11 +80,15 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 
+@RequiresFlagsEnabled(FLAG_DISPLAY_COMPATIBILITY)
 @RunWith(AndroidJUnit4.class)
 public class CarDisplayCompatScaleProviderUpdatableTest {
 
     private static final int CURRENT_USER = 100;
     private static final int ANOTHER_USER = 120;
+
+    @Rule
+    public final CheckFlagsRule checkFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private CarDisplayCompatScaleProviderUpdatableImpl mImpl;
     private MockitoSession mMockingSession;
