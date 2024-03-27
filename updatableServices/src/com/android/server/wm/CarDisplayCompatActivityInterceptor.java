@@ -15,9 +15,12 @@
  */
 package com.android.server.wm;
 
+import static android.content.pm.PackageManager.MATCH_SYSTEM_ONLY;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
+
+import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -29,6 +32,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.os.ServiceSpecificException;
 import android.util.Log;
@@ -44,7 +48,6 @@ import com.android.internal.annotations.VisibleForTesting;
 public final class CarDisplayCompatActivityInterceptor implements CarActivityInterceptorUpdatable {
 
     public static final String TAG = CarDisplayCompatActivityInterceptor.class.getSimpleName();
-    private static final String DISPLAYCOMPAT_SYSTEM_FEATURE = "android.car.displaycompatibility";
     private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
     private static final ActivityOptionsWrapper EMPTY_LAUNCH_OPTIONS_WRAPPER =
             ActivityOptionsWrapper.create(ActivityOptions.makeBasic());
@@ -60,22 +63,25 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
     @NonNull
     private final Context mContext;
     @NonNull
-    private final CarDisplayCompatScaleProviderUpdatable mDisplayCompatProvider;
+    private final CarDisplayCompatScaleProviderUpdatableImpl mDisplayCompatProvider;
     @Nullable
     private ComponentName mHostActivity;
 
     public CarDisplayCompatActivityInterceptor(@NonNull Context context,
-            @NonNull CarDisplayCompatScaleProviderUpdatable carDisplayCompatProvider) {
+            @NonNull CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatProvider) {
         mContext = context;
         mDisplayCompatProvider = carDisplayCompatProvider;
         if (!Flags.displayCompatibility()) {
-            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
         PackageManager packageManager = context.getPackageManager();
-        if (packageManager != null
-                && !packageManager.hasSystemFeature(DISPLAYCOMPAT_SYSTEM_FEATURE)) {
-            Slogf.i(TAG, DISPLAYCOMPAT_SYSTEM_FEATURE + " is not available");
+        if (packageManager == null) {
+            // This happens during tests where mock context is used.
+            return;
+        }
+        if (!packageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            Slogf.i(TAG, "Feature %s is not available", FEATURE_CAR_DISPLAY_COMPATIBILITY);
             return;
         }
         Resources r = context.getResources();
@@ -89,6 +95,16 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
             mHostActivity = ComponentName.unflattenFromString(r.getString(id));
             if (mHostActivity == null) {
                 Slogf.e(TAG, "Couldn't read DisplayCompat host activity.");
+                return;
+            }
+            Intent intent = new Intent();
+            intent.setComponent(mHostActivity);
+            ResolveInfo ri = packageManager.resolveActivity(intent,
+                    PackageManager.ResolveInfoFlags.of(MATCH_SYSTEM_ONLY));
+            if (ri == null) {
+                Slogf.e(TAG, "Couldn't resolve DisplayCompat host activity. %s", mHostActivity);
+                mHostActivity = null;
+                return;
             }
         }
     }
@@ -124,6 +140,8 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
                         PERMISSION_DISPLAY_COMPATIBILITY);
                 // fall-through, we'll launch the host instead.
             }
+
+            mDisplayCompatProvider.onInterceptActivityLaunch(info);
 
             ActivityOptionsWrapper launchOptions = info.getCheckedOptions();
             if (launchOptions == null) {
