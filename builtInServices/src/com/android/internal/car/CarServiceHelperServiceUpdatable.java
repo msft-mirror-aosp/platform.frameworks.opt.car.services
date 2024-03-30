@@ -58,4 +58,9 @@ public interface CarServiceHelperServiceUpdatable {
      * @return updatable implemtantion of CarDisplayCompatScaleProvider
      */
     CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
+
+    /**
+     * Notifies CarService that a Window focus is changed.
+     */
+    void notifyFocusChanged(int pid, int uid);
 }

@@ -37,6 +37,7 @@ import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
@@ -95,7 +96,7 @@ final class CarServiceProxy {
     static final String TAG = CarServiceProxy.class.getSimpleName();
 
     private static final long TRACE_TAG_SYSTEM_SERVER = 1L << 19;
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final int USER_SYSTEM = UserHandle.SYSTEM.getIdentifier();
 
@@ -321,6 +322,22 @@ final class CarServiceProxy {
         if (DBG) Slogf.d(TAG, "onFactoryReset(): " + callback);
 
         saveOrRun(PO_ON_FACTORY_RESET, callback);
+    }
+
+    void notifyFocusChanged(int pid, int uid) {
+        if (DBG) Slogf.d(TAG, "notifyFocusChanged: pid=%d uid=%d", pid, uid);
+        synchronized (mLock) {
+            if (mCarService == null) {
+                Slogf.w(TAG, "CarService null. Skip notifyFocusChanged.");
+                return;
+            }
+            try {
+                mCarService.notifyFocusChanged(pid, uid);
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "RemoteException from car service", e);
+                handleCarServiceCrash();
+            }
+        }
     }
 
     private void saveOrRun(@PendingOperationId int operationId) {

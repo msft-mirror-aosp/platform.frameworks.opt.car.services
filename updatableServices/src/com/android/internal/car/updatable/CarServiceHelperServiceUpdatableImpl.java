@@ -210,6 +210,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         return mCarDisplayCompatScaleProviderUpdatable;
     }
 
+    @Override
+    public void notifyFocusChanged(int pid, int uid) {
+        mCarServiceProxy.notifyFocusChanged(pid, uid);
+    }
+
     @VisibleForTesting
     void handleCarServiceConnection(IBinder iBinder) {
         synchronized (mLock) {
