@@ -36,6 +36,7 @@ android_test {
         "androidx.test.ext.junit",
         "androidx.test.rules",
         "car-frameworks-service.impl",
+        "flag-junit",
         "mockito-target-extended-minus-junit4",
         "services.core",
         "testng",

@@ -15,6 +15,8 @@
  */
 package com.android.server.wm;
 
+import static android.content.pm.PackageManager.FEATURE_CAR_DISPLAY_COMPATIBILITY;
+
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_90;
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_85;
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_80;
@@ -60,7 +62,6 @@ import com.android.server.pm.UserManagerInternal;
  */
 public final class CarDisplayCompatScaleProvider implements CompatScaleProvider {
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
-    public static final String DISPLAYCOMPAT_SYSTEM_FEATURE = "android.car.displaycompatibility";
 
     private CarDisplayCompatScaleProviderUpdatable mCarCompatScaleProviderUpdatable;
     private ActivityTaskManagerService mAtms;
@@ -71,11 +72,11 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
      */
     public void init(Context context) {
         if (!Flags.displayCompatibility()) {
-            Slogf.i(TAG, Flags.FLAG_DISPLAY_COMPATIBILITY + " is not enabled");
+            Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
         mPackageManager = context.getPackageManager();
-        if (mPackageManager.hasSystemFeature(DISPLAYCOMPAT_SYSTEM_FEATURE)) {
+        if (mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
             mAtms = (ActivityTaskManagerService) ActivityTaskManager.getService();
             mAtms.registerCompatScaleProvider(COMPAT_SCALE_MODE_PRODUCT, this);
             Slogf.i(TAG, "registered Car service as a CompatScaleProvider.");
