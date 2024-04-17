@@ -24,6 +24,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -73,22 +74,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testInitBootUser_CarServiceNotNull() throws RemoteException {
-        connectToCarService();
-
-        callInitBootUser();
-
-        verifyInitBootUserCalled();
-    }
-
-    @Test
-    public void testInitBootUser_CarServiceNull() throws RemoteException {
-        callInitBootUser();
-
-        verifyInitBootUserNeverCalled();
-    }
-
-    @Test
     public void testSendUserLifecycleEvent_CarServiceNotNull() throws RemoteException {
         connectToCarService();
 
@@ -106,20 +91,13 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testHandleCarServiceConnection() throws RemoteException {
-        callInitBootUser();
         callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         callOnUserRemoved();
 
-        // Call again to make sure only one call is made after the service is connected
-        callInitBootUser();
-
-        verifyInitBootUserNeverCalled();
         verifySendLifecycleEventNeverCalled();
-        verifyOnUserRemovedNeverCalled();
 
         connectToCarService();
 
-        verifyInitBootUserCalled();
         verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         verifyLifecycleEventCalledForUserRemoval();
     }
@@ -220,10 +198,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.handleCarServiceConnection(mCarService);
     }
 
-    private void callInitBootUser() {
-        mCarServiceProxy.initBootUser();
-    }
-
     private void callSendLifecycleEvent(int eventType) {
         mCarServiceProxy.sendUserLifecycleEvent(eventType, mFromUser.getUserIdentifier(),
                 mToUser.getUserIdentifier());
@@ -237,14 +211,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     private void callOnFactoryReset(ICarResultReceiver callback) {
         mCarServiceProxy.onFactoryReset(callback);
-    }
-
-    private void verifyInitBootUserCalled() throws RemoteException {
-        verify(mCarService).initBootUser();
-    }
-
-    private void verifyInitBootUserNeverCalled() throws RemoteException {
-        verify(mCarService, never()).initBootUser();
     }
 
     private void verifySendLifecycleEventCalled(int eventType) throws RemoteException {
@@ -268,10 +234,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
                 UserHandle.USER_NULL, mRemovedUser2.getUserHandle().getIdentifier());
         verify(mCarService).onUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_REMOVED,
                 UserHandle.USER_NULL, mRemovedUser3.getUserHandle().getIdentifier());
-    }
-
-    private void verifyOnUserRemovedNeverCalled() throws RemoteException {
-        verify(mCarService, never()).onUserRemoved(any());
     }
 
     private void verifyOnFactoryResetCalled(ICarResultReceiver callback) throws RemoteException {
