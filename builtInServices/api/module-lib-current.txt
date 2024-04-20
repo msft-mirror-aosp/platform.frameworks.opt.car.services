@@ -30,6 +30,7 @@ package com.android.internal.car {
     method public com.android.server.wm.CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
     method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
     method public void initBootUser();
+    method public void notifyFocusChanged(int, int);
     method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
     method public void onStart();
     method public void onUserRemoved(@NonNull android.os.UserHandle);

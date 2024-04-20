@@ -82,6 +82,9 @@ import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
+import com.android.server.wm.WindowManagerService;
+import com.android.server.wm.WindowProcessController;
+import com.android.server.wm.WindowProcessControllerHelper;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -164,6 +167,7 @@ public class CarServiceHelperService extends SystemService
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
     private final CarActivityInterceptor mCarActivityInterceptor;
     private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
+    private final ActivityTaskManagerInternal mActivityTaskManagerInternal;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
@@ -184,6 +188,7 @@ public class CarServiceHelperService extends SystemService
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
+    private WindowManagerService mWindowManagerService;
 
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
@@ -287,6 +292,7 @@ public class CarServiceHelperService extends SystemService
         mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
+        mActivityTaskManagerInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
     }
 
     @Override
@@ -328,7 +334,30 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
+
+        mWindowManagerService = (WindowManagerService) ServiceManager.getService(
+                Context.WINDOW_SERVICE);
+        mWindowManagerService.addWindowChangeListener(mWindowChangeListener);
     }
+
+    private final WindowManagerService.WindowChangeListener mWindowChangeListener =
+            new WindowManagerService.WindowChangeListener() {
+                @Override
+                public void windowsChanged() {
+                    // Do nothing
+                }
+
+                @Override
+                public void focusChanged() {
+                    WindowProcessController topApp = mActivityTaskManagerInternal.getTopApp();
+                    if (topApp == null) {
+                        return;
+                    }
+                    int pid = topApp.getPid();
+                    int uid = WindowProcessControllerHelper.getUid(topApp);
+                    mCarServiceHelperServiceUpdatable.notifyFocusChanged(pid, uid);
+                }
+            };
 
     @Override
     public void dump(PrintWriter pw, String[] args) {
