@@ -150,13 +150,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
     }
 
     @Test
-    public void testInitBootUser() throws Exception {
-        mCarServiceHelperServiceUpdatableImpl.initBootUser();
-
-        verify(mCarServiceProxy).initBootUser();
-    }
-
-    @Test
     public void testSendUserLifecycleEvent_nullFromUser() throws Exception {
         int eventType = 1;
         UserHandle userFrom = null;

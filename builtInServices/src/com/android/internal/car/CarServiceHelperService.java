@@ -304,7 +304,6 @@ public class CarServiceHelperService extends SystemService
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
-            setupAndStartUsers(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
@@ -523,13 +522,6 @@ public class CarServiceHelperService extends SystemService
 
     private TimingsTraceAndSlog newTimingsTraceAndSlog() {
         return new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
-    }
-
-    private void setupAndStartUsers(@NonNull TimingsTraceAndSlog t) {
-        // TODO(b/156263735): decide if it should return in case the device's on Retail Mode
-        t.traceBegin("setupAndStartUsers");
-        mCarServiceHelperServiceUpdatable.initBootUser();
-        t.traceEnd();
     }
 
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
