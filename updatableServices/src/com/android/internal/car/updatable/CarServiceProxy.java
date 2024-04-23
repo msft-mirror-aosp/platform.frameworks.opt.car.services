@@ -81,12 +81,10 @@ final class CarServiceProxy {
 
     // Operation ID for each non life-cycle event calls
     // NOTE: public because of DebugUtils
-    public static final int PO_INIT_BOOT_USER = 0;
     public static final int PO_ON_USER_REMOVED = 1;
     public static final int PO_ON_FACTORY_RESET = 2;
 
     @IntDef(prefix = { "PO_" }, value = {
-            PO_INIT_BOOT_USER,
             PO_ON_USER_REMOVED,
             PO_ON_FACTORY_RESET
     })
@@ -147,7 +145,6 @@ final class CarServiceProxy {
         synchronized (mLock) {
             mCarService = carService;
             mCarServiceCrashed = false;
-            runQueuedOperationLocked(PO_INIT_BOOT_USER);
             runQueuedOperationLocked(PO_ON_USER_REMOVED);
             runQueuedOperationLocked(PO_ON_FACTORY_RESET);
         }
@@ -292,15 +289,6 @@ final class CarServiceProxy {
         }
     }
 
-    /**
-     * Initializes boot user.
-     */
-    void initBootUser() {
-        if (DBG) Slogf.d(TAG, "initBootUser()");
-
-        saveOrRun(PO_INIT_BOOT_USER);
-    }
-
     // TODO(b/173664653): add unit test
     /**
      * Callback to indifcate the given user was removed.
@@ -430,9 +418,6 @@ final class CarServiceProxy {
                     + pendingOperationToString(operationId));
         }
         switch (operationId) {
-            case PO_INIT_BOOT_USER:
-                mCarService.initBootUser();
-                break;
             case PO_ON_USER_REMOVED:
                 if (value instanceof ArrayList) {
                     ArrayList<Object> list = (ArrayList<Object>) value;
