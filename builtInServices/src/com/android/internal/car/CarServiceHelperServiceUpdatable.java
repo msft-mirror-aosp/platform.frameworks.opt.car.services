@@ -48,8 +48,6 @@ public interface CarServiceHelperServiceUpdatable {
 
     void onFactoryReset(@NonNull BiConsumer<Integer, Bundle> processFactoryReset);
 
-    void initBootUser();
-
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
 
     CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();

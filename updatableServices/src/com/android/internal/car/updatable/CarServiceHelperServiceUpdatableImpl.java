@@ -190,11 +190,6 @@ public final class CarServiceHelperServiceUpdatableImpl
     }
 
     @Override
-    public void initBootUser() {
-        mCarServiceProxy.initBootUser();
-    }
-
-    @Override
     public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
         return mCarLaunchParamsModifierUpdatable;
     }
