@@ -418,6 +418,11 @@ public final class CarServiceHelperServiceUpdatableImpl
             }
             return INVALID_PID;
         }
+
+        @Override
+        public boolean requiresDisplayCompat(String packageName, int userId) {
+            return mCarServiceHelperInterface.requiresDisplayCompat(packageName, userId);
+        }
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {

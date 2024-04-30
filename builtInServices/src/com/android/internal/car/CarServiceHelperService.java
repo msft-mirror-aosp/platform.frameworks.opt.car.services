@@ -734,6 +734,11 @@ public class CarServiceHelperService extends SystemService
         return userId;
     }
 
+    @Override
+    public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId) {
+        return mCarDisplayCompatScaleProvider.requiresDisplayCompat(packageName, userId);
+    }
+
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
         private final WeakReference<CarServiceHelperService> mService;
 

@@ -23,6 +23,7 @@ import static com.android.server.wm.CompatScaleProvider.COMPAT_SCALE_MODE_PRODUC
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.UserIdInt;
 import android.app.ActivityManagerInternal;
 import android.app.ActivityTaskManager;
 import android.app.compat.CompatChanges;
@@ -124,6 +125,14 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     /** Notifies user switching. */
     public void handleCurrentUserSwitching(int newUserId) {
         updateConfigForUserFromSettings(newUserId);
+    }
+
+    /**
+     * @return true if package requires launching in automotive compatibility mode
+     */
+    public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId) {
+        // TODO: add implementation
+        return false;
     }
 
     private boolean updateCurrentConfigFromDevice() {
