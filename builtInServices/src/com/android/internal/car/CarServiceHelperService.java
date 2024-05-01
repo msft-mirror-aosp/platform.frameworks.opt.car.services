@@ -195,7 +195,7 @@ public class CarServiceHelperService extends SystemService
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
                 /* carDevicePolicySafetyChecker= */ null,
-                new CarDisplayCompatScaleProvider()
+                new CarDisplayCompatScaleProvider(context)
         );
     }
 
@@ -288,11 +288,19 @@ public class CarServiceHelperService extends SystemService
     public void onBootPhase(int phase) {
         EventLogHelper.writeCarHelperBootPhase(phase);
         if (DBG) Slogf.d(TAG, "onBootPhase: %d", phase);
-
         TimingsTraceAndSlog t = newTimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
+            // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
+            // to cache the package states early before user starts interacting with apps.
+            // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init(mCarActivityInterceptor);
             setupAndStartUsers(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
@@ -306,12 +314,6 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
-            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
-                    ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mContext, mCarActivityInterceptor);
             t.traceEnd();
         }
     }
