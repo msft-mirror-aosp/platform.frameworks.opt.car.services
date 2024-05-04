@@ -15,8 +15,12 @@
  */
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
@@ -121,6 +125,52 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
+    public void testVisibleUserEvent_visibleEventArrivedEarly() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+    }
+
+    @Test
+    public void testVisibleUserEvent_visibleEventArrivedLate() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+    }
+
+    @Test
+    public void testVisibleInvisibleUserEvent_eventNotSent() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_INVISIBLE);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventNeverCalled();
+    }
+
+    @Test
     public void testOnUserRemoved_CarServiceNotNull() throws RemoteException {
         connectToCarService();
 
@@ -197,8 +247,13 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     private void verifySendLifecycleEventCalled(int eventType) throws RemoteException {
-        verify(mCarService).onUserLifecycleEvent(eventType,
-                mFromUser.getUserIdentifier(), mToUser.getUserIdentifier());
+        if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
+            verify(mCarService).onUserLifecycleEvent(eventType,
+                    mFromUser.getUserIdentifier(), mToUser.getUserIdentifier());
+        } else {
+            verify(mCarService).onUserLifecycleEvent(eventType,
+                    UserHandle.USER_NULL, mToUser.getUserIdentifier());
+        }
     }
 
     private void verifySendLifecycleEventNeverCalled() throws RemoteException {
