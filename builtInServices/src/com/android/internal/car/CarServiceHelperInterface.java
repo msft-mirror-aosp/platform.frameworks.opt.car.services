@@ -21,7 +21,6 @@ import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.os.UserHandle;
 
-
 import java.io.File;
 
 /**
@@ -52,6 +51,22 @@ public interface CarServiceHelperInterface {
      * Gets the full user (i.e., not profile) assigned to the display.
      */
     int getUserAssignedToDisplay(int displayId);
+
+    /**
+     * See {@link com.android.server.pm.UserManagerInternal#assignUserToExtraDisplay(int, int)}.
+     */
+    boolean assignUserToExtraDisplay(@UserIdInt int userId, int displayId);
+
+    /**
+     * See {@link com.android.server.pm.UserManagerInternal#unassignUserFromExtraDisplay(int, int)}.
+     */
+    boolean unassignUserFromExtraDisplay(@UserIdInt int userId, int displayId);
+
+    /** See {@link android.os.UserManager#isVisibleBackgroundUsersEnabled()}. */
+    boolean isVisibleBackgroundUsersEnabled();
+
+    /** Returns true if the given displayId is OverlayDisplay's.*/
+    boolean isOverlayDisplay(int displayId);
 
     /**
      * Dumps service stacks
