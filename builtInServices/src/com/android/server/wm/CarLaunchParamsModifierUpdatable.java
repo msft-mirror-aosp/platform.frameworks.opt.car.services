@@ -16,29 +16,10 @@
 
 package com.android.server.wm;
 
-import android.annotation.NonNull;
-import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.app.CarActivityManager;
-import android.car.builtin.annotation.PlatformVersion;
-import android.content.ComponentName;
 import android.hardware.display.DisplayManager;
-import android.os.ServiceSpecificException;
-import android.os.UserHandle;
-import android.util.ArrayMap;
-import android.util.Slog;
-import android.util.SparseIntArray;
-import android.view.Display;
-import android.window.DisplayAreaOrganizer;
 
-import com.android.annotation.AddedIn;
-import com.android.internal.annotations.GuardedBy;
-
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.List;
 
 /**
  * Updatable interface of CarLaunchParamsModifier.
@@ -48,25 +29,23 @@ import java.util.List;
 public interface CarLaunchParamsModifierUpdatable {
 
     /** Returns {@link DisplayManager.DisplayListener} of CarLaunchParamsModifierUpdatable. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     DisplayManager.DisplayListener getDisplayListener();
 
     /** Notifies user switching. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
+    void handleUserVisibilityChanged(@UserIdInt int userId, boolean visible);
+
+    /** Notifies user switching. */
     void handleCurrentUserSwitching(@UserIdInt int newUserId);
 
     /** Notifies user starting. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void handleUserStarting(@UserIdInt int startingUser);
 
     /** Notifies user stopped. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void handleUserStopped(@UserIdInt int stoppedUser);
 
     /**
      * Calculates {@code outParams} based on the given arguments.
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     int calculate(CalculateParams params);
 }

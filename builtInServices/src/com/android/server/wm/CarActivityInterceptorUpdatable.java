@@ -21,30 +21,21 @@ import android.annotation.SystemApi;
 
 
 /**
- * Wrapper of {@link com.android.server.wm.ActivityStarter.Request}.
+ * Updatable interface of CarActivityInterceptor.
+ *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public final class RequestWrapper {
-    private final ActivityStarter.Request mRequest;
-
-    private RequestWrapper(ActivityStarter.Request request) {
-        mRequest = request;
-    }
-
-    /** @hide */
-    public static RequestWrapper create(@Nullable ActivityStarter.Request request) {
-        if (request == null) return null;
-        return new RequestWrapper(request);
-    }
-
-    /** @hide */
-    public ActivityStarter.Request getRequest() {
-        return mRequest;
-    }
-
-    @Override
-    public String toString() {
-        return mRequest.toString();
-    }
+public interface CarActivityInterceptorUpdatable {
+    /**
+     * Intercepts the activity launch.
+     *
+     * @param info the activity info of the activity being launched.
+     * @return the result of the interception in the form of the modified intent & activity options.
+     *         {@code null} is returned when no modification is required on intent or activity
+     *         options.
+     */
+    @Nullable
+    ActivityInterceptResultWrapper onInterceptActivityLaunch(
+            ActivityInterceptorInfoWrapper info);
 }

@@ -18,10 +18,9 @@ package com.android.internal.car;
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
-import android.car.builtin.annotation.PlatformVersion;
+import android.annotation.UserIdInt;
 import android.os.UserHandle;
 
-import com.android.annotation.AddedIn;
 
 import java.io.File;
 
@@ -35,21 +34,47 @@ public interface CarServiceHelperInterface {
     /**
      * Sets safety mode
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void setSafetyMode(boolean safe);
 
     /**
      * Creates user even when disallowed
      */
     @Nullable
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     UserHandle createUserEvenWhenDisallowed(@Nullable String name, @NonNull String userType,
             int flags);
+
+    /**
+     * Gets the main display assigned to the user.
+     */
+    int getMainDisplayAssignedToUser(@UserIdInt int userId);
+
+    /**
+     * Gets the full user (i.e., not profile) assigned to the display.
+     */
+    int getUserAssignedToDisplay(int displayId);
 
     /**
      * Dumps service stacks
      */
     @Nullable
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     File dumpServiceStacks();
+
+    /** Check {@link android.os.Process#setProcessGroup(int, int)}. */
+    void setProcessGroup(int pid, int group);
+
+    /** Check {@link android.os.Process#getProcessGroup(int)}. */
+    int getProcessGroup(int pid);
+
+    /** Check {@link ActivityManager#startUserInBackgroundVisibleOnDisplay(int, int)}. */
+    boolean startUserInBackgroundVisibleOnDisplay(@UserIdInt int userId, int displayId);
+
+    /** Check {@link android.os.Process#setProcessProfile(int, int, String)}. */
+    void setProcessProfile(int pid, int uid, @NonNull String profile);
+
+    /**
+     * Returns the PID for the AIDL VHAL service.
+     *
+     * On error, returns {@link com.android.car.internal.common.CommonConstants#INVALID_PID}.
+     */
+    int fetchAidlVhalPid();
 }
