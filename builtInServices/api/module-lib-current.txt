@@ -12,16 +12,20 @@ package android.content.res {
 package com.android.internal.car {
 
   public interface CarServiceHelperInterface {
+    method public boolean assignUserToExtraDisplay(int, int);
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
     method public int fetchAidlVhalPid();
     method public int getMainDisplayAssignedToUser(int);
     method public int getProcessGroup(int);
     method public int getUserAssignedToDisplay(int);
+    method public boolean isOverlayDisplay(int);
+    method public boolean isVisibleBackgroundUsersEnabled();
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
     method public boolean startUserInBackgroundVisibleOnDisplay(int, int);
+    method public boolean unassignUserFromExtraDisplay(int, int);
   }
 
   public interface CarServiceHelperServiceUpdatable {
