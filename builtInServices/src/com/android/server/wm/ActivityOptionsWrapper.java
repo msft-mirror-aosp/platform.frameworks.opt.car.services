@@ -87,4 +87,11 @@ public final class ActivityOptionsWrapper {
                         .mRemoteToken.toWindowContainerToken();
         mOptions.setLaunchRootTask(launchRootTaskToken);
     }
+
+    /**
+     * Sets launch display. See {@link ActivityOptions#setLaunchDisplayId(int)} for more info.
+     */
+    public void setLaunchDisplayId(int displayId) {
+        mOptions.setLaunchDisplayId(displayId);
+    }
 }
