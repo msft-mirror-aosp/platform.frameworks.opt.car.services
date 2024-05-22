@@ -15,6 +15,10 @@
  */
 package com.android.internal.car;
 
+import static android.view.Display.FLAG_PRIVATE;
+import static android.view.Display.FLAG_TRUSTED;
+import static android.view.Display.TYPE_OVERLAY;
+
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
@@ -44,6 +48,7 @@ import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
+import android.hardware.display.DisplayManager;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -61,6 +66,7 @@ import android.util.ArrayMap;
 import android.util.Dumpable;
 import android.util.Log;
 import android.util.TimeUtils;
+import android.view.Display;
 
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
@@ -154,6 +160,9 @@ public class CarServiceHelperService extends SystemService
     private static final String AIDL_VHAL_INTERFACE_PREFIX =
             "android.hardware.automotive.vehicle.IVehicle/";
 
+    private static final boolean sVisibleBackgroundUsersEnabled =
+            UserManager.isVisibleBackgroundUsersEnabled();
+
     static  {
         // Load this JNI before other classes are loaded.
         System.loadLibrary("carservicehelperjni");
@@ -168,6 +177,7 @@ public class CarServiceHelperService extends SystemService
     private final CarActivityInterceptor mCarActivityInterceptor;
     private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
     private final ActivityTaskManagerInternal mActivityTaskManagerInternal;
+    private final DisplayManager mDisplayManager;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
@@ -293,6 +303,7 @@ public class CarServiceHelperService extends SystemService
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
         mActivityTaskManagerInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
+        mDisplayManager = mContext.getSystemService(DisplayManager.class);
     }
 
     @Override
@@ -757,6 +768,44 @@ public class CarServiceHelperService extends SystemService
             Slogf.d(TAG, "getUserAssignedToDisplay(%d): %d", displayId, userId);
         }
         return userId;
+    }
+
+    @Override
+    public boolean assignUserToExtraDisplay(int userId, int displayId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        boolean success = umi.assignUserToExtraDisplay(userId, displayId);
+        if (DBG) {
+            Slogf.d(TAG, "assignUserToExtraDisplay(userId=%d, displayId=%d): %b",
+                    userId, displayId, success);
+        }
+        return success;
+    }
+
+    @Override
+    public boolean unassignUserFromExtraDisplay(int userId, int displayId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        boolean success = umi.unassignUserFromExtraDisplay(userId, displayId);
+        if (DBG) {
+            Slogf.d(TAG, "unassignUserFromExtraDisplay(userId=%d, displayId=%d): %b",
+                    userId, displayId, success);
+        }
+        return success;
+    }
+
+    @Override
+    public boolean isVisibleBackgroundUsersEnabled() {
+        return sVisibleBackgroundUsersEnabled;
+    }
+
+    @Override
+    public boolean isOverlayDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return false;
+        }
+        int displayFlags = display.getFlags();
+        return ((displayFlags & FLAG_PRIVATE) == 0 && (displayFlags & FLAG_TRUSTED) != 0
+                && display.getType() == TYPE_OVERLAY);
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
