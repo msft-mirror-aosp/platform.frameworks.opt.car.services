@@ -210,7 +210,9 @@ public class CarServiceHelperService extends SystemService
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
-                /* carDevicePolicySafetyChecker= */ null
+                /* carDevicePolicySafetyChecker= */ null,
+                new CarActivityInterceptor(),
+                new CarDisplayCompatScaleProvider(context)
         );
     }
 
@@ -220,15 +222,17 @@ public class CarServiceHelperService extends SystemService
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
-            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
+            @Nullable CarActivityInterceptor carActivityInterceptor,
+            @Nullable CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
         super(context);
 
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
-        mCarActivityInterceptor = new CarActivityInterceptor();
-        mCarDisplayCompatScaleProvider = new CarDisplayCompatScaleProvider();
+        mCarActivityInterceptor = carActivityInterceptor;
+        mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
@@ -315,6 +319,15 @@ public class CarServiceHelperService extends SystemService
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
+            // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
+            // to cache the package states early before user starts interacting with apps.
+            // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init();
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
@@ -327,12 +340,6 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
-            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
-                    ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mContext);
             t.traceEnd();
         }
     }
