@@ -30,6 +30,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.hardware.display.DisplayManager;
 import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
@@ -111,6 +112,8 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarDisplayCompatScaleProviderUpdatableImpl
             mCarDisplayCompatScaleProviderUpdatable;
 
+    private OverlayDisplayMonitor mOverlayDisplayMonitor;
+
     /**
      * This constructor is meant to be called using reflection by the builtin service and hence it
      * shouldn't be changed as it is called from the platform with version {@link TIRAMISU}.
@@ -142,6 +145,12 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy = (CarServiceProxy) interfaces.getOrDefault(
                 CarServiceProxy.class.getSimpleName(), new CarServiceProxy(this));
         mCallbackForCarServiceUnresponsiveness = () -> handleCarServiceUnresponsive();
+
+        if (mCarServiceHelperInterface.isVisibleBackgroundUsersEnabled()) {
+            DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+            mOverlayDisplayMonitor = new OverlayDisplayMonitor(
+                    displayManager, mHandler, mCarServiceHelperInterface);
+        }
     }
 
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
@@ -164,6 +173,9 @@ public final class CarServiceHelperServiceUpdatableImpl
         if (!userContext.bindService(intent, Context.BIND_AUTO_CREATE, this,
                 mCarServiceConnection)) {
             Slogf.wtf(TAG, "cannot start car service");
+        }
+        if (mOverlayDisplayMonitor != null) {
+            mOverlayDisplayMonitor.init();
         }
     }
 
@@ -190,11 +202,6 @@ public final class CarServiceHelperServiceUpdatableImpl
     }
 
     @Override
-    public void initBootUser() {
-        mCarServiceProxy.initBootUser();
-    }
-
-    @Override
     public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
         return mCarLaunchParamsModifierUpdatable;
     }
@@ -208,6 +215,11 @@ public final class CarServiceHelperServiceUpdatableImpl
     public CarDisplayCompatScaleProviderUpdatableImpl
             getCarDisplayCompatScaleProviderUpdatable() {
         return mCarDisplayCompatScaleProviderUpdatable;
+    }
+
+    @Override
+    public void notifyFocusChanged(int pid, int uid) {
+        mCarServiceProxy.notifyFocusChanged(pid, uid);
     }
 
     @VisibleForTesting
@@ -287,6 +299,10 @@ public final class CarServiceHelperServiceUpdatableImpl
                 userFrom == null ? UserManagerHelper.USER_NULL : userFrom.getIdentifier(),
                 userTo.getIdentifier());
         if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
+            if (mOverlayDisplayMonitor != null) {
+                // TODO: b/341156326 - Consider how to handle OverlayDisplay for passengers.
+                mOverlayDisplayMonitor.handleCurrentUserSwitching(userTo.getIdentifier());
+            }
             mCarDisplayCompatScaleProviderUpdatable.handleCurrentUserSwitching(userTo);
         }
     }

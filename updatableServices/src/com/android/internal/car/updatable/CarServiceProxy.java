@@ -37,6 +37,8 @@ import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimingsTraceLog;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.ArraySet;
+import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
@@ -79,12 +81,10 @@ final class CarServiceProxy {
 
     // Operation ID for each non life-cycle event calls
     // NOTE: public because of DebugUtils
-    public static final int PO_INIT_BOOT_USER = 0;
     public static final int PO_ON_USER_REMOVED = 1;
     public static final int PO_ON_FACTORY_RESET = 2;
 
     @IntDef(prefix = { "PO_" }, value = {
-            PO_INIT_BOOT_USER,
             PO_ON_USER_REMOVED,
             PO_ON_FACTORY_RESET
     })
@@ -95,7 +95,7 @@ final class CarServiceProxy {
     static final String TAG = CarServiceProxy.class.getSimpleName();
 
     private static final long TRACE_TAG_SYSTEM_SERVER = 1L << 19;
-    private static final boolean DBG = false;
+    private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
     private static final int USER_SYSTEM = UserHandle.SYSTEM.getIdentifier();
 
@@ -112,6 +112,13 @@ final class CarServiceProxy {
     // Key: user id, value: life-cycle
     @GuardedBy("mLock")
     private final SparseIntArray mLastUserLifecycle = new SparseIntArray();
+
+    // mVisibleUsers is used to track the currently visible users for replaying of user visible
+    // life cycle events. Initialize with capacity 1 as usually only one user is visible.
+    // TODO(b/277271542): Initialize to higher value in case of MUMD based on main display count
+    @GuardedBy("mLock")
+    private final ArraySet<Integer> mVisibleUsers = new ArraySet(1);
+
     // Key: @PendingOperationId, value: PendingOperation
     @GuardedBy("mLock")
     private final SparseArray<PendingOperation> mPendingOperations = new SparseArray<>();
@@ -138,7 +145,6 @@ final class CarServiceProxy {
         synchronized (mLock) {
             mCarService = carService;
             mCarServiceCrashed = false;
-            runQueuedOperationLocked(PO_INIT_BOOT_USER);
             runQueuedOperationLocked(PO_ON_USER_REMOVED);
             runQueuedOperationLocked(PO_ON_FACTORY_RESET);
         }
@@ -247,26 +253,15 @@ final class CarServiceProxy {
             return;
         }
 
-        // User visible and user invisible are unrelated to the user switching/unlocking flow.
-        // Return early to prevent them from going into the following logic
-        // that makes assumptions about the sequence of lifecycle event types
-        // following numerical order.
-        // If we don't return early here, because the user visible and visible event numbers are
-        // greater than user starting/switching/unlocking/unlocked events, they will cause these
-        // events to be sent which is an unintended effect.
-        // TODO(b/277148129): Refactor the entire lifecycle events replay logic taking into
-        // consideration the visible and invisible events. Currently only the last event per use is
-        // tracked so it's hard to infer events before user visible and user invisible.
-        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_VISIBLE) {
-            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_VISIBLE,
-                    UserManagerHelper.USER_NULL, userId);
-            return;
+        boolean isUserVisible = false;
+
+        synchronized (mLock) {
+            isUserVisible = mVisibleUsers.contains(userId);
         }
 
-        if (lifecycle == USER_LIFECYCLE_EVENT_TYPE_INVISIBLE) {
-            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_INVISIBLE,
+        if (isUserVisible) {
+            sendUserLifecycleEventInternal(USER_LIFECYCLE_EVENT_TYPE_VISIBLE,
                     UserManagerHelper.USER_NULL, userId);
-            return;
         }
 
         // The following logic makes assumptions about the sequence of lifecycle event types
@@ -294,15 +289,6 @@ final class CarServiceProxy {
         }
     }
 
-    /**
-     * Initializes boot user.
-     */
-    void initBootUser() {
-        if (DBG) Slogf.d(TAG, "initBootUser()");
-
-        saveOrRun(PO_INIT_BOOT_USER);
-    }
-
     // TODO(b/173664653): add unit test
     /**
      * Callback to indifcate the given user was removed.
@@ -321,6 +307,22 @@ final class CarServiceProxy {
         if (DBG) Slogf.d(TAG, "onFactoryReset(): " + callback);
 
         saveOrRun(PO_ON_FACTORY_RESET, callback);
+    }
+
+    void notifyFocusChanged(int pid, int uid) {
+        if (DBG) Slogf.d(TAG, "notifyFocusChanged: pid=%d uid=%d", pid, uid);
+        synchronized (mLock) {
+            if (mCarService == null) {
+                Slogf.w(TAG, "CarService null. Skip notifyFocusChanged.");
+                return;
+            }
+            try {
+                mCarService.notifyFocusChanged(pid, uid);
+            } catch (RemoteException e) {
+                Slogf.e(TAG, "RemoteException from car service", e);
+                handleCarServiceCrash();
+            }
+        }
     }
 
     private void saveOrRun(@PendingOperationId int operationId) {
@@ -416,9 +418,6 @@ final class CarServiceProxy {
                     + pendingOperationToString(operationId));
         }
         switch (operationId) {
-            case PO_INIT_BOOT_USER:
-                mCarService.initBootUser();
-                break;
             case PO_ON_USER_REMOVED:
                 if (value instanceof ArrayList) {
                     ArrayList<Object> list = (ArrayList<Object>) value;
@@ -457,15 +456,24 @@ final class CarServiceProxy {
         mUserMetrics.onEvent(eventType, now, fromId, toId);
 
         synchronized (mLock) {
-            if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
-                mLastSwitchedUser = toId;
-                mPreviousUserOfLastSwitchedUser = fromId;
-                mLastUserLifecycle.put(toId, eventType);
-            } else if (eventType == USER_LIFECYCLE_EVENT_TYPE_STOPPING
-                    || eventType == USER_LIFECYCLE_EVENT_TYPE_STOPPED) {
-                mLastUserLifecycle.delete(toId);
-            } else {
-                mLastUserLifecycle.put(toId, eventType);
+            switch (eventType){
+                case USER_LIFECYCLE_EVENT_TYPE_SWITCHING:
+                    mLastSwitchedUser = toId;
+                    mPreviousUserOfLastSwitchedUser = fromId;
+                    mLastUserLifecycle.put(toId, eventType);
+                    break;
+                case USER_LIFECYCLE_EVENT_TYPE_STOPPING:
+                case USER_LIFECYCLE_EVENT_TYPE_STOPPED:
+                    mLastUserLifecycle.delete(toId);
+                    break;
+                case USER_LIFECYCLE_EVENT_TYPE_VISIBLE:
+                    mVisibleUsers.add(toId);
+                    break;
+                case USER_LIFECYCLE_EVENT_TYPE_INVISIBLE:
+                    mVisibleUsers.remove(toId);
+                    break;
+                default:
+                    mLastUserLifecycle.put(toId, eventType);
             }
             if (mCarService == null) {
                 if (DBG) {
