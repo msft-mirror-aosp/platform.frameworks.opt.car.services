@@ -54,6 +54,7 @@ import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
 import com.android.server.wm.CarDisplayCompatActivityInterceptor;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
+import com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -139,6 +140,9 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarActivityInterceptorUpdatable.registerInterceptor(0,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
+        // Interceptor for the launch on a private display
+        mCarActivityInterceptorUpdatable.registerInterceptor(1,
+                new CarLaunchOnPrivateDisplayActivityInterceptor(context));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
