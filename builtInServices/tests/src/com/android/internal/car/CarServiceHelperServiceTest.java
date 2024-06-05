@@ -45,7 +45,6 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.LocalServices;
-import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.SystemService.UserCompletedEventType;
 import com.android.server.pm.UserManagerInternal;
@@ -179,13 +178,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testOnBootPhase_thirdPartyCanStart_initBootUser() throws Exception {
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verifyInitBootUser();
-    }
-
-    @Test
     public void testOnUserCompletedEvent_notifiesPostUnlockedEvent() throws Exception {
         int userId = 10;
 
@@ -279,10 +271,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
             @UserIdInt int userId) throws Exception {
         verify(mCarServiceHelperServiceUpdatable).sendUserLifecycleEvent(eventType,
                 null, UserHandle.of(userId));
-    }
-
-    private void verifyInitBootUser() throws Exception {
-        verify(mCarServiceHelperServiceUpdatable).initBootUser();
     }
 
     private ServiceDebugInfo newServiceDebugInfo(String name, int debugPid) {

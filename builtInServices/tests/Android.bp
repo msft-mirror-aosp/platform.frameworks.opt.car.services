@@ -1,4 +1,5 @@
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: [
         "Android-Apache-2.0",
     ],
@@ -8,7 +9,7 @@ android_test {
     name: "FrameworkOptCarServicesTest",
 
     srcs: [
-        "src/**/*.java"
+        "src/**/*.java",
     ],
 
     platform_apis: true,
@@ -32,10 +33,11 @@ android_test {
         "android.car.watchdoglib",
         "androidx.test.ext.junit",
         "androidx.test.rules",
+        "androidx.test.uiautomator_uiautomator",
         "mockito-target-extended-minus-junit4",
         "services.core",
         "testng",
-        "truth-prebuilt",
+        "truth",
         "car-frameworks-service.impl",
     ],
 
@@ -44,5 +46,10 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
         "libcarservicehelperjni",
+    ],
+
+    test_suites: [
+        "general-tests",
+        "automotive-tests",
     ],
 }
