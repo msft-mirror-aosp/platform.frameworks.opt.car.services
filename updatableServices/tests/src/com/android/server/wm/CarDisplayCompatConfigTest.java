@@ -89,7 +89,8 @@ public class CarDisplayCompatConfigTest {
             mConfig.populate(in);
         }
         CarDisplayCompatConfig.Key key =
-                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, UserHandle.ALL);
+                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE,
+                        UserHandle.ALL.getIdentifier());
         assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(0.7f);
     }
 
@@ -100,7 +101,7 @@ public class CarDisplayCompatConfigTest {
             mConfig.populate(in);
         }
         CarDisplayCompatConfig.Key key =
-                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, UserHandle.of(10));
+                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, 10);
         assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(0.7f);
     }
 
@@ -112,7 +113,8 @@ public class CarDisplayCompatConfigTest {
             mConfig.populate(in);
         }
         CarDisplayCompatConfig.Key key =
-                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "com.test", UserHandle.ALL);
+                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "com.test",
+                        UserHandle.ALL.getIdentifier());
         assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(0.7f);
     }
 
@@ -124,7 +126,7 @@ public class CarDisplayCompatConfigTest {
             mConfig.populate(in);
         }
         CarDisplayCompatConfig.Key key =
-                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "com.test", UserHandle.of(10));
+                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "com.test", 10);
         assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(0.7f);
     }
 }

@@ -18,6 +18,7 @@ package com.android.server.wm;
 import static android.view.Display.DEFAULT_DISPLAY;
 
 import android.annotation.NonNull;
+import android.annotation.UserIdInt;
 import android.car.builtin.util.Slogf;
 import android.os.UserHandle;
 import android.util.ArrayMap;
@@ -99,12 +100,12 @@ final class CarDisplayCompatConfig {
                 Key key = mPackageUserDisplayScaleFactorMap.keyAt(i);
                 float value = mPackageUserDisplayScaleFactorMap.valueAt(i);
                 xmlSerializer.startTag(NAMESPACE, SCALE);
-                xmlSerializer.attribute(NAMESPACE, DISPLAY, String.valueOf(key.displayId));
-                if (!ANY_PACKAGE.equals(key.packageName)) {
-                    xmlSerializer.attribute(NAMESPACE, PACKAGE, key.packageName);
+                xmlSerializer.attribute(NAMESPACE, DISPLAY, String.valueOf(key.mDisplayId));
+                if (!ANY_PACKAGE.equals(key.mPackageName)) {
+                    xmlSerializer.attribute(NAMESPACE, PACKAGE, key.mPackageName);
                 }
-                if (key.userId != UserHandle.ALL.getIdentifier()) {
-                    xmlSerializer.attribute(NAMESPACE, USER, String.valueOf(key.userId));
+                if (key.mUserId != UserHandle.ALL.getIdentifier()) {
+                    xmlSerializer.attribute(NAMESPACE, USER, String.valueOf(key.mUserId));
                 }
                 xmlSerializer.text(String.valueOf(value));
                 xmlSerializer.endTag(NAMESPACE, SCALE);
@@ -183,7 +184,7 @@ final class CarDisplayCompatConfig {
         }
         parser.require(XmlPullParser.END_TAG, NAMESPACE, SCALE);
 
-        setScaleFactor(new Key(display, packageName, UserHandle.of(userId)), value);
+        setScaleFactor(new Key(display, packageName, userId), value);
     }
 
     /**
@@ -206,33 +207,35 @@ final class CarDisplayCompatConfig {
         }
     }
 
-    static class Key {
-        public int displayId;
-        public String packageName;
-        public int userId;
+    static final class Key {
+        int mDisplayId;
+        String mPackageName;
+        int mUserId;
 
-        Key(int displayId, @NonNull String packageName, @NonNull UserHandle user) {
-            this.displayId = displayId;
-            this.packageName = packageName;
-            this.userId = user.getIdentifier();
+        Key(int displayId, @NonNull String packageName, @UserIdInt int userId) {
+            this.mDisplayId = displayId;
+            this.mPackageName = packageName;
+            this.mUserId = userId;
         }
 
         @Override
         public String toString() {
-            return String.format(Locale.getDefault(), "%d@%s@%d", displayId, packageName, userId);
+            return String.format(Locale.getDefault(),
+                    "%d@%s@%d",
+                    mDisplayId, mPackageName, mUserId);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(displayId, packageName, userId);
+            return Objects.hash(mDisplayId, mPackageName, mUserId);
         }
 
         @Override
         public boolean equals(final Object other) {
             if (!(other instanceof Key)) return false;
-            if (((Key) other).displayId != displayId) return false;
-            if (!((Key) other).packageName.equals(packageName)) return false;
-            if (((Key) other).userId != userId) return false;
+            if (((Key) other).mDisplayId != mDisplayId) return false;
+            if (!((Key) other).mPackageName.equals(mPackageName)) return false;
+            if (((Key) other).mUserId != mUserId) return false;
             return true;
         }
     }

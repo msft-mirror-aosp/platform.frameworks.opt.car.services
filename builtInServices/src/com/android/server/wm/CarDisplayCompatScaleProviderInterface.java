@@ -64,6 +64,7 @@ public interface CarDisplayCompatScaleProviderInterface {
     /**
      * See {@link Settings.Secure#getStringForUser(ContentResolver, String, int)}
      */
+    @Nullable
     String getStringForUser(ContentResolver resolver, String name, @UserIdInt int userId);
 
     /**
