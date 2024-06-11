@@ -1,4 +1,5 @@
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -16,7 +17,6 @@ java_sdk_library {
     static_libs: [
         "android.car.watchdoglib",
         "android.automotive.watchdog.internal-V3-java",
-        "mu_imms-prebuilt",
     ],
     api_lint: {
         enabled: true,

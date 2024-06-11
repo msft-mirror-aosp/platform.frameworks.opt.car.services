@@ -1,4 +1,5 @@
 package {
+    default_team: "trendy_team_aaos_framework",
     default_applicable_licenses: ["Android-Apache-2.0"],
 }
 
@@ -8,7 +9,7 @@ java_test_host {
     libs: [
         "junit",
         "tradefed",
-        "truth-prebuilt",
+        "truth",
     ],
     static_libs: [
         "compatibility-host-util",

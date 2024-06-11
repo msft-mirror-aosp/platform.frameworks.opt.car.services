@@ -35,12 +35,13 @@ import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
-import com.android.car.internal.util.VersionUtils;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.server.wm.CarActivityInterceptorInterface;
+import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
 import org.junit.Before;
@@ -49,6 +50,7 @@ import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 
+import java.util.Map;
 import java.util.function.BiConsumer;
 
 /**
@@ -71,6 +73,9 @@ public final class CarServiceHelperServiceUpdatableImplTest
     @Mock
     private CarActivityInterceptorInterface mCarActivityInterceptorInterface;
     @Mock
+    private CarDisplayCompatScaleProviderInterface
+            mCarDisplayCompatScaleProviderInterface;
+    @Mock
     private ICar mICarBinder;
     @Mock
     private IBinder mIBinder;
@@ -83,18 +88,20 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
     @Before
     public void setTestFixtures() {
+        Map<String, Object> interfaces = new ArrayMap<>();
+        interfaces.put(CarServiceHelperInterface.class.getSimpleName(),
+                mCarServiceHelperInterface);
+        interfaces.put(CarLaunchParamsModifierInterface.class.getSimpleName(),
+                mCarLaunchParamsModifierInterface);
+        interfaces.put(CarActivityInterceptorInterface.class.getSimpleName(),
+                mCarActivityInterceptorInterface);
+        interfaces.put(CarDisplayCompatScaleProviderInterface.class.getSimpleName(),
+                mCarDisplayCompatScaleProviderInterface);
+        interfaces.put(CarServiceProxy.class.getSimpleName(), mCarServiceProxy);
+
         mCarServiceHelperServiceUpdatableImpl = new CarServiceHelperServiceUpdatableImpl(
                 mMockContext,
-                mCarServiceHelperInterface,
-                mCarLaunchParamsModifierInterface,
-                mCarActivityInterceptorInterface,
-                mCarServiceProxy);
-    }
-
-    @Override
-    protected void onSessionBuilder(
-            AbstractExtendedMockitoTestCase.CustomMockitoSessionBuilder builder) {
-        builder.spyStatic(VersionUtils.class);
+                interfaces);
     }
 
     @Test
@@ -140,13 +147,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
         mCarServiceHelperServiceUpdatableImpl.onFactoryReset(callback);
 
         verify(mCarServiceProxy).onFactoryReset(any());
-    }
-
-    @Test
-    public void testInitBootUser() throws Exception {
-        mCarServiceHelperServiceUpdatableImpl.initBootUser();
-
-        verify(mCarServiceProxy).initBootUser();
     }
 
     @Test

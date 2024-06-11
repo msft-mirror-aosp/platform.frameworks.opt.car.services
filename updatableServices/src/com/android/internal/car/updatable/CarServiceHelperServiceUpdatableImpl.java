@@ -15,14 +15,9 @@
  */
 package com.android.internal.car.updatable;
 
-import static android.view.Display.INVALID_DISPLAY;
-
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
-import static com.android.car.internal.common.CommonConstants.INVALID_GID;
-import static com.android.car.internal.common.CommonConstants.INVALID_PID;
-import static com.android.car.internal.common.CommonConstants.INVALID_USER_ID;
-import static com.android.car.internal.util.VersionUtils.isPlatformVersionAtLeastU;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -35,6 +30,8 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.hardware.display.DisplayManager;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -54,6 +51,10 @@ import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
+import com.android.server.wm.CarDisplayCompatActivityInterceptor;
+import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
+import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
+import com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -61,6 +62,7 @@ import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 import java.io.File;
 import java.io.PrintWriter;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -108,49 +110,51 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
+    private final CarDisplayCompatScaleProviderUpdatableImpl
+            mCarDisplayCompatScaleProviderUpdatable;
+
+    private OverlayDisplayMonitor mOverlayDisplayMonitor;
 
     /**
      * This constructor is meant to be called using reflection by the builtin service and hence it
      * shouldn't be changed as it is called from the platform with version {@link TIRAMISU}.
      */
     public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface) {
-        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
-                /* carActivityInterceptorInterface= */ null);
-    }
-
-    public CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
-            CarActivityInterceptorInterface carActivityInterceptorInterface) {
-        this(context, carServiceHelperInterface, carLaunchParamsModifierInterface,
-                carActivityInterceptorInterface, /* carServiceProxy= */ null);
-    }
-
-    @VisibleForTesting
-    CarServiceHelperServiceUpdatableImpl(Context context,
-            CarServiceHelperInterface carServiceHelperInterface,
-            CarLaunchParamsModifierInterface carLaunchParamsModifierInterface,
-            @Nullable CarActivityInterceptorInterface carActivityInterceptorInterface,
-            @Nullable CarServiceProxy carServiceProxy) {
+            @Nullable Map<String, Object> interfaces) {
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
-        mCarServiceHelperInterface = carServiceHelperInterface;
+        mCarServiceHelperInterface = (CarServiceHelperInterface) interfaces
+                .get(CarServiceHelperInterface.class.getSimpleName());
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
-                carLaunchParamsModifierInterface);
-        if (isPlatformVersionAtLeastU()) {
-            mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
-                    (CarActivityInterceptorInterface) carActivityInterceptorInterface);
-        } else {
-            mCarActivityInterceptorUpdatable = null;
-        }
+                (CarLaunchParamsModifierInterface) interfaces
+                        .get(CarLaunchParamsModifierInterface.class.getSimpleName()));
+        mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
+                (CarActivityInterceptorInterface) interfaces
+                        .get(CarActivityInterceptorInterface.class.getSimpleName()));
+        mCarDisplayCompatScaleProviderUpdatable =
+                new CarDisplayCompatScaleProviderUpdatableImpl(
+                    mContext,
+                    (CarDisplayCompatScaleProviderInterface) interfaces
+                            .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+        mCarActivityInterceptorUpdatable.registerInterceptor(0,
+                new CarDisplayCompatActivityInterceptor(context,
+                        mCarDisplayCompatScaleProviderUpdatable));
+        // Interceptor for the launch on a private display
+        mCarActivityInterceptorUpdatable.registerInterceptor(1,
+                new CarLaunchOnPrivateDisplayActivityInterceptor(context));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
-        mCarServiceProxy = carServiceProxy == null ? new CarServiceProxy(this) : carServiceProxy;
+        mCarServiceProxy = (CarServiceProxy) interfaces.getOrDefault(
+                CarServiceProxy.class.getSimpleName(), new CarServiceProxy(this));
         mCallbackForCarServiceUnresponsiveness = () -> handleCarServiceUnresponsive();
+
+        if (mCarServiceHelperInterface.isVisibleBackgroundUsersEnabled()) {
+            DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
+            mOverlayDisplayMonitor = new OverlayDisplayMonitor(
+                    displayManager, mHandler, mCarServiceHelperInterface);
+        }
     }
 
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
@@ -173,6 +177,9 @@ public final class CarServiceHelperServiceUpdatableImpl
         if (!userContext.bindService(intent, Context.BIND_AUTO_CREATE, this,
                 mCarServiceConnection)) {
             Slogf.wtf(TAG, "cannot start car service");
+        }
+        if (mOverlayDisplayMonitor != null) {
+            mOverlayDisplayMonitor.init();
         }
     }
 
@@ -199,11 +206,6 @@ public final class CarServiceHelperServiceUpdatableImpl
     }
 
     @Override
-    public void initBootUser() {
-        mCarServiceProxy.initBootUser();
-    }
-
-    @Override
     public CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable() {
         return mCarLaunchParamsModifierUpdatable;
     }
@@ -211,6 +213,17 @@ public final class CarServiceHelperServiceUpdatableImpl
     @Override
     public CarActivityInterceptorUpdatableImpl getCarActivityInterceptorUpdatable() {
         return mCarActivityInterceptorUpdatable;
+    }
+
+    @Override
+    public CarDisplayCompatScaleProviderUpdatableImpl
+            getCarDisplayCompatScaleProviderUpdatable() {
+        return mCarDisplayCompatScaleProviderUpdatable;
+    }
+
+    @Override
+    public void notifyFocusChanged(int pid, int uid) {
+        mCarServiceProxy.notifyFocusChanged(pid, uid);
     }
 
     @VisibleForTesting
@@ -289,6 +302,13 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceProxy.sendUserLifecycleEvent(eventType,
                 userFrom == null ? UserManagerHelper.USER_NULL : userFrom.getIdentifier(),
                 userTo.getIdentifier());
+        if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
+            if (mOverlayDisplayMonitor != null) {
+                // TODO: b/341156326 - Consider how to handle OverlayDisplay for passengers.
+                mOverlayDisplayMonitor.handleCurrentUserSwitching(userTo.getIdentifier());
+            }
+            mCarDisplayCompatScaleProviderUpdatable.handleCurrentUserSwitching(userTo);
+        }
     }
 
     @Override
@@ -308,7 +328,11 @@ public final class CarServiceHelperServiceUpdatableImpl
             return;
         }
 
-        mCarServiceProxy.dump(new IndentingPrintWriter(writer));
+        IndentingPrintWriter pw = new IndentingPrintWriter(writer);
+        mCarServiceProxy.dump(pw);
+        mCarLaunchParamsModifierUpdatable.dump(pw);
+        mCarActivityInterceptorUpdatable.dump(pw);
+        mCarDisplayCompatScaleProviderUpdatable.dump(pw);
     }
 
     @VisibleForTesting
@@ -322,13 +346,6 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void setPassengerDisplays(int[] displayIdsForPassenger) {
             mCarLaunchParamsModifierUpdatable.setPassengerDisplays(displayIdsForPassenger);
-        }
-
-        @Override
-        public void setSourcePreferredComponents(boolean enableSourcePreferred,
-                @Nullable List<ComponentName> sourcePreferredComponents) {
-            mCarLaunchParamsModifierUpdatable.setSourcePreferredComponents(
-                    enableSourcePreferred, sourcePreferredComponents);
         }
 
         @Override
@@ -361,59 +378,44 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void setProcessGroup(int pid, int group) {
-            if (!isPlatformVersionAtLeastU()) {
-                return;
-            }
             mCarServiceHelperInterface.setProcessGroup(pid, group);
         }
 
         @Override
         public int getProcessGroup(int pid) {
-            if (isPlatformVersionAtLeastU()) {
-                return mCarServiceHelperInterface.getProcessGroup(pid);
-            }
-            return INVALID_GID;
+            return mCarServiceHelperInterface.getProcessGroup(pid);
         }
 
         @Override
         public int getMainDisplayAssignedToUser(int userId) {
-            if (isPlatformVersionAtLeastU()) {
-                return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
-            }
-            return INVALID_DISPLAY;
+            return mCarServiceHelperInterface.getMainDisplayAssignedToUser(userId);
         }
 
         @Override
         public int getUserAssignedToDisplay(int displayId) {
-            if (isPlatformVersionAtLeastU()) {
-                return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
-            }
-            return INVALID_USER_ID;
+            return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
         }
 
         @Override
         public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
-            if (isPlatformVersionAtLeastU()) {
-                return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(
-                        userId, displayId);
-            }
-            return false;
+            return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(
+                    userId, displayId);
         }
 
         @Override
         public void setProcessProfile(int pid, int uid, @NonNull String profile) {
-            if (!isPlatformVersionAtLeastU()) {
-                return;
-            }
             mCarServiceHelperInterface.setProcessProfile(pid, uid, profile);
         }
 
         @Override
         public int fetchAidlVhalPid() {
-            if (isPlatformVersionAtLeastU()) {
-                return mCarServiceHelperInterface.fetchAidlVhalPid();
-            }
-            return INVALID_PID;
+            return mCarServiceHelperInterface.fetchAidlVhalPid();
+        }
+
+        @Override
+        public boolean requiresDisplayCompat(String packageName) {
+            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
+                    Binder.getCallingUserHandle().getIdentifier());
         }
     }
 
