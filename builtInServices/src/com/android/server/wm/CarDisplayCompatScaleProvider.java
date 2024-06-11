@@ -67,15 +67,18 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     private ActivityTaskManagerService mAtms;
     private PackageManager mPackageManager;
 
+    public CarDisplayCompatScaleProvider(Context context) {
+        mPackageManager = context.getPackageManager();
+    }
+
     /**
      * Registers {@link CarDisplayCompatScaleProvider} with {@link ActivityTaskManagerService}
      */
-    public void init(Context context) {
+    public void init() {
         if (!Flags.displayCompatibility()) {
             Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
             return;
         }
-        mPackageManager = context.getPackageManager();
         if (mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
             mAtms = (ActivityTaskManagerService) ActivityTaskManager.getService();
             mAtms.registerCompatScaleProvider(COMPAT_SCALE_MODE_PRODUCT, this);
