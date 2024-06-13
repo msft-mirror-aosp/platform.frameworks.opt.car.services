@@ -39,7 +39,6 @@ import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -79,12 +78,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
     /** key: profile user id, value: display id */
     @GuardedBy("mLock")
     private final SparseIntArray mDefaultDisplayForProfileUser = new SparseIntArray();
-
-    @GuardedBy("mLock")
-    private boolean mIsSourcePreferred;
-
-    @GuardedBy("mLock")
-    private List<ComponentName> mSourcePreferredComponents;
 
     /** key: Activity, value: TaskDisplayAreaWrapper */
     @GuardedBy("mLock")
@@ -292,7 +285,10 @@ public final class CarLaunchParamsModifierUpdatableImpl
         TaskDisplayAreaWrapper originalDisplayArea = currentParams.getPreferredTaskDisplayArea();
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayAreaWrapper targetDisplayArea = null;
-        ComponentName activityName = activity.getComponentName();
+        ComponentName activityName = null;
+        if (activity != null) {
+            activityName = activity.getComponentName();
+        }
         if (DBG) {
             Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s actvity:%s options:%s",
                     userId, originalDisplayArea, activityName, options);
@@ -311,12 +307,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
             }
             if (mPersistentActivities.containsKey(activityName)) {
                 targetDisplayArea = mPersistentActivities.get(activityName);
-            } else if (originalDisplayArea == null  // No specified DA to launch the Activity
-                    && mIsSourcePreferred && source != null
-                    && (mSourcePreferredComponents == null || Collections.binarySearch(
-                    mSourcePreferredComponents, activityName) >= 0)) {
-                targetDisplayArea = source.isNoDisplay() ? source.getHandoverTaskDisplayArea()
-                        : source.getDisplayArea();
             } else if (originalDisplayArea == null
                     && task == null  // launching as a new task
                     && source != null && !source.isDisplayTrusted()
