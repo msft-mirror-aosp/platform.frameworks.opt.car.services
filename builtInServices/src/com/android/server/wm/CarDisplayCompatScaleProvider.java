@@ -133,6 +133,11 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                 } else {
                     updateStateOfPackageForUserLocked(packageName, getCurrentOrTargetUserId());
                 }
+            } catch (PackageManager.NameNotFoundException e) {
+                // This shouldn't be the case if the user requesting the package is the same as
+                // the user launching the app.
+                Slogf.w(TAG, "Package %s for user %d not found", packageName,
+                        getCurrentOrTargetUserId());
             } finally {
                 mConfigLock.unlockWrite(stamp);
             }
@@ -230,6 +235,10 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             stamp = mConfigLock.writeLock();
             try {
                 return updateStateOfPackageForUserLocked(packageName, userId);
+            } catch (PackageManager.NameNotFoundException e) {
+                // This shouldn't be the case if the user requesting the package is the same as
+                // the user launching the app.
+                throw new ServiceSpecificException(ERROR_CODE_NO_PACKAGE, e.getMessage());
             } finally {
                 mConfigLock.unlockWrite(stamp);
             }
@@ -268,7 +277,8 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
 
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId) {
+    private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId)
+            throws PackageManager.NameNotFoundException {
         List<ApplicationInfo> allPackagesForUser =
                 mPackageManager.getInstalledApplicationsAsUser(GET_META_DATA, userId);
         for (int i = 0; i < allPackagesForUser.size(); i++) {
@@ -280,55 +290,46 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     private boolean updateStateOfPackageForUserLocked(@NonNull String packageName,
-            @UserIdInt int userId) {
+            @UserIdInt int userId) throws PackageManager.NameNotFoundException {
         int displayId = getPackageDisplayIdAsUserLocked(packageName, userId);
 
-        try {
-            CarDisplayCompatConfig.Key key =
-                    new CarDisplayCompatConfig.Key(displayId, packageName, userId);
-            float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-            boolean hasConfig = true;
+        CarDisplayCompatConfig.Key key =
+                new CarDisplayCompatConfig.Key(displayId, packageName, userId);
+        float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
+        boolean hasConfig = true;
+        if (scaleFactor == NO_SCALE) {
+            key.mUserId = UserHandle.ALL.getIdentifier();
+            scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
+            if (scaleFactor == NO_SCALE) {
+                hasConfig = false;
+            }
+        }
+
+        boolean result = requiresDisplayCompatNotCachedLocked(packageName, userId);
+        if (!hasConfig && !result) {
+            // Package is opt-out
+            mConfig.setScaleFactor(key, OPT_OUT);
+        } else if (!hasConfig && result) {
+            // Apply user default scale or display default scale to the package
+            key.mPackageName = ANY_PACKAGE;
+            key.mUserId = userId;
+            scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
             if (scaleFactor == NO_SCALE) {
                 key.mUserId = UserHandle.ALL.getIdentifier();
-                scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-                if (scaleFactor == NO_SCALE) {
-                    hasConfig = false;
-                }
+                scaleFactor = mConfig.getScaleFactor(key, DEFAULT_SCALE);
             }
-
-            boolean result = requiresDisplayCompatNotCachedLocked(packageName, userId);
-            if (!hasConfig && !result) {
-                // Package is opt-out
-                mConfig.setScaleFactor(key, OPT_OUT);
-            } else if (!hasConfig && result) {
-                // Apply user default scale or display default scale to the package
-                key.mPackageName = ANY_PACKAGE;
-                key.mUserId = userId;
-                scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-                if (scaleFactor == NO_SCALE) {
-                    key.mUserId = UserHandle.ALL.getIdentifier();
-                    scaleFactor = mConfig.getScaleFactor(key, DEFAULT_SCALE);
-                }
-                mConfig.setScaleFactor(key, scaleFactor);
-            } else if (hasConfig) {
-                // Package was opt-out, but now is opt-in or the otherway around
-                mConfig.setScaleFactor(key, result ? abs(scaleFactor) : -1 * abs(scaleFactor));
-            }
-
-            mRequiresDisplayCompat.put(packageName, result);
-            Settings.Secure.putStringForUser(mContext.getContentResolver(),
-                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
-                    getCurrentOrTargetUserId());
-
-            return result;
-        } catch (PackageManager.NameNotFoundException e) {
-            // This shouldn't be the case if the user requesting the package is the same as
-            // the user launching the app.
-            Slogf.e(TAG, "Package " + packageName + " not found", e);
-            throw new ServiceSpecificException(
-                    ERROR_CODE_NO_PACKAGE,
-                    e.getMessage());
+            mConfig.setScaleFactor(key, scaleFactor);
+        } else if (hasConfig) {
+            // Package was opt-out, but now is opt-in or the otherway around
+            mConfig.setScaleFactor(key, result ? abs(scaleFactor) : -1 * abs(scaleFactor));
         }
+
+        mRequiresDisplayCompat.put(packageName, result);
+        Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
+                getCurrentOrTargetUserId());
+
+        return result;
     }
 
     // @GuardedBy("mConfigLock")
@@ -345,7 +346,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                 Log.d(TAG, "was init called? " + mPackageManager + " " + mActivityInterceptor);
             }
         } catch (PackageManager.NameNotFoundException e) {
-            Log.e(TAG, "package not found " + packageName + " " + userId);
+            Slogf.w(TAG, "Package %s for user %d not found", packageName, userId);
         }
         return displayId;
     }
