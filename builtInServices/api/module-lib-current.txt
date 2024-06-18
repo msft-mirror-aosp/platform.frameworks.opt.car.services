@@ -106,7 +106,7 @@ package com.android.server.wm {
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method public int getMainDisplayAssignedToUser(int);
     method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
-    method public String getStringForUser(android.content.ContentResolver, String, int);
+    method @Nullable public String getStringForUser(android.content.ContentResolver, String, int);
     method public boolean putStringForUser(android.content.ContentResolver, String, String, int);
   }
 
