@@ -13,39 +13,55 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.server.wm;
 
+import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
 import static android.content.pm.PackageManager.PERMISSION_DENIED;
 import static android.content.pm.PackageManager.PERMISSION_GRANTED;
+import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.Display.INVALID_DISPLAY;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.server.wm.CarDisplayCompatActivityInterceptor.LAUNCHED_FROM_HOST;
 import static com.android.server.wm.CarDisplayCompatActivityInterceptor.PERMISSION_DISPLAY_COMPATIBILITY;
+import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
 
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
+import android.app.ActivityOptions;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.PackageManager.ResolveInfoFlags;
+import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
+import android.platform.test.annotations.RequiresFlagsEnabled;
+import android.platform.test.flag.junit.CheckFlagsRule;
+import android.platform.test.flag.junit.DeviceFlagsValueProvider;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
+@RequiresFlagsEnabled(FLAG_DISPLAY_COMPATIBILITY)
 @RunWith(AndroidJUnit4.class)
 public class CarDisplayCompatActivityInterceptorTest {
+
+    @Rule
+    public final CheckFlagsRule checkFlagsRule = DeviceFlagsValueProvider.createCheckFlagsRule();
 
     private MockitoSession mMockingSession;
 
@@ -54,7 +70,9 @@ public class CarDisplayCompatActivityInterceptorTest {
     @Mock
     private Context mMockContext;
     @Mock
-    private CarDisplayCompatScaleProviderUpdatable mMockCarDisplayCompatScaleProvider;
+    private PackageManager mMockPackageManager;
+    @Mock
+    private CarDisplayCompatScaleProviderUpdatableImpl mMockCarDisplayCompatScaleProvider;
     @Mock
     private ActivityInterceptorInfoWrapper mMockInfo;
 
@@ -75,6 +93,11 @@ public class CarDisplayCompatActivityInterceptorTest {
         )).thenReturn(1);
         when(mMockResources.getString(eq(1))).thenReturn(mHostActitivy.flattenToString());
         when(mMockContext.getResources()).thenReturn(mMockResources);
+        when(mMockPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY))
+                .thenReturn(true);
+        when(mMockPackageManager.resolveActivity(any(Intent.class), any(ResolveInfoFlags.class)))
+                .thenReturn(mock(ResolveInfo.class));
+        when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
 
         mInterceptor = new CarDisplayCompatActivityInterceptor(mMockContext,
                 mMockCarDisplayCompatScaleProvider);
@@ -103,15 +126,7 @@ public class CarDisplayCompatActivityInterceptorTest {
 
     @Test
     public void nonDisplayCompatActivity_isIgnored() {
-        ComponentName nonDisplayCompatActivity =
-                ComponentName.unflattenFromString("com.test/.NonDisplayCompatActivity_isIgnored");
-        Intent intent = new Intent(Intent.ACTION_MAIN);
-        intent.setComponent(nonDisplayCompatActivity);
-        when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq(nonDisplayCompatActivity.getPackageName()),
-                        any(int.class)))
-                .thenReturn(false);
-
+        Intent intent = getNoDisplayCompatRequiredActivity();
         when(mMockInfo.getIntent()).thenReturn(intent);
 
         ActivityInterceptResultWrapper result =
@@ -122,18 +137,12 @@ public class CarDisplayCompatActivityInterceptorTest {
 
     @Test
     public void displayCompatActivity_launchedFromHost_isIgnored() {
-        ComponentName displayCompatActivity =
-                ComponentName.unflattenFromString("com.displaycompatapp/.DisplayCompatActivity");
-        Intent intent = new Intent(Intent.ACTION_MAIN);
-        intent.setComponent(displayCompatActivity);
-        when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
-                .thenReturn(true);
-
+        Intent intent = getDisplayCompatRequiredActivity();
+        String packageName = intent.getComponent().getPackageName();
         intent.putExtra(LAUNCHED_FROM_HOST, true);
         when(mMockInfo.getIntent()).thenReturn(intent);
 
-        when(mMockInfo.getCallingPackage()).thenReturn("com.displaycompatapp");
+        when(mMockInfo.getCallingPackage()).thenReturn(packageName);
         when(mMockInfo.getCallingPid()).thenReturn(1);
         when(mMockInfo.getCallingUid()).thenReturn(2);
         when(mMockContext.checkPermission(PERMISSION_DISPLAY_COMPATIBILITY, 1, 2))
@@ -147,14 +156,7 @@ public class CarDisplayCompatActivityInterceptorTest {
 
     @Test
     public void displayCompatActivity_returnsHost() {
-        ComponentName displayCompatActivity =
-                ComponentName.unflattenFromString("com.displaycompatapp/.DisplayCompatActivity");
-        Intent intent = new Intent(Intent.ACTION_MAIN);
-        intent.setComponent(displayCompatActivity);
-        when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
-                .thenReturn(true);
-
+        Intent intent = getDisplayCompatRequiredActivity();
         when(mMockInfo.getIntent()).thenReturn(intent);
 
         ActivityInterceptResultWrapper result =
@@ -171,19 +173,14 @@ public class CarDisplayCompatActivityInterceptorTest {
 
     @Test
     public void displayCompatActivity_launchedFromDisplayCompatApp_returnsHost() {
-        ComponentName displayCompatActivity =
-                ComponentName.unflattenFromString("com.displaycompatapp/.DisplayCompatActivity");
-        Intent intent = new Intent(Intent.ACTION_MAIN);
-        intent.setComponent(displayCompatActivity);
-        when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
-                .thenReturn(true);
-        when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq("com.displaycompatapp"), any(int.class)))
-                .thenReturn(true);
-        when(mMockInfo.getCallingPackage()).thenReturn("com.displaycompatapp");
-
+        Intent intent = getDisplayCompatRequiredActivity();
+        String packageName = intent.getComponent().getPackageName();
         when(mMockInfo.getIntent()).thenReturn(intent);
+        when(mMockCarDisplayCompatScaleProvider
+                .requiresDisplayCompat(eq(packageName), any(int.class)))
+                .thenReturn(true);
+
+        when(mMockInfo.getCallingPackage()).thenReturn(packageName);
 
         ActivityInterceptResultWrapper result =
                 mInterceptor.onInterceptActivityLaunch(mMockInfo);
@@ -199,17 +196,15 @@ public class CarDisplayCompatActivityInterceptorTest {
 
     @Test
     public void displayCompatActivity_noPermission_returnsHost() {
-        ComponentName displayCompatActivity =
-                ComponentName.unflattenFromString("com.displaycompatapp/.DisplayCompatActivity");
-        Intent intent = new Intent(Intent.ACTION_MAIN);
+        Intent intent = getDisplayCompatRequiredActivity();
+        String packageName = intent.getComponent().getPackageName();
         intent.putExtra(LAUNCHED_FROM_HOST, true);
-        intent.setComponent(displayCompatActivity);
         when(mMockInfo.getIntent()).thenReturn(intent);
         when(mMockCarDisplayCompatScaleProvider
-                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
+                .requiresDisplayCompat(eq(packageName), any(int.class)))
                 .thenReturn(true);
 
-        when(mMockInfo.getCallingPackage()).thenReturn("com.displaycompatapp");
+        when(mMockInfo.getCallingPackage()).thenReturn(packageName);
         when(mMockInfo.getCallingPid()).thenReturn(1);
         when(mMockInfo.getCallingUid()).thenReturn(2);
         when(mMockContext.checkPermission(PERMISSION_DISPLAY_COMPATIBILITY, 1, 2))
@@ -225,5 +220,71 @@ public class CarDisplayCompatActivityInterceptorTest {
         Intent launchIntent = (Intent) result.getInterceptResult().getIntent()
                 .getExtra(Intent.EXTRA_INTENT);
         assertThat(launchIntent).isNotNull();
+    }
+
+    @Test
+    public void hostActivity_whenNoLaunchDisplayId_launchesOnDefaultDisplay() {
+        Intent intent = getDisplayCompatRequiredActivity();
+        when(mMockInfo.getIntent()).thenReturn(intent);
+
+        ActivityOptions mockActivityOptions = mock(ActivityOptions.class);
+        when(mockActivityOptions.getLaunchDisplayId()).thenReturn(INVALID_DISPLAY);
+        ActivityOptionsWrapper mockActivityOptionsWrapper = mock(ActivityOptionsWrapper.class);
+        when(mockActivityOptionsWrapper.getOptions()).thenReturn(mockActivityOptions);
+        when(mMockInfo.getCheckedOptions()).thenReturn(mockActivityOptionsWrapper);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        assertThat(result.getInterceptResult().getActivityOptions().getLaunchDisplayId())
+                .isEqualTo(DEFAULT_DISPLAY);
+    }
+
+    @Test
+    public void hostActivity_withLaunchDisplayId_launchesOnCorrectDisplay() {
+        Intent intent = getDisplayCompatRequiredActivity();
+        when(mMockInfo.getIntent()).thenReturn(intent);
+
+        ActivityOptions mockActivityOptions = mock(ActivityOptions.class);
+        when(mockActivityOptions.getLaunchDisplayId()).thenReturn(2);
+        ActivityOptionsWrapper mockActivityOptionsWrapper = mock(ActivityOptionsWrapper.class);
+        when(mockActivityOptionsWrapper.getOptions()).thenReturn(mockActivityOptions);
+        when(mMockInfo.getCheckedOptions()).thenReturn(mockActivityOptionsWrapper);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        assertThat(result.getInterceptResult().getActivityOptions().getLaunchDisplayId())
+                .isEqualTo(2);
+    }
+
+    /**
+     * Returns an {@link Intent} associated with an {@link Activity} that does not need to run in
+     * display compat mode.
+     */
+    private Intent getNoDisplayCompatRequiredActivity() {
+        ComponentName displayCompatActivity =
+                ComponentName.unflattenFromString("com.test/.NoDisplayCompatRequiredActivity");
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(displayCompatActivity);
+        when(mMockCarDisplayCompatScaleProvider
+                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
+                .thenReturn(false);
+        return intent;
+    }
+
+    /**
+     * Returns an {@link Intent} associated with an {@link Activity} that needs to run in
+     * display compat mode.
+     */
+    private Intent getDisplayCompatRequiredActivity() {
+        ComponentName displayCompatActivity =
+                ComponentName.unflattenFromString("com.test/.DisplayCompatRequiredActivity");
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(displayCompatActivity);
+        when(mMockCarDisplayCompatScaleProvider
+                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
+                .thenReturn(true);
+        return intent;
     }
 }
