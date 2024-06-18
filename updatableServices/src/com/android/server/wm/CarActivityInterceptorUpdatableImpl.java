@@ -28,6 +28,7 @@ import android.os.RemoteException;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
+import android.util.SparseArray;
 
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
@@ -53,9 +54,14 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
     private final ArrayMap<ComponentName, IBinder> mActivityToRootTaskMap = new ArrayMap<>();
     @GuardedBy("mLock")
     private final Set<IBinder> mKnownRootTasks = new ArraySet<>();
+    @NonNull
     private final CarActivityInterceptorInterface mBuiltIn;
+    @GuardedBy("mLock")
+    @NonNull
+    private final SparseArray<CarActivityInterceptorUpdatable> mInterceptors = new SparseArray<>();
 
-    public CarActivityInterceptorUpdatableImpl(CarActivityInterceptorInterface builtInInterface) {
+    public CarActivityInterceptorUpdatableImpl(
+            @NonNull CarActivityInterceptorInterface builtInInterface) {
         mBuiltIn = builtInInterface;
     }
 
@@ -90,8 +96,47 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 return ActivityInterceptResultWrapper.create(info.getIntent(),
                         optionsWrapper.getOptions());
             }
+
+            for (int i = 0; i < mInterceptors.size(); i++) {
+                CarActivityInterceptorUpdatable interceptor = mInterceptors.valueAt(i);
+                ActivityInterceptResultWrapper result = interceptor.onInterceptActivityLaunch(info);
+                if (result != null) {
+                    return result;
+                }
+            }
         }
+
         return null;
+    }
+
+    /**
+     * Register a {@link CarActivityInterceptorUpdatable} at the given index
+     *
+     * @param index the index at which the interceptor will get called.
+     * lower numbers have higher priority. It cannot be negative.
+     */
+    public void registerInterceptor(int index,
+            @NonNull CarActivityInterceptorUpdatable interceptor) {
+        synchronized (mLock) {
+            if (mInterceptors.contains(index)) {
+                throw new IllegalArgumentException("Another interceptor is registered at index: "
+                        + index);
+            }
+            mInterceptors.put(index, interceptor);
+        }
+    }
+
+    /**
+     * Unregisters a {@link CarActivityInterceptorUpdatable}
+     */
+    public void unregisterInterceptor(int index) {
+        synchronized (mLock) {
+            if (!mInterceptors.contains(index)) {
+                throw new IllegalArgumentException(
+                        "No interceptor is registered at index: " + index);
+            }
+            mInterceptors.remove(index);
+        }
     }
 
     private boolean isRootTaskDisplayIdSameAsLaunchDisplayId(IBinder rootTaskToken,
@@ -126,6 +171,10 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
         TaskWrapper rootTask = TaskWrapper.createFromToken(rootTaskToken);
         if (rootTask == null) {
             Slogf.w(TAG, "Root task not found.");
+            return false;
+        }
+        if (rootTask.getTaskDisplayArea() == null) {
+            Slogf.w(TAG, "Root task's DisplayArea not found.");
             return false;
         }
         int userIdFromActivity = activityInterceptorInfoWrapper.getUserId();
@@ -223,6 +272,19 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 for (int i = 0; i < mActivityToRootTaskMap.size(); i++) {
                     writer.println("Activity name: " + mActivityToRootTaskMap.keyAt(i)
                             + " - Binder object: " + mActivityToRootTaskMap.valueAt(i));
+                }
+            }
+        }
+        writer.decreaseIndent();
+        writer.println("Activity interceptors:");
+        writer.increaseIndent();
+        synchronized (mLock) {
+            if (mInterceptors.size() == 0) {
+                writer.println("No registered activity interceptors.");
+            } else {
+                for (int i = 0; i < mInterceptors.size(); i++) {
+                    CarActivityInterceptorUpdatable interceptor = mInterceptors.valueAt(i);
+                    writer.println("Interceptor " + interceptor + " is registered at index " + i);
                 }
             }
         }
