@@ -353,7 +353,8 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mConfig.setScaleFactor(key, 0.5f);
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package2", CURRENT_USER)).isNull();
+        assertThat(mImpl.getCompatScale("package2", CURRENT_USER).getDensityScaleFactor())
+                .isEqualTo(DEFAULT_SCALE);
     }
 
     @Test
@@ -382,7 +383,8 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
 
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER)).isNull();
+        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER).getDensityScaleFactor())
+                .isEqualTo(DEFAULT_SCALE);
     }
 
     @Test
@@ -420,8 +422,10 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
 
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER)).isNull();
-        assertThat(mImpl.getCompatScale("package2", CURRENT_USER)).isNull();
+        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER).getDensityScaleFactor())
+                .isEqualTo(DEFAULT_SCALE);
+        assertThat(mImpl.getCompatScale("package2", CURRENT_USER).getDensityScaleFactor())
+                .isEqualTo(DEFAULT_SCALE);
     }
 
     @Test
@@ -557,7 +561,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     public void packageOptOut_withoutScaling() {
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
         CarDisplayCompatConfig.Key key =
-                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1", CURRENT_USER);
+                new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1",
+                        UserHandle.ALL.getIdentifier());
+
         assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(OPT_OUT);
     }
 
