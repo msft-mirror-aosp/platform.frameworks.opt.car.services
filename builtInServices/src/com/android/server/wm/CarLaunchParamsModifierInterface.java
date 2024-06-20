@@ -51,7 +51,7 @@ public interface CarLaunchParamsModifierInterface {
      * Returns the list of fallback {@link TaskDisplayAreaWrapper} from the source of the request.
      */
     @NonNull List<TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(
-            @NonNull ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request);
+            @Nullable ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request);
 
     /**
      * @return a pair of the current userId and the target userId.
