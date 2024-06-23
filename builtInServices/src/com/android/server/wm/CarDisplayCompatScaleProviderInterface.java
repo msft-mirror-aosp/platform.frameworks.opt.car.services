@@ -16,8 +16,10 @@
 
 package com.android.server.wm;
 
+import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
+import android.content.pm.ApplicationInfo;
 
 /**
  * Interface implemented by {@link com.android.server.wm.CarDisplayCompatScaleProvider} and
@@ -34,4 +36,10 @@ public interface CarDisplayCompatScaleProviderInterface {
      * the detail.
      */
     int getMainDisplayAssignedToUser(@UserIdInt int userId);
+
+    /**
+     * returns true if the given application has {@code PackageManager#PRIVATE_FLAG_PRIVILEGED}
+     * false otherwise.
+     */
+    boolean isPrivileged(@NonNull ApplicationInfo applicationInfo);
 }

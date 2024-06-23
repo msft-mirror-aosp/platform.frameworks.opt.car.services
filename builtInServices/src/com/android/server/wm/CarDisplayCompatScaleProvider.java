@@ -15,6 +15,8 @@
  */
 package com.android.server.wm;
 
+import static android.content.pm.ApplicationInfo.PRIVATE_FLAG_PRIVILEGED;
+
 import static com.android.server.wm.CompatScaleProvider.COMPAT_SCALE_MODE_PRODUCT;
 
 import android.annotation.NonNull;
@@ -23,6 +25,7 @@ import android.app.ActivityTaskManager;
 import android.car.builtin.util.Slogf;
 import android.car.feature.Flags;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageManager;
 import android.content.res.CompatScaleWrapper;
 import android.content.res.CompatibilityInfo.CompatScale;
@@ -40,7 +43,7 @@ import com.android.server.pm.UserManagerInternal;
  */
 public final class CarDisplayCompatScaleProvider implements CompatScaleProvider {
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
-    public static final String AUTOENHANCE_SYSTEM_FEATURE = "android.car.displaycompatibility";
+    public static final String DISPLAYCOMPAT_SYSTEM_FEATURE = "android.car.displaycompatibility";
 
     private CarDisplayCompatScaleProviderUpdatable mCarCompatScaleProviderUpdatable;
     private ActivityTaskManagerService mAtms;
@@ -54,7 +57,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             return;
         }
         PackageManager packageManager = context.getPackageManager();
-        if (packageManager.hasSystemFeature(AUTOENHANCE_SYSTEM_FEATURE)) {
+        if (packageManager.hasSystemFeature(DISPLAYCOMPAT_SYSTEM_FEATURE)) {
             mAtms = (ActivityTaskManagerService) ActivityTaskManager.getService();
             mAtms.registerCompatScaleProvider(COMPAT_SCALE_MODE_PRODUCT, this);
             Slogf.i(TAG, "registered Car service as a CompatScaleProvider.");
@@ -92,6 +95,11 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             public int getMainDisplayAssignedToUser(int userId) {
                 return LocalServices.getService(UserManagerInternal.class)
                         .getMainDisplayAssignedToUser(userId);
+            }
+
+            @Override
+            public boolean isPrivileged(ApplicationInfo applicationInfo) {
+                return (applicationInfo.privateFlags & PRIVATE_FLAG_PRIVILEGED) != 0;
             }
         };
     }

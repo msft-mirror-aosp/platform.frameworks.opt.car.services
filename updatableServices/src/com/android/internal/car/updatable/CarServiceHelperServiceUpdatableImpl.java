@@ -29,6 +29,7 @@ import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
 import android.content.ServiceConnection;
+import android.os.Binder;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -48,6 +49,7 @@ import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
+import com.android.server.wm.CarDisplayCompatActivityInterceptor;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
@@ -129,7 +131,10 @@ public final class CarServiceHelperServiceUpdatableImpl
                 new CarDisplayCompatScaleProviderUpdatableImpl(
                     mContext,
                     (CarDisplayCompatScaleProviderInterface) interfaces
-                        .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+                            .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+        mCarActivityInterceptorUpdatable.registerInterceptor(0,
+                new CarDisplayCompatActivityInterceptor(context,
+                        mCarDisplayCompatScaleProviderUpdatable));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -385,7 +390,8 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public boolean requiresDisplayCompat(String packageName) {
-            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName);
+            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
+                    Binder.getCallingUserHandle().getIdentifier());
         }
     }
 
