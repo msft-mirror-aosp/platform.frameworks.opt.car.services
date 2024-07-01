@@ -16,7 +16,6 @@
 
 package com.android.server.wm;
 
-import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
@@ -391,10 +390,10 @@ public final class CarLaunchParamsModifierUpdatableImpl
     @GuardedBy("mLock")
     @Nullable
     private TaskDisplayAreaWrapper getAlternativeDisplayAreaForPassengerLocked(int userId,
-            @NonNull ActivityRecordWrapper activtyRecord, @Nullable RequestWrapper request) {
+            @Nullable ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request) {
         if (DBG) Slogf.d(TAG, "getAlternativeDisplayAreaForPassengerLocked:%d", userId);
         List<TaskDisplayAreaWrapper> fallbacks = mBuiltin.getFallbackDisplayAreasForActivity(
-                activtyRecord, request);
+                activityRecord, request);
         for (int i = 0, size = fallbacks.size(); i < size; ++i) {
             TaskDisplayAreaWrapper fallbackTda = fallbacks.get(i);
             int userForDisplay = getUserIdForDisplayLocked(fallbackTda.getDisplay().getDisplayId());
