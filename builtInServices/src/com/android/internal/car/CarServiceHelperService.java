@@ -622,7 +622,8 @@ public class CarServiceHelperService extends SystemService
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
-                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
+                /* criticalEventSection= */ null, /* extraHeaders= */ null,
+                 Runnable::run, /* latencyTracker= */ null);
     }
 
     @Override
