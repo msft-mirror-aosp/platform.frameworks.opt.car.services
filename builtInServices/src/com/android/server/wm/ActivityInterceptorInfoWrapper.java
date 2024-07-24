@@ -13,17 +13,12 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.android.server.wm;
 
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
-import android.car.builtin.annotation.PlatformVersion;
+import android.annotation.UserIdInt;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
-import android.os.Build;
-
-import com.android.annotation.AddedIn;
 
 /**
  * A wrapper over {@link com.android.server.wm.ActivityInterceptorCallback.ActivityInterceptorInfo}.
@@ -45,41 +40,38 @@ public final class ActivityInterceptorInfoWrapper {
      * @param interceptorInfo the original interceptorInfo that needs to be wrapped.
      * @hide
      */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public static ActivityInterceptorInfoWrapper create(
             ActivityInterceptorCallback.ActivityInterceptorInfo interceptorInfo) {
         return new ActivityInterceptorInfoWrapper(interceptorInfo);
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public Intent getIntent() {
         return mActivityInterceptorInfo.getIntent();
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public ActivityInfo getActivityInfo() {
         return mActivityInterceptorInfo.getActivityInfo();
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public ActivityOptionsWrapper getCheckedOptions() {
         return ActivityOptionsWrapper.create(mActivityInterceptorInfo.getCheckedOptions());
 
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     public String getCallingPackage() {
         return mActivityInterceptorInfo.getCallingPackage();
     }
 
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
+    @UserIdInt
     public int getUserId() {
         return mActivityInterceptorInfo.getUserId();
+    }
+
+    public int getCallingUid() {
+        return mActivityInterceptorInfo.getCallingUid();
+    }
+
+    public int getCallingPid() {
+        return mActivityInterceptorInfo.getCallingPid();
     }
 }

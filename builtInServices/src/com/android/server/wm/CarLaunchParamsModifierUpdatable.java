@@ -16,14 +16,10 @@
 
 package com.android.server.wm;
 
-import android.annotation.RequiresApi;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.builtin.annotation.PlatformVersion;
 import android.hardware.display.DisplayManager;
-import android.os.Build;
 
-import com.android.annotation.AddedIn;
 
 /**
  * Updatable interface of CarLaunchParamsModifier.
@@ -33,30 +29,23 @@ import com.android.annotation.AddedIn;
 public interface CarLaunchParamsModifierUpdatable {
 
     /** Returns {@link DisplayManager.DisplayListener} of CarLaunchParamsModifierUpdatable. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     DisplayManager.DisplayListener getDisplayListener();
 
     /** Notifies user switching. */
-    @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
-    @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     void handleUserVisibilityChanged(@UserIdInt int userId, boolean visible);
 
     /** Notifies user switching. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void handleCurrentUserSwitching(@UserIdInt int newUserId);
 
     /** Notifies user starting. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void handleUserStarting(@UserIdInt int startingUser);
 
     /** Notifies user stopped. */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     void handleUserStopped(@UserIdInt int stoppedUser);
 
     /**
      * Calculates {@code outParams} based on the given arguments.
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
      */
-    @AddedIn(PlatformVersion.TIRAMISU_0)
     int calculate(CalculateParams params);
 }

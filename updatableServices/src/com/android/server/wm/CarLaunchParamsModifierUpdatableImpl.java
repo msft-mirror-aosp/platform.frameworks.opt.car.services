@@ -16,13 +16,10 @@
 
 package com.android.server.wm;
 
-import static android.car.PlatformVersion.VERSION_CODES;
-
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
-import android.car.PlatformVersionMismatchException;
 import android.car.app.CarActivityManager;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.Slogf;
@@ -38,12 +35,10 @@ import android.util.SparseIntArray;
 import android.view.Display;
 
 import com.android.car.internal.util.IndentingPrintWriter;
-import com.android.car.internal.util.VersionUtils;
 import com.android.internal.annotations.GuardedBy;
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 
 /**
@@ -83,12 +78,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
     /** key: profile user id, value: display id */
     @GuardedBy("mLock")
     private final SparseIntArray mDefaultDisplayForProfileUser = new SparseIntArray();
-
-    @GuardedBy("mLock")
-    private boolean mIsSourcePreferred;
-
-    @GuardedBy("mLock")
-    private List<ComponentName> mSourcePreferredComponents;
 
     /** key: Activity, value: TaskDisplayAreaWrapper */
     @GuardedBy("mLock")
@@ -133,26 +122,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
     }
 
-    /**
-     * Sets {@code sourcePreferred} configuration. When {@code sourcePreferred} is enabled and
-     * there is no pre-assigned display for the Activity, CarLauncherParamsModifier will launch
-     * the Activity in the display of the source. When {@code sourcePreferredComponents} isn't null
-     * the {@code sourcePreferred} is applied for the {@code sourcePreferredComponents} only.
-     *
-     * @param enableSourcePreferred whether to enable sourcePreferred mode
-     * @param sourcePreferredComponents null for all components, or the list of components to apply
-     */
-    public void setSourcePreferredComponents(boolean enableSourcePreferred,
-            @Nullable List<ComponentName> sourcePreferredComponents) {
-        synchronized (mLock) {
-            mIsSourcePreferred = enableSourcePreferred;
-            mSourcePreferredComponents = sourcePreferredComponents;
-            if (mSourcePreferredComponents != null) {
-                Collections.sort(mSourcePreferredComponents);
-            }
-        }
-    }
-
     @Override
     public void handleUserVisibilityChanged(int userId, boolean visible) {
         synchronized (mLock) {
@@ -169,9 +138,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
     }
 
     private int getCurrentOrTargetUserId() {
-        if (!VersionUtils.isPlatformVersionAtLeastU()) {
-            throw new PlatformVersionMismatchException(VERSION_CODES.UPSIDE_DOWN_CAKE_0);
-        }
         Pair<Integer, Integer> currentAndTargetUserIds = mBuiltin.getCurrentAndTargetUserIds();
         int currentUserId = currentAndTargetUserIds.first;
         int targetUserId = currentAndTargetUserIds.second;
@@ -319,7 +285,10 @@ public final class CarLaunchParamsModifierUpdatableImpl
         TaskDisplayAreaWrapper originalDisplayArea = currentParams.getPreferredTaskDisplayArea();
         // DisplayArea where CarLaunchParamsModifier targets to launch the Activity.
         TaskDisplayAreaWrapper targetDisplayArea = null;
-        ComponentName activityName = activity.getComponentName();
+        ComponentName activityName = null;
+        if (activity != null) {
+            activityName = activity.getComponentName();
+        }
         if (DBG) {
             Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s actvity:%s options:%s",
                     userId, originalDisplayArea, activityName, options);
@@ -338,12 +307,6 @@ public final class CarLaunchParamsModifierUpdatableImpl
             }
             if (mPersistentActivities.containsKey(activityName)) {
                 targetDisplayArea = mPersistentActivities.get(activityName);
-            } else if (originalDisplayArea == null  // No specified DA to launch the Activity
-                    && mIsSourcePreferred && source != null
-                    && (mSourcePreferredComponents == null || Collections.binarySearch(
-                    mSourcePreferredComponents, activityName) >= 0)) {
-                targetDisplayArea = source.isNoDisplay() ? source.getHandoverTaskDisplayArea()
-                        : source.getDisplayArea();
             } else if (originalDisplayArea == null
                     && task == null  // launching as a new task
                     && source != null && !source.isDisplayTrusted()
@@ -404,8 +367,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
             Slogf.i(TAG, "Changed launching display, user:%d requested display area:%s"
                     + " target display area:%s", userId, originalDisplayArea, targetDisplayArea);
             outParams.setPreferredTaskDisplayArea(targetDisplayArea);
-            if (VersionUtils.isPlatformVersionAtLeastU()
-                    && options != null
+            if (options != null
                     && options.getLaunchWindowingMode()
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
@@ -423,10 +385,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
         if (userForDisplay != UserManagerHelper.USER_NULL) {
             return userForDisplay;
         }
-        if (VersionUtils.isPlatformVersionAtLeastU()) {
-            userForDisplay = mBuiltin.getUserAssignedToDisplay(displayId);
-        }
-        return userForDisplay;
+        return mBuiltin.getUserAssignedToDisplay(displayId);
     }
 
     @GuardedBy("mLock")
@@ -473,14 +432,13 @@ public final class CarLaunchParamsModifierUpdatableImpl
             int displayId = mDefaultDisplayForProfileUser.get(userId);
             return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
         }
-        if (VersionUtils.isPlatformVersionAtLeastU()) {
-            int displayId = mBuiltin.getMainDisplayAssignedToUser(userId);
-            if (displayId != Display.INVALID_DISPLAY) {
-                return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
-            }
+        int displayId = mBuiltin.getMainDisplayAssignedToUser(userId);
+        if (displayId != Display.INVALID_DISPLAY) {
+            return mBuiltin.getDefaultTaskDisplayAreaOnDisplay(displayId);
         }
+
         if (!mPassengerDisplays.isEmpty()) {
-            int displayId = mPassengerDisplays.get(0);
+            displayId = mPassengerDisplays.get(0);
             if (DBG) {
                 Slogf.d(TAG, "fallbackDisplayAreaForUserLocked: userId=%d, displayId=%d",
                         userId, displayId);
