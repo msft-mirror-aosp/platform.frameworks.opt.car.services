@@ -40,8 +40,8 @@ import org.mockito.Captor;
 import org.mockito.Mock;
 
 @RunWith(AndroidJUnit4.class)
-public class OverlayDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
-    private OverlayDisplayMonitor mOverlayDisplayMonitor;
+public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
+    private ExtraDisplayMonitor mExtraDisplayMonitor;
 
     @Mock
     private DisplayManager mDisplayManager;
@@ -51,19 +51,20 @@ public class OverlayDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     private Display mTestDisplay;
     private final int mTestDisplayId = 1234;
     private final int mTestUserId = 999;
+    private final int mAnotherUserId = 998;
     @Captor
     private ArgumentCaptor<DisplayListener> mDisplayListenerCaptor;
 
     @Before
     public void setUp() {
-        mOverlayDisplayMonitor = new OverlayDisplayMonitor(
+        mExtraDisplayMonitor = new ExtraDisplayMonitor(
                 mDisplayManager, /* handler= */ null, mHelper);
         doNothing().when(mDisplayManager).registerDisplayListener(
                 mDisplayListenerCaptor.capture(), any());
         when(mDisplayManager.getDisplay(mTestDisplayId)).thenReturn(mTestDisplay);
 
-        mOverlayDisplayMonitor.init();
-        mOverlayDisplayMonitor.handleCurrentUserSwitching(999);
+        mExtraDisplayMonitor.init();
+        mExtraDisplayMonitor.handleCurrentUserSwitching(mTestUserId);
     }
 
     @Test
@@ -104,5 +105,59 @@ public class OverlayDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
         mDisplayListenerCaptor.getValue().onDisplayRemoved(mTestDisplayId);
 
         verify(mHelper, never()).unassignUserFromExtraDisplay(mTestUserId, mTestDisplayId);
+    }
+
+    @Test
+    public void assignsVirtualDisplayToDriver() {
+        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+
+        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
+
+        verify(mHelper, times(1)).assignUserToExtraDisplay(mTestUserId, mTestDisplayId);
+    }
+
+    @Test
+    public void doesNotAssignNonVirtualDisplayToDriver() {
+        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(false);
+
+        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
+
+        verify(mHelper, never()).assignUserToExtraDisplay(mTestUserId, mTestDisplayId);
+    }
+
+    @Test
+    public void unassignsVirtualDisplayFromDriver() {
+        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+        when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
+
+        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
+        mDisplayListenerCaptor.getValue().onDisplayRemoved(mTestDisplayId);
+
+        verify(mHelper, times(1)).unassignUserFromExtraDisplay(mTestUserId, mTestDisplayId);
+    }
+
+    @Test
+    public void doesNotUnassignsNonVirtualDisplayFromDriver() {
+        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(false);
+        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+        when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
+
+        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
+        mDisplayListenerCaptor.getValue().onDisplayRemoved(mTestDisplayId);
+
+        verify(mHelper, never()).unassignUserFromExtraDisplay(mTestUserId, mTestDisplayId);
+    }
+
+    @Test
+    public void doesNotAssignAnotherUserVirtualDisplayToDriver() {
+        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mAnotherUserId);
+        when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
+
+        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
+
+        verify(mHelper, never()).assignUserToExtraDisplay(mTestUserId, mTestDisplayId);
     }
 }

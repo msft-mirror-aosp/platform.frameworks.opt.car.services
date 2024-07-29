@@ -65,8 +65,14 @@ public interface CarServiceHelperInterface {
     /** See {@link android.os.UserManager#isVisibleBackgroundUsersEnabled()}. */
     boolean isVisibleBackgroundUsersEnabled();
 
-    /** Returns true if the given displayId is OverlayDisplay's.*/
+    /** Returns true if the given displayId is OverlayDisplay's. */
     boolean isOverlayDisplay(int displayId);
+
+    /** Returns true if the given displayId is VirtualDisplay's. */
+    boolean isVirtualDisplay(int displayId);
+
+    /** Returns the owner user id for a given displayId. */
+    int getOwnerUserIdOnDisplay(int displayId);
 
     /**
      * Dumps service stacks
