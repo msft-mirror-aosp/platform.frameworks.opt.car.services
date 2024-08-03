@@ -17,9 +17,11 @@ package com.android.internal.car {
     method @Nullable public java.io.File dumpServiceStacks();
     method public int fetchAidlVhalPid();
     method public int getMainDisplayAssignedToUser(int);
+    method public int getOwnerUserIdForDisplay(int);
     method public int getProcessGroup(int);
     method public int getUserAssignedToDisplay(int);
-    method public boolean isOverlayDisplay(int);
+    method public boolean isPublicOverlayDisplay(int);
+    method public boolean isPublicVirtualDisplay(int);
     method public boolean isVisibleBackgroundUsersEnabled();
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
