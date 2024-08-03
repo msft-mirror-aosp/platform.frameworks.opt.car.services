@@ -807,7 +807,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public boolean isOverlayDisplay(int displayId) {
+    public boolean isPublicOverlayDisplay(int displayId) {
         Display display = mDisplayManager.getDisplay(displayId);
         if (display == null) {
             return false;
@@ -818,7 +818,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public boolean isVirtualDisplay(int displayId) {
+    public boolean isPublicVirtualDisplay(int displayId) {
         Display display = mDisplayManager.getDisplay(displayId);
         if (display == null) {
             return false;
@@ -828,7 +828,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public @UserIdInt int getOwnerUserIdOnDisplay(int displayId) {
+    public @UserIdInt int getOwnerUserIdForDisplay(int displayId) {
         Display display = mDisplayManager.getDisplay(displayId);
         if (display == null) {
             return UserHandle.USER_NULL;

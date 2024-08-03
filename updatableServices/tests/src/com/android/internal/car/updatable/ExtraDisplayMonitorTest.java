@@ -68,8 +68,8 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void assignsOverlayDisplayToDriver() {
-        when(mHelper.isOverlayDisplay(mTestDisplayId)).thenReturn(true);
+    public void onDisplayAdded_overlayDisplay_assignsOverlayDisplayToDriver() {
+        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
 
@@ -77,8 +77,8 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void doesNotAssignNonOverlayDisplayToDriver() {
-        when(mHelper.isOverlayDisplay(mTestDisplayId)).thenReturn(false);
+    public void onDisplayAdded_nonOverlayDisplay_doesNotAssignNonOverlayDisplayToDriver() {
+        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(false);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
 
@@ -86,8 +86,8 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void unassignsOverlayDisplayFromDriver() {
-        when(mHelper.isOverlayDisplay(mTestDisplayId)).thenReturn(true);
+    public void onDisplayRemoved_overlayDisplay_unassignsOverlayDisplayFromDriver() {
+        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(true);
         when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
@@ -97,8 +97,8 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void doesNotUnassignsNonOverlayDisplayFromDriver() {
-        when(mHelper.isOverlayDisplay(mTestDisplayId)).thenReturn(false);
+    public void onDisplayRemoved_nonOverlayDisplay_doesNotUnassignsNonOverlayDisplayFromDriver() {
+        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(false);
         when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
@@ -108,9 +108,9 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void assignsVirtualDisplayToDriver() {
-        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
-        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+    public void onDisplayAdded_virtualDisplay_assignsVirtualDisplayToDriver() {
+        when(mHelper.isPublicVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdForDisplay(mTestDisplayId)).thenReturn(mTestUserId);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
 
@@ -118,8 +118,8 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void doesNotAssignNonVirtualDisplayToDriver() {
-        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(false);
+    public void onDisplayAdded_nonVirtualDisplay_doesNotAssignNonVirtualDisplayToDriver() {
+        when(mHelper.isPublicVirtualDisplay(mTestDisplayId)).thenReturn(false);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
 
@@ -127,9 +127,9 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void unassignsVirtualDisplayFromDriver() {
-        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
-        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+    public void onDisplayRemoved_virtualDisplay_unassignsVirtualDisplayFromDriver() {
+        when(mHelper.isPublicVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdForDisplay(mTestDisplayId)).thenReturn(mTestUserId);
         when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
@@ -139,9 +139,9 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void doesNotUnassignsNonVirtualDisplayFromDriver() {
-        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(false);
-        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mTestUserId);
+    public void onDisplayRemoved_nonVirtualDisplay_doesNotUnassignsNonVirtualDisplayFromDriver() {
+        when(mHelper.isPublicVirtualDisplay(mTestDisplayId)).thenReturn(false);
+        when(mHelper.getOwnerUserIdForDisplay(mTestDisplayId)).thenReturn(mTestUserId);
         when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
@@ -151,9 +151,9 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void doesNotAssignAnotherUserVirtualDisplayToDriver() {
-        when(mHelper.isVirtualDisplay(mTestDisplayId)).thenReturn(true);
-        when(mHelper.getOwnerUserIdOnDisplay(mTestDisplayId)).thenReturn(mAnotherUserId);
+    public void onDisplayAdded_virtualDisplayOfAnotherUser_doesNotAssignVirtualDisplayToDriver() {
+        when(mHelper.isPublicVirtualDisplay(mTestDisplayId)).thenReturn(true);
+        when(mHelper.getOwnerUserIdForDisplay(mTestDisplayId)).thenReturn(mAnotherUserId);
         when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
