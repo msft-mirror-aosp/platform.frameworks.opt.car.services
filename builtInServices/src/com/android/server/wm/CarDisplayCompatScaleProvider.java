@@ -101,6 +101,13 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         mCarCompatScaleProviderUpdatable = carCompatScaleProviderUpdatable;
     }
 
+    /**
+    * Sets the list of allowed app install sources
+    */
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        mCarCompatScaleProviderUpdatable.setAllowedAppInstallSources(allowedAppInstallSources);
+    }
+
     @Nullable
     @Override
     public CompatScale getCompatScale(@NonNull String packageName, int uid) {

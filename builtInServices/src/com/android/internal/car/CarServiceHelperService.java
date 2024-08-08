@@ -836,6 +836,13 @@ public class CarServiceHelperService extends SystemService
         return UserHandle.getUserId(display.getOwnerUid());
     }
 
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mCarDisplayCompatScaleProvider.setAllowedAppInstallSources(allowedAppInstallSources);
+        }
+    }
+
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
         private final WeakReference<CarServiceHelperService> mService;
 

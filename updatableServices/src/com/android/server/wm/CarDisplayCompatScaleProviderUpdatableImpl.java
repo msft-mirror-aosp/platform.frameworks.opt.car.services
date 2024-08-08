@@ -72,6 +72,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.StampedLock;
 
@@ -134,6 +135,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @VisibleForTesting
     @NonNull
     ContentObserver mSettingsContentObserver;
+
+    @NonNull
+    private List<String> mAllowedAppInstallSources;
 
     // TODO(b/345248202): can this be private
     @VisibleForTesting
@@ -247,6 +251,16 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme(DATA_SCHEME_PACKAGE);
         mContext.registerReceiver(mPackageChangeReceiver, filter);
+    }
+
+    /**
+    * Sets the list of allowed app install sources
+    */
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mAllowedAppInstallSources = new ArrayList<>(allowedAppInstallSources);
+        }
     }
 
     @Nullable
@@ -565,6 +579,24 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s is platform signed", packageName);
             }
+            return false;
+        }
+
+        // Opt out if the package is not installed via an allowed install source
+        try {
+            if (mAllowedAppInstallSources != null) {
+                String installerName = mPackageManager.getInstallerPackageName(
+                        packageName);
+                if (installerName == null || (installerName != null
+                        && !mAllowedAppInstallSources.contains(installerName))) {
+                    Slogf.w(TAG,
+                            packageName + " not installed from permitted sources "
+                                    + (installerName == null ? "NULL" : installerName));
+                    return false;
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            Slogf.w(TAG, packageName + " not installed!");
             return false;
         }
 

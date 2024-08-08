@@ -63,6 +63,7 @@ import com.android.server.wm.MediaTemplateActivityInterceptorForSuspension;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
@@ -509,6 +510,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         public boolean requiresDisplayCompatForUser(String packageName, int userId) {
             return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
                     userId);
+        }
+
+        @Override
+        public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+            mCarServiceHelperInterface.setAllowedAppInstallSources(allowedAppInstallSources);
         }
     }
 

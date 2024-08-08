@@ -23,6 +23,7 @@ package com.android.internal.car {
     method public boolean isPublicOverlayDisplay(int);
     method public boolean isPublicVirtualDisplay(int);
     method public boolean isVisibleBackgroundUsersEnabled();
+    method public void setAllowedAppInstallSources(java.util.List<java.lang.String>);
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
@@ -119,6 +120,7 @@ package com.android.server.wm {
   public interface CarDisplayCompatScaleProviderUpdatable {
     method @Nullable public android.content.res.CompatScaleWrapper getCompatScale(@NonNull String, int);
     method public boolean requiresDisplayCompat(@NonNull String, int);
+    method public void setAllowedAppInstallSources(java.util.List<java.lang.String>);
   }
 
   public interface CarLaunchParamsModifierInterface {
