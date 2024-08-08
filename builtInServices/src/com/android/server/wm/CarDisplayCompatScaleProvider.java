@@ -30,6 +30,7 @@ import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
 import static com.android.server.wm.CompatScaleProvider.COMPAT_SCALE_MODE_PRODUCT;
 
 import static java.lang.Math.abs;
+import java.util.ArrayList;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -37,6 +38,7 @@ import android.annotation.UserIdInt;
 import android.app.ActivityManagerInternal;
 import android.app.ActivityTaskManager;
 import android.app.compat.CompatChanges;
+import android.car.builtin.util.Slogf;
 import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
@@ -61,7 +63,6 @@ import android.util.Log;
 
 import com.android.internal.car.CarActivityInterceptor;
 import com.android.server.LocalServices;
-import com.android.server.utils.Slogf;
 
 import org.xmlpull.v1.XmlPullParserException;
 
@@ -113,6 +114,9 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
 
     @NonNull
     private CarActivityInterceptor mActivityInterceptor;
+
+    @NonNull
+    private List<String> mAllowedAppInstallSources;
 
     @NonNull
     private BroadcastReceiver mPackageChangeReceiver = new BroadcastReceiver() {
@@ -203,6 +207,15 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         filter.addDataScheme(DATA_SCHEME_PACKAGE);
         mContext.registerReceiverForAllUsers(mPackageChangeReceiver, filter,
             /* broadcastPermission= */ null, /* scheduler= */ null);
+    }
+
+    /**
+    * Sets the list of allowed app install sources
+    */
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mAllowedAppInstallSources = new ArrayList<>(allowedAppInstallSources);
+        }
     }
 
     @Nullable
@@ -436,6 +449,28 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             if (DBG) {
                 Slogf.d(TAG, "Package %s is platform signed", packageName);
             }
+            return false;
+        }
+
+        // Opt out if the package is not installed via an allowed install source
+        try {
+            if (DBG) {
+                Slogf.d(TAG, "allowedAppInstallSources: " + mAllowedAppInstallSources);
+            }
+
+            if (mAllowedAppInstallSources != null) {
+                String installerName = mPackageManager.getInstallerPackageName(
+                        packageName);
+                if (installerName == null || (installerName != null
+                        && !mAllowedAppInstallSources.contains(installerName))) {
+                    Slogf.w(TAG,
+                            packageName + " not installed from permitted sources "
+                                    + (installerName == null ? "NULL" : installerName));
+                    return false;
+                }
+            }
+        } catch (IllegalArgumentException e) {
+            Slogf.w(TAG, packageName + " not installed!");
             return false;
         }
 

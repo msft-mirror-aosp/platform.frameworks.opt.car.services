@@ -741,6 +741,13 @@ public class CarServiceHelperService extends SystemService
         return mCarDisplayCompatScaleProvider.requiresDisplayCompat(packageName, userId);
     }
 
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mCarDisplayCompatScaleProvider.setAllowedAppInstallSources(allowedAppInstallSources);
+        }
+    }
+
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
         private final WeakReference<CarServiceHelperService> mService;
 

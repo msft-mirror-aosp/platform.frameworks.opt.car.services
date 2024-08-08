@@ -27,6 +27,7 @@ import android.os.UserHandle;
 import com.android.annotation.AddedIn;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * Interface implemented by CarServiceHelperService.
@@ -104,4 +105,10 @@ public interface CarServiceHelperInterface {
      */
     @AddedIn(PlatformVersion.TIRAMISU_0)
     boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId);
+
+    /**
+     * Set allowed app install sources
+     */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
+    void setAllowedAppInstallSources(List<String> allowedAppInstallSources);
 }
