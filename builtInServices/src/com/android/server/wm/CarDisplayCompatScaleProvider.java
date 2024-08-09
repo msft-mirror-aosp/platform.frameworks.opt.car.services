@@ -50,6 +50,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
+import android.content.pm.PackageManagerInternal;
 import android.content.res.CompatibilityInfo.CompatScale;
 import android.database.ContentObserver;
 import android.net.Uri;
@@ -346,6 +347,9 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
 
         // Check if display compatibility is required
         boolean requiresCompat = requiresDisplayCompatNotCachedLocked(packageName, userId);
+
+        PackageManagerInternal pmi = LocalServices.getService(PackageManagerInternal.class);
+        pmi.setDisplayCompat(packageName, userId, requiresCompat);
 
         // If no config was found earlier and compatibility is required, apply default scale
         if (!hasConfig && requiresCompat) {
