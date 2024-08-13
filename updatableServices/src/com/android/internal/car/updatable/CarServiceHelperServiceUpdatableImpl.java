@@ -397,6 +397,16 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
 
         @Override
+        public boolean assignUserToExtraDisplay(int userId, int displayId) {
+            return mCarServiceHelperInterface.assignUserToExtraDisplay(userId, displayId);
+        }
+
+        @Override
+        public boolean unassignUserFromExtraDisplay(int userId, int displayId) {
+            return mCarServiceHelperInterface.unassignUserFromExtraDisplay(userId, displayId);
+        }
+
+        @Override
         public boolean startUserInBackgroundVisibleOnDisplay(int userId, int displayId) {
             return mCarServiceHelperInterface.startUserInBackgroundVisibleOnDisplay(
                     userId, displayId);

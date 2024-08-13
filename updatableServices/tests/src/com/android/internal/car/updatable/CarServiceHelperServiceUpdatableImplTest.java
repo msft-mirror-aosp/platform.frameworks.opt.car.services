@@ -220,6 +220,24 @@ public final class CarServiceHelperServiceUpdatableImplTest
                 .isEqualTo(108);
     }
 
+    @Test
+    public void testAssignUserToExtraDisplay() throws Exception {
+        int userId = 42;
+        int displayId = 37;
+        mCarServiceHelperInterface.assignUserToExtraDisplay(userId, displayId);
+
+        verify(mCarServiceHelperInterface).assignUserToExtraDisplay(userId, displayId);
+    }
+
+    @Test
+    public void testUnassignUserToExtraDisplay() throws Exception {
+        int userId = 42;
+        int displayId = 37;
+        mCarServiceHelperInterface.unassignUserFromExtraDisplay(userId, displayId);
+
+        verify(mCarServiceHelperInterface).unassignUserFromExtraDisplay(userId, displayId);
+    }
+
     private void mockICarBinder() {
         when(ICar.Stub.asInterface(mIBinder)).thenReturn(mICarBinder);
     }
