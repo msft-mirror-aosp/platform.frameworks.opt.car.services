@@ -77,14 +77,7 @@ public final class ActivityResolverTest {
         launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
-        // When the ListView is focusable, it'll be focused after pressing TAB key. In this case,
-        // press the TAB key again to get the first list item focused.
-        UiObject list = mDevice.findObject(
-                new UiSelector().className(android.widget.ListView.class));
-        if (list.isFocusable()) {
-            mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        }
-
+        // Press TAB key to focus first list item
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
         UiObject listItem1 = mDevice.findObject(new UiSelector()
                 .className(android.widget.LinearLayout.class).focusable(true).instance(0));
@@ -110,14 +103,7 @@ public final class ActivityResolverTest {
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
-        // When the ListView is focusable, it'll be focused after pressing TAB key. In this case,
-        // press the TAB key again to get the first listItem focused.
-        UiObject list = mDevice.findObject(
-                new UiSelector().className(android.widget.ListView.class));
-        if (list.isFocusable()) {
-            mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        }
-
+        // Press TAB key to focus first list item
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
         UiObject listItem1 = mDevice.findObject(new UiSelector()
                 .className(android.widget.LinearLayout.class).focusable(true).instance(0));
@@ -165,9 +151,9 @@ public final class ActivityResolverTest {
         launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
-        // Press twice to make sure a list item gets focused.
+        // Press TAB key to focus first list item
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
+
         UiObject listItem = mDevice.findObject(new UiSelector()
                 .className(android.widget.LinearLayout.class).focused(true));
         waitAndAssertFocused(listItem);
@@ -188,19 +174,13 @@ public final class ActivityResolverTest {
                 .className(android.widget.Button.class).focusable(true).enabled(true).instance(1));
         waitAndAssertFocused(alwaysButton);
 
-        // Right now, the focus is on the "Always" button, so to get to the top of the list, click
-        // the View with id of "title" which is a Subview of the default app choice.
-        mDevice.findObject(new UiSelector().resourceId(TITLE_ID)).click();
+        // Currently, the focus is on the Always button. Send four DPAD_UP events to move the focus
+        // back up to the first element of the list.
+        mDevice.pressKeyCode(KeyEvent.KEYCODE_DPAD_UP);
+        mDevice.pressKeyCode(KeyEvent.KEYCODE_DPAD_UP);
+        mDevice.pressKeyCode(KeyEvent.KEYCODE_DPAD_UP);
+        mDevice.pressKeyCode(KeyEvent.KEYCODE_DPAD_UP);
 
-        // When the ListView is focusable, it'll be focused after pressing TAB key. In this case,
-        // press the TAB key again to get the first listItem focused.
-        UiObject list = mDevice.findObject(
-                new UiSelector().className(android.widget.ListView.class));
-        if (list.isFocusable()) {
-            mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        }
-
-        mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
         UiObject listItem1 = mDevice.findObject(new UiSelector()
                 .className(android.widget.LinearLayout.class).focusable(true).instance(0));
         waitAndAssertFocused(listItem1);
@@ -218,14 +198,7 @@ public final class ActivityResolverTest {
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
-
-        // When the ListView is focusable, it'll be focused after pressing TAB key. In this case,
-        // press the TAB key again to get the first listItem focused.
-        UiObject list = mDevice.findObject(
-                new UiSelector().className(android.widget.ListView.class));
-        if (list.isFocusable()) {
-            mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        }
+        // Press TAB key to focus first list item
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
 
         UiObject listItem = mDevice.findObject(new UiSelector()
@@ -245,13 +218,7 @@ public final class ActivityResolverTest {
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
-        // When the ListView is focusable, it needs 4 rotations to focus on the justOnceButton.
-        // Otherwise, it needs 3 rotations.
-        UiObject list = mDevice.findObject(
-                new UiSelector().className(android.widget.ListView.class));
-        if (list.isFocusable()) {
-            mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
-        }
+        // Press TAB key thrice to focus justOnceButton
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
         mDevice.pressKeyCode(KeyEvent.KEYCODE_TAB);
