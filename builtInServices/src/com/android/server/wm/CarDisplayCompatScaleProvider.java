@@ -201,7 +201,8 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         filter.addAction(Intent.ACTION_PACKAGE_REPLACED);
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme(DATA_SCHEME_PACKAGE);
-        mContext.registerReceiver(mPackageChangeReceiver, filter);
+        mContext.registerReceiverForAllUsers(mPackageChangeReceiver, filter,
+            /* broadcastPermission= */ null, /* scheduler= */ null);
     }
 
     @Nullable
