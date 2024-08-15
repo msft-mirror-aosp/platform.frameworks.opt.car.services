@@ -54,6 +54,7 @@ import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
 import com.android.server.wm.CarDisplayCompatActivityInterceptor;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
+import com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
@@ -112,7 +113,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarDisplayCompatScaleProviderUpdatableImpl
             mCarDisplayCompatScaleProviderUpdatable;
 
-    private OverlayDisplayMonitor mOverlayDisplayMonitor;
+    private ExtraDisplayMonitor mExtraDisplayMonitor;
 
     /**
      * This constructor is meant to be called using reflection by the builtin service and hence it
@@ -139,6 +140,9 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarActivityInterceptorUpdatable.registerInterceptor(0,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
+        // Interceptor for the launch on a private display
+        mCarActivityInterceptorUpdatable.registerInterceptor(1,
+                new CarLaunchOnPrivateDisplayActivityInterceptor(context));
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -148,7 +152,7 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         if (mCarServiceHelperInterface.isVisibleBackgroundUsersEnabled()) {
             DisplayManager displayManager = mContext.getSystemService(DisplayManager.class);
-            mOverlayDisplayMonitor = new OverlayDisplayMonitor(
+            mExtraDisplayMonitor = new ExtraDisplayMonitor(
                     displayManager, mHandler, mCarServiceHelperInterface);
         }
     }
@@ -174,8 +178,8 @@ public final class CarServiceHelperServiceUpdatableImpl
                 mCarServiceConnection)) {
             Slogf.wtf(TAG, "cannot start car service");
         }
-        if (mOverlayDisplayMonitor != null) {
-            mOverlayDisplayMonitor.init();
+        if (mExtraDisplayMonitor != null) {
+            mExtraDisplayMonitor.init();
         }
     }
 
@@ -299,9 +303,9 @@ public final class CarServiceHelperServiceUpdatableImpl
                 userFrom == null ? UserManagerHelper.USER_NULL : userFrom.getIdentifier(),
                 userTo.getIdentifier());
         if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
-            if (mOverlayDisplayMonitor != null) {
+            if (mExtraDisplayMonitor != null) {
                 // TODO: b/341156326 - Consider how to handle OverlayDisplay for passengers.
-                mOverlayDisplayMonitor.handleCurrentUserSwitching(userTo.getIdentifier());
+                mExtraDisplayMonitor.handleCurrentUserSwitching(userTo.getIdentifier());
             }
             mCarDisplayCompatScaleProviderUpdatable.handleCurrentUserSwitching(userTo);
         }
@@ -390,6 +394,16 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public int getUserAssignedToDisplay(int displayId) {
             return mCarServiceHelperInterface.getUserAssignedToDisplay(displayId);
+        }
+
+        @Override
+        public boolean assignUserToExtraDisplay(int userId, int displayId) {
+            return mCarServiceHelperInterface.assignUserToExtraDisplay(userId, displayId);
+        }
+
+        @Override
+        public boolean unassignUserFromExtraDisplay(int userId, int displayId) {
+            return mCarServiceHelperInterface.unassignUserFromExtraDisplay(userId, displayId);
         }
 
         @Override

@@ -18,6 +18,7 @@ package com.android.internal.car;
 import static android.view.Display.FLAG_PRIVATE;
 import static android.view.Display.FLAG_TRUSTED;
 import static android.view.Display.TYPE_OVERLAY;
+import static android.view.Display.TYPE_VIRTUAL;
 
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
@@ -210,7 +211,9 @@ public class CarServiceHelperService extends SystemService
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
-                /* carDevicePolicySafetyChecker= */ null
+                /* carDevicePolicySafetyChecker= */ null,
+                new CarActivityInterceptor(),
+                new CarDisplayCompatScaleProvider(context)
         );
     }
 
@@ -220,15 +223,17 @@ public class CarServiceHelperService extends SystemService
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
-            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
+            @Nullable CarActivityInterceptor carActivityInterceptor,
+            @Nullable CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
         super(context);
 
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
-        mCarActivityInterceptor = new CarActivityInterceptor();
-        mCarDisplayCompatScaleProvider = new CarDisplayCompatScaleProvider();
+        mCarActivityInterceptor = carActivityInterceptor;
+        mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
@@ -315,6 +320,15 @@ public class CarServiceHelperService extends SystemService
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
+            // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
+            // to cache the package states early before user starts interacting with apps.
+            // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init();
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
@@ -327,12 +341,6 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
-            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
-                    ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mContext);
             t.traceEnd();
         }
     }
@@ -615,7 +623,8 @@ public class CarServiceHelperService extends SystemService
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
-                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
+                /* criticalEventSection= */ null, /* extraHeaders= */ null,
+                 Runnable::run, /* latencyTracker= */ null);
     }
 
     @Override
@@ -798,7 +807,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public boolean isOverlayDisplay(int displayId) {
+    public boolean isPublicOverlayDisplay(int displayId) {
         Display display = mDisplayManager.getDisplay(displayId);
         if (display == null) {
             return false;
@@ -806,6 +815,25 @@ public class CarServiceHelperService extends SystemService
         int displayFlags = display.getFlags();
         return ((displayFlags & FLAG_PRIVATE) == 0 && (displayFlags & FLAG_TRUSTED) != 0
                 && display.getType() == TYPE_OVERLAY);
+    }
+
+    @Override
+    public boolean isPublicVirtualDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return false;
+        }
+        int displayFlags = display.getFlags();
+        return ((displayFlags & FLAG_PRIVATE) == 0 && display.getType() == TYPE_VIRTUAL);
+    }
+
+    @Override
+    public @UserIdInt int getOwnerUserIdForDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return UserHandle.USER_NULL;
+        }
+        return UserHandle.getUserId(display.getOwnerUid());
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
