@@ -1,0 +1,8 @@
+{
+  // Once the test proves stable, we will promote it to auto-presubmit
+  "auto-postsubmit": [
+    {
+      "name": "FrameworkOptCarServicesUpdatableTest"
+    }
+  ]
+}
