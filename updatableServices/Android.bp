@@ -18,8 +18,8 @@ java_library {
     installable: true,
     libs: [
             "android.car",
-            "android.car.builtin",
-            "car-frameworks-service",
+            "android.car.builtin.stubs.module_lib",
+            "car-frameworks-service.stubs.module_lib",
             "framework-annotations-lib",
     ],
     srcs: [
