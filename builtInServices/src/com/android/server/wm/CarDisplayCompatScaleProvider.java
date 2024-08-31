@@ -41,6 +41,7 @@ import android.car.builtin.util.Slogf;
 import android.car.feature.Flags;
 import android.content.ContentResolver;
 import android.content.Context;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.PackageInfoFlags;
@@ -52,6 +53,8 @@ import android.util.Pair;
 
 import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerInternal;
+
+import java.util.List;
 
 /**
  * Automotive implementation of {@link CompatScaleProvider}
@@ -192,6 +195,14 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                     return 0.3f;
                 }
                 return 1f;
+            }
+
+            @NonNull
+            @Override
+            public List<ApplicationInfo> getInstalledApplicationsAsUser(
+                    @NonNull PackageManager.ApplicationInfoFlags flags,
+                    int userId) {
+                return mPackageManager.getInstalledApplicationsAsUser(flags, userId);
             }
         };
     }
