@@ -12,16 +12,20 @@ package android.content.res {
 package com.android.internal.car {
 
   public interface CarServiceHelperInterface {
+    method public boolean assignUserToExtraDisplay(int, int);
     method @Nullable public android.os.UserHandle createUserEvenWhenDisallowed(@Nullable String, @NonNull String, int);
     method @Nullable public java.io.File dumpServiceStacks();
     method public int fetchAidlVhalPid();
     method public int getMainDisplayAssignedToUser(int);
     method public int getProcessGroup(int);
     method public int getUserAssignedToDisplay(int);
+    method public boolean isOverlayDisplay(int);
+    method public boolean isVisibleBackgroundUsersEnabled();
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
     method public boolean startUserInBackgroundVisibleOnDisplay(int, int);
+    method public boolean unassignUserFromExtraDisplay(int, int);
   }
 
   public interface CarServiceHelperServiceUpdatable {
@@ -29,7 +33,7 @@ package com.android.internal.car {
     method public com.android.server.wm.CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
     method public com.android.server.wm.CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
     method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
-    method public void initBootUser();
+    method public void notifyFocusChanged(int, int);
     method public void onFactoryReset(@NonNull java.util.function.BiConsumer<java.lang.Integer,android.os.Bundle>);
     method public void onStart();
     method public void onUserRemoved(@NonNull android.os.UserHandle);
@@ -98,8 +102,12 @@ package com.android.server.wm {
   }
 
   public interface CarDisplayCompatScaleProviderInterface {
+    method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
+    method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method public int getMainDisplayAssignedToUser(int);
-    method public boolean isPrivileged(@NonNull android.content.pm.ApplicationInfo);
+    method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
+    method @Nullable public String getStringForUser(android.content.ContentResolver, String, int);
+    method public boolean putStringForUser(android.content.ContentResolver, String, String, int);
   }
 
   public interface CarDisplayCompatScaleProviderUpdatable {

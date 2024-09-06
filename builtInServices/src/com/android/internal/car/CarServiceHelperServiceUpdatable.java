@@ -48,8 +48,6 @@ public interface CarServiceHelperServiceUpdatable {
 
     void onFactoryReset(@NonNull BiConsumer<Integer, Bundle> processFactoryReset);
 
-    void initBootUser();
-
     CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
 
     CarActivityInterceptorUpdatable getCarActivityInterceptorUpdatable();
@@ -58,4 +56,9 @@ public interface CarServiceHelperServiceUpdatable {
      * @return updatable implemtantion of CarDisplayCompatScaleProvider
      */
     CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
+
+    /**
+     * Notifies CarService that a Window focus is changed.
+     */
+    void notifyFocusChanged(int pid, int uid);
 }
