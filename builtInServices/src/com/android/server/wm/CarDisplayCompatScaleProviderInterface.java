@@ -21,12 +21,15 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.content.ContentResolver;
+import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.PackageInfoFlags;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.Pair;
+
+import java.util.List;
 
 /**
  * Interface implemented by {@link com.android.server.wm.CarDisplayCompatScaleProvider} and
@@ -60,6 +63,14 @@ public interface CarDisplayCompatScaleProviderInterface {
     PackageInfo getPackageInfoAsUser(@NonNull String packageName,
             @NonNull PackageInfoFlags flags, @UserIdInt int userId)
             throws PackageManager.NameNotFoundException;
+
+    /**
+     * See {@link PackageManager#getInstalledApplicationsAsUser(PackageManager.ApplicationInfoFlags,
+     * int)} for details.
+     */
+    @NonNull
+    List<ApplicationInfo> getInstalledApplicationsAsUser(
+            @NonNull PackageManager.ApplicationInfoFlags flags, @UserIdInt int userId);
 
     /**
      * See {@link Settings.Secure#getStringForUser(ContentResolver, String, int)}
