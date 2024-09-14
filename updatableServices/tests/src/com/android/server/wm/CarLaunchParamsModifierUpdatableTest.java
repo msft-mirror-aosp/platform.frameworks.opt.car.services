@@ -120,6 +120,8 @@ public class CarLaunchParamsModifierUpdatableTest {
     private InputManagerService mInputManagerService;
     @Mock
     private UserManagerInternal mUserManagerInternal;
+    @Mock
+    private AppCompatConfiguration mAppCompatConfiguration;
 
     @Mock
     private Display mDisplay0ForDriver;
@@ -213,7 +215,8 @@ public class CarLaunchParamsModifierUpdatableTest {
                 mContext, mInputManagerService, /* showBootMsgs= */ false, /* policy= */ null,
                 mActivityTaskManagerService,
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
-                /* surfaceControlFactory= */ null);
+                /* surfaceControlFactory= */ null,
+                /* appCompatConfiguration= */ mAppCompatConfiguration);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
         mRootWindowContainer.mWindowManager = mWindowManagerService;
 
