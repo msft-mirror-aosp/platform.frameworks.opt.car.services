@@ -15,11 +15,16 @@
  */
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
+import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
 
 import static org.mockito.Mockito.any;
 import static org.mockito.Mockito.anyInt;
+import static org.mockito.Mockito.eq;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 
@@ -69,22 +74,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void testInitBootUser_CarServiceNotNull() throws RemoteException {
-        connectToCarService();
-
-        callInitBootUser();
-
-        verifyInitBootUserCalled();
-    }
-
-    @Test
-    public void testInitBootUser_CarServiceNull() throws RemoteException {
-        callInitBootUser();
-
-        verifyInitBootUserNeverCalled();
-    }
-
-    @Test
     public void testSendUserLifecycleEvent_CarServiceNotNull() throws RemoteException {
         connectToCarService();
 
@@ -102,23 +91,63 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
 
     @Test
     public void testHandleCarServiceConnection() throws RemoteException {
-        callInitBootUser();
         callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         callOnUserRemoved();
 
-        // Call again to make sure only one call is made after the service is connected
-        callInitBootUser();
-
-        verifyInitBootUserNeverCalled();
         verifySendLifecycleEventNeverCalled();
-        verifyOnUserRemovedNeverCalled();
 
         connectToCarService();
 
-        verifyInitBootUserCalled();
         verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
         verifyLifecycleEventCalledForUserRemoval();
     }
+
+    @Test
+    public void testVisibleUserEvent_visibleEventArrivedEarly() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+    }
+
+    @Test
+    public void testVisibleUserEvent_visibleEventArrivedLate() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STARTING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_SWITCHING);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_UNLOCKED);
+        verifySendLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+    }
+
+    @Test
+    public void testVisibleInvisibleUserEvent_eventNotSent() throws RemoteException {
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_VISIBLE);
+        callSendLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_INVISIBLE);
+
+        verifySendLifecycleEventNeverCalled();
+
+        connectToCarService();
+
+        verifySendLifecycleEventNeverCalled();
+    }
+
 
     @Test
     public void testOnUserRemoved_CarServiceNotNull() throws RemoteException {
@@ -169,10 +198,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.handleCarServiceConnection(mCarService);
     }
 
-    private void callInitBootUser() {
-        mCarServiceProxy.initBootUser();
-    }
-
     private void callSendLifecycleEvent(int eventType) {
         mCarServiceProxy.sendUserLifecycleEvent(eventType, mFromUser.getUserIdentifier(),
                 mToUser.getUserIdentifier());
@@ -188,17 +213,14 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
         mCarServiceProxy.onFactoryReset(callback);
     }
 
-    private void verifyInitBootUserCalled() throws RemoteException {
-        verify(mCarService).initBootUser();
-    }
-
-    private void verifyInitBootUserNeverCalled() throws RemoteException {
-        verify(mCarService, never()).initBootUser();
-    }
-
     private void verifySendLifecycleEventCalled(int eventType) throws RemoteException {
-        verify(mCarService).onUserLifecycleEvent(eventType,
-                mFromUser.getUserIdentifier(), mToUser.getUserIdentifier());
+        if (eventType == USER_LIFECYCLE_EVENT_TYPE_SWITCHING) {
+            verify(mCarService).onUserLifecycleEvent(eventType,
+                    mFromUser.getUserIdentifier(), mToUser.getUserIdentifier());
+        } else {
+            verify(mCarService).onUserLifecycleEvent(eventType,
+                    UserHandle.USER_NULL, mToUser.getUserIdentifier());
+        }
     }
 
     private void verifySendLifecycleEventNeverCalled() throws RemoteException {
@@ -212,10 +234,6 @@ public class CarServiceProxyTest extends AbstractExtendedMockitoTestCase {
                 UserHandle.USER_NULL, mRemovedUser2.getUserHandle().getIdentifier());
         verify(mCarService).onUserLifecycleEvent(USER_LIFECYCLE_EVENT_TYPE_REMOVED,
                 UserHandle.USER_NULL, mRemovedUser3.getUserHandle().getIdentifier());
-    }
-
-    private void verifyOnUserRemovedNeverCalled() throws RemoteException {
-        verify(mCarService, never()).onUserRemoved(any());
     }
 
     private void verifyOnFactoryResetCalled(ICarResultReceiver callback) throws RemoteException {

@@ -68,10 +68,16 @@ public final class ActivityInterceptorInfoWrapper {
     }
 
     public int getCallingUid() {
-        return mActivityInterceptorInfo.getCallingUid();
+        int callingUid = mActivityInterceptorInfo.getCallingUid() != -1
+                ? mActivityInterceptorInfo.getCallingUid()
+                : mActivityInterceptorInfo.getRealCallingUid();
+        return callingUid;
     }
 
     public int getCallingPid() {
-        return mActivityInterceptorInfo.getCallingPid();
+        int callingPid = mActivityInterceptorInfo.getCallingPid() != -1
+                ? mActivityInterceptorInfo.getCallingPid()
+                : mActivityInterceptorInfo.getRealCallingPid();
+        return callingPid;
     }
 }
