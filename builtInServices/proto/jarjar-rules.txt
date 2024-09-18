@@ -1,0 +1,1 @@
+rule com.google.protobuf.nano.** com.android.internal.car.protobuf.nano.@1

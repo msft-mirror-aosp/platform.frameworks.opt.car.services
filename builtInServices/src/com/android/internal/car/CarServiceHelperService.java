@@ -31,6 +31,11 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_UNLOCKING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_VISIBLE;
+import static com.android.internal.util.FrameworkStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED;
+import static com.android.internal.util.FrameworkStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED__KILL_REASON__KILLED_ON_ANR;
+import static com.android.internal.util.FrameworkStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED__UID_STATE__UNKNOWN_UID_STATE;
+import static com.android.internal.util.FrameworkStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__GARAGE_MODE;
+import static com.android.internal.util.FrameworkStatsLog.CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__UNKNOWN_SYSTEM_STATE;
 import static com.android.internal.util.function.pooled.PooledLambda.obtainMessage;
 import static com.android.server.wm.ActivityInterceptorCallback.PRODUCT_ORDERED_ID;
 
@@ -42,6 +47,8 @@ import android.app.admin.DevicePolicyManager;
 import android.app.admin.DevicePolicyManager.DevicePolicyOperation;
 import android.app.admin.DevicePolicyManager.OperationSafetyReason;
 import android.app.admin.DevicePolicySafetyChecker;
+import android.automotive.watchdog.internal.ClientsNotRespondingInfo;
+import android.automotive.watchdog.internal.GarageMode;
 import android.automotive.watchdog.internal.ICarWatchdogMonitor;
 import android.automotive.watchdog.internal.ProcessIdentifier;
 import android.automotive.watchdog.internal.StateType;
@@ -66,6 +73,7 @@ import android.system.OsConstants;
 import android.util.ArrayMap;
 import android.util.Dumpable;
 import android.util.Log;
+import android.util.SparseArray;
 import android.util.TimeUtils;
 import android.view.Display;
 
@@ -74,6 +82,9 @@ import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 import com.android.internal.car.os.Util;
 import com.android.internal.os.IResultReceiver;
+import com.android.internal.util.CarWatchdogProcessStat;
+import com.android.internal.util.CarWatchdogProcessStats;
+import com.android.internal.util.FrameworkStatsLog;
 import com.android.server.LocalServices;
 import com.android.server.SystemService;
 import com.android.server.Watchdog;
@@ -150,8 +161,8 @@ public class CarServiceHelperService extends SystemService
 
     // Message ID representing post-processing of process dumping.
     private static final int WHAT_POST_PROCESS_DUMPING = 1;
-    // Message ID representing process killing.
-    private static final int WHAT_PROCESS_KILL = 2;
+    // Message ID representing uploading metrics.
+    private static final int WHAT_UPLOAD_METRICS = 2;
 
     private static final String CSHS_UPDATABLE_CLASSNAME_STRING =
             "com.android.internal.car.updatable.CarServiceHelperServiceUpdatableImpl";
@@ -163,6 +174,8 @@ public class CarServiceHelperService extends SystemService
 
     private static final boolean sVisibleBackgroundUsersEnabled =
             UserManager.isVisibleBackgroundUsersEnabled();
+
+    private static final Pattern sProcPidStatPattern = Pattern.compile(PROC_PID_STAT_PATTERN);
 
     static  {
         // Load this JNI before other classes are loaded.
@@ -184,8 +197,6 @@ public class CarServiceHelperService extends SystemService
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
 
     private final ProcessTerminator mProcessTerminator = new ProcessTerminator();
-
-    private final Pattern mProcPidStatPattern = Pattern.compile(PROC_PID_STAT_PATTERN);
 
     private final CarWatchdogDaemonHelper mCarWatchdogDaemonHelper;
     private final ICarWatchdogMonitorImpl mCarWatchdogMonitor = new ICarWatchdogMonitorImpl(this);
@@ -608,6 +619,21 @@ public class CarServiceHelperService extends SystemService
         return new ArrayList<Integer>(pids);
     }
 
+    static CarWatchdogProcessStats constructCarWatchdogProcessStatsLocked(
+            List<ProcessIdentifier> clients) {
+        CarWatchdogProcessStats.Builder carWatchdogProcessStats =
+                CarWatchdogProcessStats.newBuilder();
+        for (int i = 0; i < clients.size(); i++) {
+            ProcessIdentifier client = clients.get(i);
+            CarWatchdogProcessStat.Builder carWatchdogProcessStat =
+                    CarWatchdogProcessStat.newBuilder()
+                        .setProcessName(client.processName)
+                        .setUptimeMillis(client.startTimeMillis);
+            carWatchdogProcessStats.addProcessStat(carWatchdogProcessStat.build());
+        }
+        return carWatchdogProcessStats.build();
+    }
+
     /**
      * Dumps service stack
      */
@@ -666,8 +692,14 @@ public class CarServiceHelperService extends SystemService
         return INVALID_PID;
     }
 
-    private void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
-        mProcessTerminator.requestTerminateProcess(processIdentifiers);
+    @VisibleForTesting
+    void handleClientsNotResponding(@NonNull List<ProcessIdentifier> processIdentifiers) {
+        mProcessTerminator.requestTerminateProcesses(processIdentifiers);
+    }
+
+    @VisibleForTesting
+    void handleClientsNotResponding(@NonNull ClientsNotRespondingInfo clientsNotRespondingInfo) {
+        mProcessTerminator.requestTerminateProcesses(clientsNotRespondingInfo);
     }
 
     private void registerMonitorToWatchdogDaemon() {
@@ -685,18 +717,32 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private void killProcessAndReportToMonitor(ProcessIdentifier processIdentifier) {
-        ProcessInfo processInfo = getProcessInfo(processIdentifier.pid);
-        if (!processInfo.doMatch(processIdentifier.pid, processIdentifier.startTimeMillis)) {
-            return;
+    private static void killProcesses(List<ProcessIdentifier> processIdentifiers,
+            boolean useSigsys) {
+        for (int i = 0; i < processIdentifiers.size(); i++) {
+            ProcessIdentifier processIdentifier = processIdentifiers.get(i);
+            ProcessInfo processInfo = getProcessInfo(processIdentifier.pid);
+            // TODO(b/392937279): add a CTS test to verify that the processes are killed
+            if (useSigsys) {
+                Process.sendSignal(processIdentifier.pid, OsConstants.SIGSYS);
+            } else {
+                Process.killProcess(processIdentifier.pid);
+            }
+            Slogf.w(TAG, "carwatchdog killed %s %s", getProcessCmdLine(processIdentifier.pid),
+                    processInfo);
         }
-        String cmdline = getProcessCmdLine(processIdentifier.pid);
-        Process.killProcess(processIdentifier.pid);
-        Slogf.w(TAG, "carwatchdog killed %s %s", cmdline, processInfo);
-        try {
-            mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, processIdentifier);
-        } catch (RemoteException | RuntimeException e) {
-            Slogf.w(TAG, "Cannot report monitor result to car watchdog daemon: %s", e);
+    }
+
+    private void reportProcessesToMonitor(List<ProcessIdentifier> processIdentifiers) {
+        for (int i = 0; i < processIdentifiers.size(); i++) {
+            ProcessIdentifier processIdentifier = processIdentifiers.get(i);
+            try {
+                // TODO(b/391893590): refactor tellDumpFinished to take a list of ProcessIdentifiers
+                mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, processIdentifier);
+            } catch (RemoteException | RuntimeException e) {
+                Slogf.e(TAG, "Cannot report monitor result for pid %d to car watchdog daemon: %s",
+                        processIdentifier.pid, e);
+            }
         }
     }
 
@@ -715,11 +761,11 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private ProcessInfo getProcessInfo(int pid) {
+    private static ProcessInfo getProcessInfo(int pid) {
         String filename = "/proc/" + pid + "/stat";
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine().replace('\0', ' ').trim();
-            Matcher m = mProcPidStatPattern.matcher(line);
+            Matcher m = sProcPidStatPattern.matcher(line);
             if (m.find()) {
                 int readPid = Integer.parseInt(Objects.requireNonNull(m.group("pid")));
                 if (readPid == pid) {
@@ -851,18 +897,32 @@ public class CarServiceHelperService extends SystemService
             }
             service.handleClientsNotResponding(processIdentifiers);
         }
+        @Override
+        public void onClientsNotRespondingWithSystemState(
+                    ClientsNotRespondingInfo clientsNotRespondingInfo) {
+            CarServiceHelperService service = mService.get();
+            if (service == null || clientsNotRespondingInfo == null
+                    || clientsNotRespondingInfo.processIdentifiers == null
+                    || clientsNotRespondingInfo.processIdentifiers.isEmpty()) {
+                return;
+            }
+            service.handleClientsNotResponding(clientsNotRespondingInfo);
+        }
     }
 
     private final class ProcessTerminator {
 
         private static final long ONE_SECOND_MS = 1_000L;
 
+        private static final long SIGSYS_DELAY_MS = 500;
+
         private final Object mProcessLock = new Object();
         private ExecutorService mExecutor;
         @GuardedBy("mProcessLock")
         private int mQueuedTask;
 
-        public void requestTerminateProcess(@NonNull List<ProcessIdentifier> processIdentifiers) {
+        public void requestTerminateProcesses(@NonNull List<ProcessIdentifier> processIdentifiers) {
+            long startTimeMs = SystemClock.uptimeMillis();
             synchronized (mProcessLock) {
                 // If there is a running thread, we re-use it instead of starting a new thread.
                 if (mExecutor == null) {
@@ -871,17 +931,85 @@ public class CarServiceHelperService extends SystemService
                 mQueuedTask++;
             }
             mExecutor.execute(() -> {
-                for (int i = 0; i < processIdentifiers.size(); i++) {
-                    ProcessIdentifier processIdentifier = processIdentifiers.get(i);
-                    ProcessInfo processInfo = getProcessInfo(processIdentifier.pid);
-                    if (processInfo.doMatch(processIdentifier.pid,
-                            processIdentifier.startTimeMillis)) {
-                        dumpAndKillProcess(processIdentifier);
-                    }
-                }
+                TimingsTraceAndSlog t = newTimingsTraceAndSlog();
+                t.traceBegin("DumpAndKillProcesses_ProcessIdentifiers");
+                EventLogHelper.writeCarHelperWatchdogAnrKill();
+                removeDeadProcesses(processIdentifiers);
+
+                dumpProcesses(processIdentifiers);
+
+                long killWaitMs = SystemClock.uptimeMillis() - startTimeMs;
+                // To give clients a chance of wrapping up before the termination.
+                mHandler.postDelayed(() -> {
+                    removeDeadProcesses(processIdentifiers);
+                    killProcesses(processIdentifiers, /* useSigsys= */ false);
+                    reportProcessesToMonitor(processIdentifiers);
+                }, (killWaitMs < ONE_SECOND_MS ? ONE_SECOND_MS - killWaitMs : 0));
+
                 // mExecutor will be stopped from the main thread, if there is no queued task.
                 mHandler.sendMessage(obtainMessage(ProcessTerminator::postProcessing, this)
                         .setWhat(WHAT_POST_PROCESS_DUMPING));
+                t.traceEnd();
+            });
+        }
+
+        public void requestTerminateProcesses(
+                @NonNull ClientsNotRespondingInfo clientsNotRespondingInfo) {
+            long startTimeMs = SystemClock.uptimeMillis();
+            synchronized (mProcessLock) {
+                // If there is a running thread, we re-use it instead of starting a new thread.
+                if (mExecutor == null) {
+                    mExecutor = Executors.newSingleThreadExecutor();
+                }
+                mQueuedTask++;
+            }
+            mExecutor.execute(() -> {
+                TimingsTraceAndSlog t = newTimingsTraceAndSlog();
+                t.traceBegin("DumpAndKillProcesses");
+                EventLogHelper.writeCarHelperWatchdogAnrKill();
+                List<ProcessIdentifier> processIdentifiers =
+                        clientsNotRespondingInfo.processIdentifiers;
+                removeDeadProcesses(processIdentifiers);
+
+                dumpProcesses(processIdentifiers);
+
+                Runnable killProcessRunnable = new Runnable() {
+                    public void run() {
+                        removeDeadProcesses(processIdentifiers);
+                        killProcesses(processIdentifiers, /* useSigsys= */ true);
+                        mHandler.postDelayed(() -> {
+                            List<ProcessIdentifier> processIdentifiersNotKilled =
+                                    new ArrayList<>();
+
+                            for (int i = 0; i < processIdentifiers.size(); i++) {
+                                ProcessIdentifier processIdentifier = processIdentifiers.get(i);
+                                if (getProcessInfo(processIdentifier.pid).name
+                                        != ProcessInfo.UNKNOWN_PROCESS) {
+                                    processIdentifiersNotKilled.add(processIdentifier);
+                                }
+                            }
+
+                            killProcesses(processIdentifiersNotKilled, /* useSigsys= */ false);
+                            reportProcessesToMonitor(processIdentifiers);
+
+                            mHandler.sendMessage(
+                                    obtainMessage(
+                                        ProcessTerminator::pushClientsNotRespondingKillMetrics,
+                                        processIdentifiers, clientsNotRespondingInfo.garageMode)
+                                        .setWhat(WHAT_UPLOAD_METRICS));
+                        }, SIGSYS_DELAY_MS);
+                    }
+                };
+
+                long killWaitMs = SystemClock.uptimeMillis() - startTimeMs;
+                // To give clients a chance of wrapping up before the termination.
+                mHandler.postDelayed(killProcessRunnable,
+                        (killWaitMs < ONE_SECOND_MS ? ONE_SECOND_MS - killWaitMs : 0));
+
+                // mExecutor will be stopped from the main thread, if there is no queued task.
+                mHandler.sendMessage(obtainMessage(ProcessTerminator::postProcessing, this)
+                        .setWhat(WHAT_POST_PROCESS_DUMPING));
+                t.traceEnd();
             });
         }
 
@@ -895,51 +1023,75 @@ public class CarServiceHelperService extends SystemService
             }
         }
 
-        private void dumpAndKillProcess(ProcessIdentifier processIdentifier) {
-            if (DBG) {
-                Slogf.d(TAG, "Dumping and killing process(pid: %d)", processIdentifier.pid);
-            }
+        private static void dumpProcesses(List<ProcessIdentifier> processIdentifiers) {
             ArrayList<Integer> javaPids = new ArrayList<>(1);
             ArrayList<Integer> nativePids = new ArrayList<>();
-            try {
-                if (isJavaApp(processIdentifier.pid)) {
-                    javaPids.add(processIdentifier.pid);
-                } else {
-                    nativePids.add(processIdentifier.pid);
+            for (int i = 0; i < processIdentifiers.size(); i++) {
+                ProcessIdentifier processIdentifier = processIdentifiers.get(i);
+                if (DBG) {
+                    Slogf.d(TAG, "Dumping and killing process(pid: %d)", processIdentifier.pid);
                 }
-            } catch (IOException e) {
-                Slogf.w(TAG, "Cannot get process information: %s", e);
-                return;
+                try {
+                    if (isJavaApp(processIdentifier.pid)) {
+                        javaPids.add(processIdentifier.pid);
+                    } else {
+                        nativePids.add(processIdentifier.pid);
+                    }
+                } catch (IOException e) {
+                    Slogf.w(TAG, "Cannot get process information for pid %d: %s",
+                            processIdentifier.pid, e);
+                }
             }
             nativePids.addAll(getInterestingNativePids());
-            long startDumpTime = SystemClock.uptimeMillis();
             StackTracesDumpHelper.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
                     /* nativePids= */ CompletableFuture.completedFuture(nativePids),
                     /* logExceptionCreatingFile= */ null,
                     /* auxiliaryTaskExecutor= */ Runnable::run, /* latencyTracker= */ null);
-            long dumpTime = SystemClock.uptimeMillis() - startDumpTime;
-            if (DBG) {
-                Slogf.d(TAG, "Dumping process took %dms", dumpTime);
-            }
-            // To give clients a chance of wrapping up before the termination.
-            if (dumpTime < ONE_SECOND_MS) {
-                mHandler.sendMessageDelayed(obtainMessage(
-                        CarServiceHelperService::killProcessAndReportToMonitor,
-                        CarServiceHelperService.this, processIdentifier).setWhat(WHAT_PROCESS_KILL),
-                        ONE_SECOND_MS - dumpTime);
-            } else {
-                killProcessAndReportToMonitor(processIdentifier);
-            }
         }
 
-        private boolean isJavaApp(int pid) throws IOException {
+        private static boolean isJavaApp(int pid) throws IOException {
             Path exePath = new File("/proc/" + pid + "/exe").toPath();
             String target = Files.readSymbolicLink(exePath).toString();
             // Zygote's target exe is also /system/bin/app_process32 or /system/bin/app_process64.
             // But, we can be very sure that Zygote will not be the client of car watchdog daemon.
-            return target.equals("/system/bin/app_process32") ||
-                    target.equals("/system/bin/app_process64");
+            return target.equals("/system/bin/app_process32")
+                || target.equals("/system/bin/app_process64");
+        }
+
+        private static void pushClientsNotRespondingKillMetrics(
+                List<ProcessIdentifier> processIdentifiers, int garageMode) {
+            SparseArray<List<ProcessIdentifier>> clientsByUid = new SparseArray<>();
+            for (int i = 0; i < processIdentifiers.size(); i++) {
+                ProcessIdentifier processIdentifier = processIdentifiers.get(i);
+                if (!clientsByUid.contains(processIdentifier.uid)) {
+                    clientsByUid.put(processIdentifier.uid, new ArrayList());
+                }
+                clientsByUid.get(processIdentifier.uid).add(processIdentifier);
+            }
+
+            for (int i = 0; i < clientsByUid.size(); i++) {
+                List<ProcessIdentifier> clients = clientsByUid.valueAt(i);
+                FrameworkStatsLog.write(CAR_WATCHDOG_KILL_STATS_REPORTED,
+                        clientsByUid.keyAt(i),
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__UID_STATE__UNKNOWN_UID_STATE,
+                        garageMode == GarageMode.GARAGE_MODE_ON
+                            ? CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__GARAGE_MODE
+                            : CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__UNKNOWN_SYSTEM_STATE,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__KILL_REASON__KILLED_ON_ANR,
+                        constructCarWatchdogProcessStatsLocked(clients).toByteArray(),
+                       /* arg6= */ null);
+            }
+        }
+
+        private static List<ProcessIdentifier> removeDeadProcesses(
+                List<ProcessIdentifier> processIdentifiers) {
+            processIdentifiers.removeIf(processIdentifier -> {
+                ProcessInfo processInfo = getProcessInfo(processIdentifier.pid);
+                return !processInfo.doMatch(processIdentifier.pid,
+                    processIdentifier.startTimeMillis);
+            });
+            return processIdentifiers;
         }
     }
 
