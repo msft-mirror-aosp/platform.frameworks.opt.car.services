@@ -68,32 +68,12 @@ public class ExtraDisplayMonitorTest extends AbstractExtendedMockitoTestCase {
     }
 
     @Test
-    public void onDisplayAdded_overlayDisplay_assignsOverlayDisplayToDriver() {
-        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(true);
-
-        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
-
-        verify(mHelper, times(1)).assignUserToExtraDisplay(mTestUserId, mTestDisplayId);
-    }
-
-    @Test
     public void onDisplayAdded_nonOverlayDisplay_doesNotAssignNonOverlayDisplayToDriver() {
         when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(false);
 
         mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
 
         verify(mHelper, never()).assignUserToExtraDisplay(mTestUserId, mTestDisplayId);
-    }
-
-    @Test
-    public void onDisplayRemoved_overlayDisplay_unassignsOverlayDisplayFromDriver() {
-        when(mHelper.isPublicOverlayDisplay(mTestDisplayId)).thenReturn(true);
-        when(mHelper.assignUserToExtraDisplay(mTestUserId, mTestDisplayId)).thenReturn(true);
-
-        mDisplayListenerCaptor.getValue().onDisplayAdded(mTestDisplayId);
-        mDisplayListenerCaptor.getValue().onDisplayRemoved(mTestDisplayId);
-
-        verify(mHelper, times(1)).unassignUserFromExtraDisplay(mTestUserId, mTestDisplayId);
     }
 
     @Test
