@@ -100,6 +100,9 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     @NonNull
     private PackageManager mPackageManager;
 
+    // Class-level variable to store the last dumped configuration
+    private String lastConfigDump = "";
+
     // {@link StampedLock} is used for 2 reasons
     // 1) the # of reads is way higher than # of writes.
     // 2) {@code ReentrantReadWriteLock} is not very efficient.
@@ -223,7 +226,9 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     public CompatScale getCompatScale(@NonNull String packageName, int uid) {
         int displayId = mActivityInterceptor.getPackageDisplay(uid);
         UserHandle user = UserHandle.getUserHandleForUid(uid);
-        return getCompatScaleForPackageAsUser(displayId, packageName, user, true);
+        CompatScale compatScale
+              = getCompatScaleForPackageAsUser(displayId, packageName, user, true);
+        return compatScale;
     }
 
     /**
@@ -292,7 +297,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId)
-            throws PackageManager.NameNotFoundException {
+        throws PackageManager.NameNotFoundException {
         List<ApplicationInfo> allPackagesForUser =
                 mPackageManager.getInstalledApplicationsAsUser(GET_META_DATA, userId);
         for (int i = 0; i < allPackagesForUser.size(); i++) {
@@ -309,41 +314,53 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(displayId, packageName, userId);
+
+        // Try to get the scale factor for the specific user and package
         float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        boolean hasConfig = true;
-        if (scaleFactor == NO_SCALE) {
+        boolean hasConfig = (scaleFactor != NO_SCALE);
+
+        // If no specific user config, try the global config
+        if (!hasConfig) {
             key.mUserId = UserHandle.ALL.getIdentifier();
             scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-            if (scaleFactor == NO_SCALE) {
-                hasConfig = false;
+
+            if (scaleFactor != NO_SCALE) {
+                hasConfig = true;
+                // Re-apply the user-specific config
+                key.mUserId = userId;
+                mConfig.setScaleFactor(key, scaleFactor);
             }
         }
 
-        boolean result = requiresDisplayCompatNotCachedLocked(packageName, userId);
-        if (!hasConfig && !result) {
-            // Package is opt-out
-            mConfig.setScaleFactor(key, OPT_OUT);
-        } else if (!hasConfig && result) {
-            // Apply user default scale or display default scale to the package
-            key.mPackageName = ANY_PACKAGE;
+        // Check if display compatibility is required
+        boolean requiresCompat = requiresDisplayCompatNotCachedLocked(packageName, userId);
+
+        // If no config was found earlier and compatibility is required, apply default scale
+        if (!hasConfig && requiresCompat) {
+            key.mUserId = UserHandle.ALL.getIdentifier();
+            key.mPackageName = ANY_PACKAGE; // Default package
+            scaleFactor = mConfig.getScaleFactor(key, DEFAULT_SCALE);
+
+            // Reapply specific package and user values
+            key.mPackageName = packageName;
             key.mUserId = userId;
-            scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-            if (scaleFactor == NO_SCALE) {
-                key.mUserId = UserHandle.ALL.getIdentifier();
-                scaleFactor = mConfig.getScaleFactor(key, DEFAULT_SCALE);
-            }
+
             mConfig.setScaleFactor(key, scaleFactor);
-        } else if (hasConfig) {
-            // Package was opt-out, but now is opt-in or the otherway around
-            mConfig.setScaleFactor(key, result ? abs(scaleFactor) : -1 * abs(scaleFactor));
         }
 
-        mRequiresDisplayCompat.put(packageName, result);
-        Settings.Secure.putStringForUser(mContext.getContentResolver(),
-                DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
-                getCurrentOrTargetUserId());
+        Boolean cachedValue = mRequiresDisplayCompat.get(packageName);
+        if (cachedValue == null || cachedValue != requiresCompat) {
+            mRequiresDisplayCompat.put(packageName, requiresCompat);
+        }
 
-        return result;
+        String configDump = mConfig.dump();
+        if (!configDump.equals(lastConfigDump)) {
+            Settings.Secure.putStringForUser(mContext.getContentResolver(),
+                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, configDump, getCurrentOrTargetUserId());
+            lastConfigDump = configDump;
+        }
+
+        return requiresCompat;
     }
 
     // @GuardedBy("mConfigLock")
@@ -385,7 +402,10 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         }
 
         PackageInfo pkgInfo = mPackageManager
-                .getPackageInfoAsUser(packageName, GET_CONFIGURATIONS | GET_ACTIVITIES, userId);
+                .getPackageInfoAsUser(packageName,
+                        GET_CONFIGURATIONS
+                        | GET_ACTIVITIES, userId);
+
 
         // Opt out if has {@code FEATURE_AUTOMOTIVE}
         if (pkgInfo != null && pkgInfo.reqFeatures != null) {
@@ -565,26 +585,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         if (scaleFactor != NO_SCALE) {
             return new CompatScale(DEFAULT_SCALE, abs(scaleFactor));
         }
-        // Query the scale factor for all packages for a specific user.
-        key.mPackageName = ANY_PACKAGE;
-        scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE) {
-            return new CompatScale(DEFAULT_SCALE, abs(scaleFactor));
-        }
-        // Query the scale factor for a specific package across all users.
-        key.mPackageName = packageName;
-        key.mUserId = UserHandle.ALL.getIdentifier();
-        scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE) {
-            return new CompatScale(DEFAULT_SCALE, abs(scaleFactor));
-        }
-        // Query the scale factor for a specific display regardless of
-        // user or package name.
-        key.mPackageName = ANY_PACKAGE;
-        scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE) {
-            return new CompatScale(DEFAULT_SCALE, abs(scaleFactor));
-        }
+
         return null;
     }
 
