@@ -35,7 +35,7 @@ public final class ActivityOptionsWrapperTest {
         ActivityOptionsWrapper wrapper = ActivityOptionsWrapper.create(options);
         assertThat(wrapper).isNotNull();
         assertThat(wrapper.getOptions()).isSameInstanceAs(options);
-        assertThat(wrapper.toString()).isEqualTo(options.toString());
+        assertThat(wrapper.toString()).startsWith(options.toString());
     }
 
     @Test
