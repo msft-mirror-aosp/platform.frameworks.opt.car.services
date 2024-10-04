@@ -46,6 +46,13 @@ public final class ActivityOptionsWrapper {
     }
 
     /**
+     * Gets caller display. See {@link ActivityOptions#getCallerDisplayId()} for more info.
+     */
+    public int getCallerDisplayId() {
+        return mOptions.getCallerDisplayId();
+    }
+
+    /**
      * Gets the underlying {@link ActivityOptions} that is wrapped by this instance.
      */
     // Exposed the original object in order to allow to use the public accessors.
