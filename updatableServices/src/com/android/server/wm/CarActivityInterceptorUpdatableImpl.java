@@ -30,6 +30,7 @@ import android.util.ArraySet;
 import android.util.Log;
 import android.util.SparseArray;
 
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
@@ -72,12 +73,16 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return null;
         }
         ComponentName componentName = info.getIntent().getComponent();
+        Trace.beginSection(
+                "CarActivityInterceptor-onInterceptActivityLaunchIntentComponent: "
+                        + componentName);
 
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);
             if (keyIndex >= 0) {
                 IBinder rootTaskToken = mActivityToRootTaskMap.valueAt(keyIndex);
                 if (!isRootTaskUserSameAsActivityUser(rootTaskToken, info)) {
+                    Trace.endSection();
                     return null;
                 }
 
@@ -89,10 +94,12 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 // Even if the activity is assigned a root task to open in, the launch display ID
                 // should take preference when opening the activity. More details in b/295893892.
                 if (!isRootTaskDisplayIdSameAsLaunchDisplayId(rootTaskToken, optionsWrapper)) {
+                    Trace.endSection();
                     return null;
                 }
 
                 optionsWrapper.setLaunchRootTask(rootTaskToken);
+                Trace.endSection();
                 return ActivityInterceptResultWrapper.create(info.getIntent(),
                         optionsWrapper.getOptions());
             }
@@ -101,11 +108,13 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 CarActivityInterceptorUpdatable interceptor = mInterceptors.valueAt(i);
                 ActivityInterceptResultWrapper result = interceptor.onInterceptActivityLaunch(info);
                 if (result != null) {
+                    Trace.endSection();
                     return result;
                 }
             }
         }
 
+        Trace.endSection();
         return null;
     }
 
@@ -195,34 +204,40 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
     /**
      * Sets the given {@code activities} to be persistent on the root task corresponding to the
      * given {@code rootTaskToken}.
-     * <p>
-     * If {@code rootTaskToken} is {@code null}, then the earlier root task associations of the
+     *
+     * <p>If {@code rootTaskToken} is {@code null}, then the earlier root task associations of the
      * given {@code activities} will be removed.
      *
-     * @param activities    the list of activities which have to be persisted.
+     * @param activities the list of activities which have to be persisted.
      * @param rootTaskToken the binder token of the root task which the activities have to be
-     *                      persisted on.
+     *     persisted on.
      */
-    public void setPersistentActivityOnRootTask(@NonNull List<ComponentName> activities,
-            IBinder rootTaskToken) {
-        synchronized (mLock) {
-            if (rootTaskToken == null) {
+    public void setPersistentActivityOnRootTask(
+            @NonNull List<ComponentName> activities, IBinder rootTaskToken) {
+        try {
+            Trace.beginSection(
+                    "CarActivityInterceptor-setPersistentActivityOnRootTask: " + rootTaskToken);
+            synchronized (mLock) {
+                if (rootTaskToken == null) {
+                    int activitiesNum = activities.size();
+                    for (int i = 0; i < activitiesNum; i++) {
+                        mActivityToRootTaskMap.remove(activities.get(i));
+                    }
+                    return;
+                }
+
                 int activitiesNum = activities.size();
                 for (int i = 0; i < activitiesNum; i++) {
-                    mActivityToRootTaskMap.remove(activities.get(i));
+                    mActivityToRootTaskMap.put(activities.get(i), rootTaskToken);
                 }
-                return;
+                if (!mKnownRootTasks.contains(rootTaskToken)) {
+                    // Seeing the token for the first time, set the listener
+                    removeRootTaskTokenOnDeath(rootTaskToken);
+                    mKnownRootTasks.add(rootTaskToken);
+                }
             }
-
-            int activitiesNum = activities.size();
-            for (int i = 0; i < activitiesNum; i++) {
-                mActivityToRootTaskMap.put(activities.get(i), rootTaskToken);
-            }
-            if (!mKnownRootTasks.contains(rootTaskToken)) {
-                // Seeing the token for the first time, set the listener
-                removeRootTaskTokenOnDeath(rootTaskToken);
-                mKnownRootTasks.add(rootTaskToken);
-            }
+        } finally {
+            Trace.endSection();
         }
     }
 
