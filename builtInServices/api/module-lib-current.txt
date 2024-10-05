@@ -62,6 +62,7 @@ package com.android.server.wm {
 
   public final class ActivityOptionsWrapper {
     method public static com.android.server.wm.ActivityOptionsWrapper create(android.app.ActivityOptions);
+    method public int getCallerDisplayId();
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
     method public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
