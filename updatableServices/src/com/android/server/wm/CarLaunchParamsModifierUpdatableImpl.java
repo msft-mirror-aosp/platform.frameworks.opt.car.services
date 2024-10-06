@@ -33,6 +33,7 @@ import android.util.Pair;
 import android.util.SparseIntArray;
 import android.view.Display;
 
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 
@@ -263,6 +264,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
      */
     public int calculate(CalculateParams params) {
+        Trace.beginSection("CarLaunchParamsModifier-calculate");
         TaskWrapper task = params.getTask();
         ActivityRecordWrapper activity = params.getActivity();
         ActivityRecordWrapper source = params.getSource();
@@ -278,6 +280,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
             userId = activity.getUserId();
         } else {
             Slogf.w(TAG, "onCalculate, cannot decide user");
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_SKIP;
         }
         // DisplayArea where user wants to launch the Activity.
@@ -295,13 +298,29 @@ public final class CarLaunchParamsModifierUpdatableImpl
         decision:
         synchronized (mLock) {
             // If originalDisplayArea is set, respect that before ActivityOptions check.
-            if (originalDisplayArea == null) {
-                if (options != null) {
-                    originalDisplayArea = options.getLaunchTaskDisplayArea();
-                    if (originalDisplayArea == null) {
-                        originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
-                                options.getOptions().getLaunchDisplayId());
-                    }
+            if (originalDisplayArea == null && options != null) {
+                originalDisplayArea = options.getLaunchTaskDisplayArea();
+                if (originalDisplayArea == null) {
+                    // If task display area is not specified in options - try launch display id
+                    originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                            options.getOptions().getLaunchDisplayId());
+                }
+            }
+            if (originalDisplayArea == null && source != null) {
+                // try the display area of the source
+                TaskDisplayAreaWrapper sourceDisplayArea = source.getDisplayArea();
+                int sourceDisplayId = sourceDisplayArea == null
+                        ? Display.INVALID_DISPLAY : sourceDisplayArea.getDisplay().getDisplayId();
+                if (userId == getUserForDisplayLocked(sourceDisplayId)) {
+                    originalDisplayArea = sourceDisplayArea;
+                }
+            }
+            if (originalDisplayArea == null && options != null) {
+                // try the caller display id
+                int callerDisplayId = options.getCallerDisplayId();
+                if (userId == getUserForDisplayLocked(callerDisplayId)) {
+                    originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                            callerDisplayId);
                 }
             }
             if (mPersistentActivities.containsKey(activityName)) {
@@ -371,8 +390,10 @@ public final class CarLaunchParamsModifierUpdatableImpl
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
             }
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_DONE;
         } else {
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_SKIP;
         }
     }
@@ -396,21 +417,12 @@ public final class CarLaunchParamsModifierUpdatableImpl
                 activityRecord, request);
         for (int i = 0, size = fallbacks.size(); i < size; ++i) {
             TaskDisplayAreaWrapper fallbackTda = fallbacks.get(i);
-            int userForDisplay = getUserIdForDisplayLocked(fallbackTda.getDisplay().getDisplayId());
+            int userForDisplay = getUserForDisplayLocked(fallbackTda.getDisplay().getDisplayId());
             if (userForDisplay == userId) {
                 return fallbackTda;
             }
         }
         return fallbackDisplayAreaForUserLocked(userId);
-    }
-
-    /**
-     * Returns {@code userId} who is allowed to use the given {@code displayId}, or
-     * {@code UserHandle.USER_NULL} if the display doesn't exist in the mapping.
-     */
-    @GuardedBy("mLock")
-    private int getUserIdForDisplayLocked(int displayId) {
-        return mDisplayToProfileUserMapping.get(displayId, UserManagerHelper.USER_NULL);
     }
 
     /**
@@ -451,30 +463,36 @@ public final class CarLaunchParamsModifierUpdatableImpl
      * See {@link CarActivityManager#setPersistentActivity(android.content.ComponentName,int, int)}
      */
     public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-        if (DBG) {
-            Slogf.d(TAG, "setPersistentActivity: activity=%s, displayId=%d, featureId=%d",
-                    activity, displayId, featureId);
-        }
-        if (featureId == DisplayAreaOrganizerHelper.FEATURE_UNDEFINED) {
-            synchronized (mLock) {
-                TaskDisplayAreaWrapper removed = mPersistentActivities.remove(activity);
-                if (removed == null) {
-                    throw new ServiceSpecificException(
-                            CarActivityManager.ERROR_CODE_ACTIVITY_NOT_FOUND,
-                            "Failed to remove " + activity.toShortString());
-                }
-                return CarActivityManager.RESULT_SUCCESS;
+        try {
+            Trace.beginSection(
+                    "CarLaunchParamsModifier-setPersistentActivityOnDisplay: " + displayId);
+            if (DBG) {
+                Slogf.d(TAG, "setPersistentActivity: activity=%s, displayId=%d, featureId=%d",
+                        activity, displayId, featureId);
             }
+            if (featureId == DisplayAreaOrganizerHelper.FEATURE_UNDEFINED) {
+                synchronized (mLock) {
+                    TaskDisplayAreaWrapper removed = mPersistentActivities.remove(activity);
+                    if (removed == null) {
+                        throw new ServiceSpecificException(
+                                CarActivityManager.ERROR_CODE_ACTIVITY_NOT_FOUND,
+                                "Failed to remove " + activity.toShortString());
+                    }
+                    return CarActivityManager.RESULT_SUCCESS;
+                }
+            }
+            TaskDisplayAreaWrapper tda = mBuiltin.findTaskDisplayArea(displayId, featureId);
+            if (tda == null) {
+                throw new IllegalArgumentException(
+                        "Unknown display=" + displayId + " or feature=" + featureId);
+            }
+            synchronized (mLock) {
+                mPersistentActivities.put(activity, tda);
+            }
+            return CarActivityManager.RESULT_SUCCESS;
+        } finally {
+            Trace.endSection();
         }
-        TaskDisplayAreaWrapper tda = mBuiltin.findTaskDisplayArea(displayId, featureId);
-        if (tda == null) {
-            throw new IllegalArgumentException("Unknown display=" + displayId
-                    + " or feature=" + featureId);
-        }
-        synchronized (mLock) {
-            mPersistentActivities.put(activity, tda);
-        }
-        return CarActivityManager.RESULT_SUCCESS;
     }
 
     /**
