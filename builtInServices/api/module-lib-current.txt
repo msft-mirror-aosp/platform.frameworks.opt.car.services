@@ -62,6 +62,7 @@ package com.android.server.wm {
 
   public final class ActivityOptionsWrapper {
     method public static com.android.server.wm.ActivityOptionsWrapper create(android.app.ActivityOptions);
+    method public int getCallerDisplayId();
     method public com.android.server.wm.TaskDisplayAreaWrapper getLaunchTaskDisplayArea();
     method public int getLaunchWindowingMode();
     method public android.app.ActivityOptions getOptions();
@@ -106,6 +107,7 @@ package com.android.server.wm {
   public interface CarDisplayCompatScaleProviderInterface {
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
+    method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);
     method public int getMainDisplayAssignedToUser(int);
     method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
     method @Nullable public String getStringForUser(android.content.ContentResolver, String, int);

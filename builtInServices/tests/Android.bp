@@ -22,9 +22,9 @@ android_test {
 
     libs: [
         "android.car",
-        "android.car.builtin",
-        "android.test.runner",
-        "android.test.base",
+        "android.car.builtin.stubs.module_lib",
+        "android.test.runner.stubs.system",
+        "android.test.base.stubs.system",
         "android.hardware.automotive.vehicle-V2.0-java",
     ],
 
