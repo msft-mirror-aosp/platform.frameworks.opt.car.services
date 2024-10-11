@@ -22,6 +22,8 @@ import static android.content.pm.PackageManager.FEATURE_CAR_DISPLAY_COMPATIBILIT
 import static android.content.pm.PackageManager.GET_ACTIVITIES;
 import static android.content.pm.PackageManager.GET_CONFIGURATIONS;
 import static android.content.pm.PackageManager.GET_META_DATA;
+import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_AWARE;
+import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
 import static android.content.pm.PackageManager.SIGNATURE_MATCH;
 import static android.view.Display.DEFAULT_DISPLAY;
 
@@ -84,6 +86,7 @@ import java.util.concurrent.locks.StampedLock;
 public final class CarDisplayCompatScaleProvider implements CompatScaleProvider {
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
+    private static final boolean DBG_VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
     private static final String META_DATA_DISTRACTION_OPTIMIZED = "distractionOptimized";
     private static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
@@ -170,6 +173,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         try {
             if (!updateConfigForUserFromSettingsLocked(getCurrentOrTargetUserId())) {
                 updateCurrentConfigFromDeviceLocked();
+                updateStateOfAllPackagesForUserLocked(getCurrentOrTargetUserId());
             }
         } finally {
             mConfigLock.unlockWrite(stamp);
@@ -228,6 +232,10 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         UserHandle user = UserHandle.getUserHandleForUid(uid);
         CompatScale compatScale
               = getCompatScaleForPackageAsUser(displayId, packageName, user, true);
+        if (DBG_VERBOSE) {
+            Slogf.v(TAG, "getCompatScale p=%s u=%d s=%s",
+                packageName, user.getIdentifier(), compatScale);
+        }
         return compatScale;
     }
 
@@ -270,6 +278,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         try {
             if (!updateConfigForUserFromSettingsLocked(newUserId)) {
                 updateCurrentConfigFromDeviceLocked();
+                updateStateOfAllPackagesForUserLocked(newUserId);
             }
         } finally {
             mConfigLock.unlockWrite(stamp);
@@ -296,13 +305,16 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
 
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId)
-        throws PackageManager.NameNotFoundException {
+    private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId) {
         List<ApplicationInfo> allPackagesForUser =
                 mPackageManager.getInstalledApplicationsAsUser(GET_META_DATA, userId);
         for (int i = 0; i < allPackagesForUser.size(); i++) {
             ApplicationInfo appInfo = allPackagesForUser.get(i);
-            updateStateOfPackageForUserLocked(appInfo.packageName, userId);
+            try {
+                updateStateOfPackageForUserLocked(appInfo.packageName, userId);
+            } catch (PackageManager.NameNotFoundException e) {
+                Slogf.e(TAG, "Package not found: %s (%s)", appInfo.packageName, e.getMessage());
+            }
         }
     }
 
@@ -404,7 +416,9 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         PackageInfo pkgInfo = mPackageManager
                 .getPackageInfoAsUser(packageName,
                         GET_CONFIGURATIONS
-                        | GET_ACTIVITIES, userId);
+                        | GET_ACTIVITIES
+                        | MATCH_DIRECT_BOOT_AWARE
+                        | MATCH_DIRECT_BOOT_UNAWARE, userId);
 
 
         // Opt out if has {@code FEATURE_AUTOMOTIVE}
@@ -422,8 +436,16 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             }
         }
 
+        // Opt out of package info not found
+        if (pkgInfo == null) {
+            if (DBG) {
+                Slogf.d(TAG, "Package info is null: %s", packageName);
+            }
+            return false;
+        }
+
         // Opt out if has no activities
-        if (pkgInfo == null || pkgInfo.activities == null) {
+        if (pkgInfo.activities == null) {
             if (DBG) {
                 Slogf.d(TAG, "Package %s has no Activity", packageName);
             }
