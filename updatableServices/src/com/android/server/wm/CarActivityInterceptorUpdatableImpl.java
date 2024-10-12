@@ -73,9 +73,10 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return null;
         }
         ComponentName componentName = info.getIntent().getComponent();
-        Trace.beginSection(
-                "CarActivityInterceptor-onInterceptActivityLaunchIntentComponent: "
-                        + componentName);
+        String traceName = "CarActivityInterceptor-onInterceptActivityLaunch: "
+                        + componentName;
+        // Traces can only have max 127 characters
+        Trace.beginSection(traceName.substring(0, Math.min(traceName.length(), 127)));
 
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);

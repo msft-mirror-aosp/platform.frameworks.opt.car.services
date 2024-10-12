@@ -21,8 +21,10 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Instrumentation;
+import android.content.ComponentName;
 import android.content.Intent;
 import android.view.KeyEvent;
+import android.view.accessibility.AccessibilityManager;
 
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.Condition;
@@ -50,15 +52,20 @@ public final class ActivityResolverTest {
     private static final String DISMISS_BUTTON_RESOURCE_ID =
             "com.google.android.car.kitchensink:id/dismiss_button";
     private static final String TITLE_ID = "android:id/title";
+    private static final ComponentName ROTARY_SERVICE_COMPONENT_NAME =
+            ComponentName.unflattenFromString("com.android.car.rotary/.RotaryService");
 
     private static final String KITCHEN_SINK_APP = "com.google.android.car.kitchensink";
 
     private Instrumentation mInstrumentation;
     private UiDevice mDevice;
+    private AccessibilityManager mAccessibilityManager;
 
     @Before
     public void setUp() throws IOException {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
+        mAccessibilityManager = mInstrumentation.getContext().getSystemService(
+                AccessibilityManager.class);
         mDevice = UiDevice.getInstance(mInstrumentation);
         closeKitchenSink();
     }
@@ -74,6 +81,7 @@ public final class ActivityResolverTest {
 
     @Test
     public void testListItemFocusable_threeItems() throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
@@ -100,6 +108,7 @@ public final class ActivityResolverTest {
 
     @Test
     public void testListItemFocusable_twoItems() throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
@@ -128,6 +137,7 @@ public final class ActivityResolverTest {
     @Test
     public void testActionButtonsNotFocusable_threeItems()
             throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
@@ -148,6 +158,7 @@ public final class ActivityResolverTest {
 
     @Test
     public void testClickListItem_threeItems() throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
@@ -195,6 +206,7 @@ public final class ActivityResolverTest {
 
     @Test
     public void testClickListItem_twoItems() throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
@@ -215,6 +227,7 @@ public final class ActivityResolverTest {
 
     @Test
     public void testClickJustOnceButton_twoItems() throws UiObjectNotFoundException, IOException {
+        assumeHasRotaryService();
         launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
@@ -259,6 +272,14 @@ public final class ActivityResolverTest {
                 TRIGGER_ACTIVITY_RESOLVER_RESOURCE_ID));
         button.click();
         mDevice.waitForIdle();
+    }
+
+    private void assumeHasRotaryService() {
+        assumeTrue("Rotary service not enabled; skipping test",
+                mAccessibilityManager.getInstalledAccessibilityServiceList().stream().anyMatch(
+                        accessibilityServiceInfo ->
+                                ROTARY_SERVICE_COMPONENT_NAME.equals(
+                                        accessibilityServiceInfo.getComponentName())));
     }
 
     private void waitAndAssertFocused(UiObject view) throws UiObjectNotFoundException {
