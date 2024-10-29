@@ -591,11 +591,13 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         // This shouldn't happen outside of CTS, because CompatModeChanges has higher priority and
         // will already return a scale.
         // See {@link com.android.server.wm.CompatModePackage#getCompatScale} for details.
-        float compatMode = isCompatModeChangesEnabled(packageName, user);
-        if (compatMode != 1.0f) {
-            CompatScale x = new CompatScale((1f / compatMode),
-                    (1f / compatMode) * compatScale.mDensityScaleFactor);
-            return x;
+        if (compatScale != null) {
+            float compatMode = isCompatModeChangesEnabled(packageName, user);
+            if (compatMode != 1.0f) {
+                CompatScale x = new CompatScale((1f / compatMode),
+                        (1f / compatMode) * compatScale.mDensityScaleFactor);
+                return x;
+            }
         }
         return compatScale;
     }
