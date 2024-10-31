@@ -110,8 +110,7 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
-    private final CarDisplayCompatScaleProviderUpdatableImpl
-            mCarDisplayCompatScaleProviderUpdatable;
+    private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatable;
 
     private ExtraDisplayMonitor mExtraDisplayMonitor;
 
@@ -427,6 +426,18 @@ public final class CarServiceHelperServiceUpdatableImpl
             return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
                     Binder.getCallingUserHandle().getIdentifier());
         }
+
+        @Override
+        public boolean requiresDisplayCompatForUser(String packageName, int userId) {
+            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
+                    userId);
+        }
+    }
+
+    @VisibleForTesting
+    void setCarDisplayCompatScaleProviderUpdatableImpl(
+            CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatScaleProviderUpdatableImpl) {
+        mCarDisplayCompatScaleProviderUpdatable = carDisplayCompatScaleProviderUpdatableImpl;
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
