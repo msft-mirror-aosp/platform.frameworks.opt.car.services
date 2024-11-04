@@ -46,6 +46,13 @@ public final class ActivityOptionsWrapper {
     }
 
     /**
+     * Gets caller display. See {@link ActivityOptions#getCallerDisplayId()} for more info.
+     */
+    public int getCallerDisplayId() {
+        return mOptions.getCallerDisplayId();
+    }
+
+    /**
      * Gets the underlying {@link ActivityOptions} that is wrapped by this instance.
      */
     // Exposed the original object in order to allow to use the public accessors.
@@ -73,7 +80,7 @@ public final class ActivityOptionsWrapper {
     @Override
     public String toString() {
         StringBuilder sb = new StringBuilder(mOptions.toString());
-        sb.append(" ,mLaunchDisplayId=");
+        sb.append(", mLaunchDisplayId=");
         sb.append(mOptions.getLaunchDisplayId());
         return sb.toString();
     }

@@ -64,9 +64,7 @@ public final class ExtraDisplayMonitor {
         @Override
         public void onDisplayAdded(int displayId) {
             int userId = USER_NULL;
-            if (mHelper.isPublicOverlayDisplay(displayId)) {
-                userId = mCurrentUserId;
-            } else if (mHelper.isPublicVirtualDisplay(displayId)) {
+            if (mHelper.isPublicVirtualDisplay(displayId)) {
                 userId = mHelper.getOwnerUserIdForDisplay(displayId);
             }
             if (userId != USER_NULL) {
