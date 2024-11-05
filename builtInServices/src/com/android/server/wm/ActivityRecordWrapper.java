@@ -71,7 +71,7 @@ public final class ActivityRecordWrapper {
      * Returns whether this Activity is not displayed.
      */
     public boolean isNoDisplay() {
-        return mActivityRecord.noDisplay;
+        return mActivityRecord.isNoDisplay();
     }
 
     /**
