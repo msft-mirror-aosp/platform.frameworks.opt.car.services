@@ -37,6 +37,7 @@ import android.content.res.Resources;
 import android.os.ServiceSpecificException;
 import android.util.Log;
 
+import com.android.car.internal.dep.Trace;
 import com.android.internal.annotations.VisibleForTesting;
 
 /**
@@ -120,6 +121,9 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
             return null;
         }
         try {
+            Trace.beginSection(
+                    "CarDisplayActivity-onInterceptActivityLaunchIntentComponent: "
+                            + launchIntent.getComponent());
             boolean requiresDisplayCompat = mDisplayCompatProvider
                     .requiresDisplayCompat(launchIntent.getComponent().getPackageName(),
                             info.getUserId());
@@ -170,8 +174,9 @@ public final class CarDisplayCompatActivityInterceptor implements CarActivityInt
             }
         } catch (ServiceSpecificException e) {
             Slogf.e(TAG, "Error while intercepting activity " + launchIntent.getComponent(), e);
+        } finally {
+            Trace.endSection();
         }
-
         return null;
     }
 }
