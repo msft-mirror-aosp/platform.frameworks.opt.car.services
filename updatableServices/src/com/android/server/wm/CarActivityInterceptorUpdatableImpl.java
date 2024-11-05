@@ -73,9 +73,8 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return null;
         }
         ComponentName componentName = info.getIntent().getComponent();
-        Trace.beginSection(
-                "CarActivityInterceptor-onInterceptActivityLaunchIntentComponent: "
-                        + componentName);
+        beginTraceSection("CarActivityInterceptor-onInterceptActivityLaunch: "
+                + componentName);
 
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);
@@ -215,8 +214,8 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
     public void setPersistentActivityOnRootTask(
             @NonNull List<ComponentName> activities, IBinder rootTaskToken) {
         try {
-            Trace.beginSection(
-                    "CarActivityInterceptor-setPersistentActivityOnRootTask: " + rootTaskToken);
+            beginTraceSection("CarActivityInterceptor-setPersistentActivityOnRootTask: "
+                    + rootTaskToken);
             synchronized (mLock) {
                 if (rootTaskToken == null) {
                     int activitiesNum = activities.size();
@@ -263,6 +262,11 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
                 }
             }
         }
+    }
+
+    private void beginTraceSection(String sectionName) {
+        // Traces can only have max 127 characters
+        Trace.beginSection(sectionName.substring(0, Math.min(sectionName.length(), 127)));
     }
 
     @VisibleForTesting

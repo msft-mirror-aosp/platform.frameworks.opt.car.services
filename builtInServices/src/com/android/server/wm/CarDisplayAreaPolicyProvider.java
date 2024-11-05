@@ -130,10 +130,6 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                         .setTaskDisplayAreas(firstTdaList)
                         .setImeContainer(imeContainer)
                         .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
-                                "ImePlaceholder", FEATURE_IME_PLACEHOLDER)
-                                .and(TYPE_INPUT_METHOD, TYPE_INPUT_METHOD_DIALOG)
-                                .build())
-                        .addFeature(new DisplayAreaPolicyBuilder.Feature.Builder(wmService.mPolicy,
                                 "TitleBar", FEATURE_TITLE_BAR)
                                 .and(TYPE_APPLICATION_OVERLAY)
                                 .build());
