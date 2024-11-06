@@ -160,27 +160,30 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
      * @return the list of {@link TaskDisplayAreaWrapper} to house the task
      */
     private List<TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(
-            @NonNull ActivityRecordWrapper activityRecordWrapper,
+            @Nullable ActivityRecordWrapper activityRecordWrapper,
             @Nullable RequestWrapper requestWrapper) {
-        ActivityRecord activityRecord = activityRecordWrapper.getActivityRecord();
+        ActivityRecord activityRecord = activityRecordWrapper != null
+                ? activityRecordWrapper.getActivityRecord() : null;
         Request request = requestWrapper != null ? requestWrapper.getRequest() : null;
         mFallBackDisplayAreaList.clear();
 
-        WindowProcessController controllerFromLaunchingRecord = mAtm.getProcessController(
-                activityRecord.getLaunchedFromPid(), activityRecord.getLaunchedFromUid());
-        TaskDisplayArea displayAreaForLaunchingRecord = controllerFromLaunchingRecord == null
-                ? null : controllerFromLaunchingRecord.getTopActivityDisplayArea();
-        if (displayAreaForLaunchingRecord != null) {
-            mFallBackDisplayAreaList.add(
-                    TaskDisplayAreaWrapper.create(displayAreaForLaunchingRecord));
-        }
+        if (activityRecord != null) {
+            WindowProcessController controllerFromLaunchingRecord = mAtm.getProcessController(
+                    activityRecord.getLaunchedFromPid(), activityRecord.getLaunchedFromUid());
+            TaskDisplayArea displayAreaForLaunchingRecord = controllerFromLaunchingRecord == null
+                    ? null : controllerFromLaunchingRecord.getTopActivityDisplayArea();
+            if (displayAreaForLaunchingRecord != null) {
+                mFallBackDisplayAreaList.add(
+                        TaskDisplayAreaWrapper.create(displayAreaForLaunchingRecord));
+            }
 
-        WindowProcessController controllerFromProcess = mAtm.getProcessController(
-                activityRecord.getProcessName(), activityRecord.getUid());
-        TaskDisplayArea displayAreaForRecord = controllerFromProcess == null ? null
-                : controllerFromProcess.getTopActivityDisplayArea();
-        if (displayAreaForRecord != null) {
-            mFallBackDisplayAreaList.add(TaskDisplayAreaWrapper.create(displayAreaForRecord));
+            WindowProcessController controllerFromProcess = mAtm.getProcessController(
+                    activityRecord.getProcessName(), activityRecord.getUid());
+            TaskDisplayArea displayAreaForRecord = controllerFromProcess == null ? null
+                    : controllerFromProcess.getTopActivityDisplayArea();
+            if (displayAreaForRecord != null) {
+                mFallBackDisplayAreaList.add(TaskDisplayAreaWrapper.create(displayAreaForRecord));
+            }
         }
 
         WindowProcessController controllerFromRequest =
@@ -223,7 +226,7 @@ public final class CarLaunchParamsModifier implements LaunchParamsController.Lau
         @NonNull
         @Override
         public List<TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(
-                @NonNull ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request) {
+                @Nullable ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request) {
             return CarLaunchParamsModifier.this.getFallbackDisplayAreasForActivity(
                     activityRecord, request);
         }

@@ -17,9 +17,11 @@ package com.android.internal.car {
     method @Nullable public java.io.File dumpServiceStacks();
     method public int fetchAidlVhalPid();
     method public int getMainDisplayAssignedToUser(int);
+    method public int getOwnerUserIdForDisplay(int);
     method public int getProcessGroup(int);
     method public int getUserAssignedToDisplay(int);
-    method public boolean isOverlayDisplay(int);
+    method public boolean isPublicOverlayDisplay(int);
+    method public boolean isPublicVirtualDisplay(int);
     method public boolean isVisibleBackgroundUsersEnabled();
     method public void setProcessGroup(int, int);
     method public void setProcessProfile(int, int, @NonNull String);
@@ -104,6 +106,7 @@ package com.android.server.wm {
   public interface CarDisplayCompatScaleProviderInterface {
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
+    method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);
     method public int getMainDisplayAssignedToUser(int);
     method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
     method @Nullable public String getStringForUser(android.content.ContentResolver, String, int);
@@ -119,7 +122,7 @@ package com.android.server.wm {
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper findTaskDisplayArea(int, int);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int);
-    method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@NonNull com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
+    method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@Nullable com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
     method public int getMainDisplayAssignedToUser(int);
     method public int getUserAssignedToDisplay(int);
   }

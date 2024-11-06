@@ -28,6 +28,8 @@ import static android.view.Display.INVALID_DISPLAY;
 import static com.android.server.wm.CarDisplayCompatConfig.ANY_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
 
+import static java.lang.Math.abs;
+
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
@@ -67,6 +69,7 @@ import org.xmlpull.v1.XmlPullParserException;
 
 import java.io.ByteArrayInputStream;
 import java.io.File;
+import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
@@ -83,7 +86,6 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatScaleProviderUpdatable, CarActivityInterceptorUpdatable {
     private static final String TAG =
             CarDisplayCompatScaleProviderUpdatableImpl.class.getSimpleName();
-    private static final boolean DBG = Slogf.isLoggable(TAG, Log.DEBUG);
     // {@code PackageManager#FEATURE_CAR_DISPLAY_COMPATIBILITY}
     static final String FEATURE_CAR_DISPLAY_COMPATIBILITY =
             "android.software.car.display_compatibility";
@@ -96,9 +98,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @VisibleForTesting
     static final int USER_NULL = -10000;
     @VisibleForTesting
-    static final float NO_SCALE = -1f;
+    static final float NO_SCALE = 0f;
     @VisibleForTesting
-    static final float OPT_OUT = -2f;
+    static final float OPT_OUT = -1 * DEFAULT_SCALE;
     // {@code CarPackageManager#ERROR_CODE_NO_PACKAGE}
     private static final int ERROR_CODE_NO_PACKAGE = -100;
     @VisibleForTesting
@@ -139,7 +141,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         @Override
         public void onReceive(Context context, Intent intent) {
             String packageName = intent.getData().getSchemeSpecificPart();
-            if (DBG) {
+            if (isDebugLoggable()) {
                 Slogf.d(TAG, "package intent " + intent);
                 Slogf.d(TAG, "package uri " + intent.getData());
             }
@@ -153,6 +155,11 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 } else {
                     updateStateOfPackageForUserLocked(packageName, getCurrentOrTargetUserId());
                 }
+            } catch (PackageManager.NameNotFoundException e) {
+                // This shouldn't be the case if the user requesting the package is the same as
+                // the user launching the app.
+                Slogf.w(TAG, "Package %s for user %d not found", packageName,
+                        getCurrentOrTargetUserId());
             } finally {
                 mConfigLock.unlockWrite(stamp);
             }
@@ -202,15 +209,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return;
         }
 
-        long stamp = mConfigLock.writeLock();
-        try {
-            if (!updateConfigForUserFromSettingsLocked(UserHandle.CURRENT)) {
-                updateCurrentConfigFromDeviceLocked();
-            }
-            updateStateOfAllPackagesForUserLocked(getCurrentOrTargetUserId());
-        } finally {
-            mConfigLock.unlockWrite(stamp);
-        }
+        initConfig(UserHandle.of(getCurrentOrTargetUserId()));
 
         // TODO(b/329898692): can we fix the tests so we don't need this?
         if (mContext.getMainLooper() == null) {
@@ -229,7 +228,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 if (getCurrentOrTargetUserId() == user.getIdentifier()) {
                     long stamp = mConfigLock.writeLock();
                     try {
-                        updateConfigForUserFromSettingsLocked(user);
+                        initLocalConfigFromSettingsLocked(user);
                     } finally {
                         mConfigLock.unlockWrite(stamp);
                     }
@@ -336,7 +335,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             }
         }
         if (res != null) {
-            if (DBG) {
+            if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s is cached %b", packageName, res.booleanValue());
             }
             return res.booleanValue();
@@ -344,6 +343,10 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             stamp = mConfigLock.writeLock();
             try {
                 return updateStateOfPackageForUserLocked(packageName, userId);
+            } catch (PackageManager.NameNotFoundException e) {
+                // This shouldn't be the case if the user requesting the package is the same as
+                // the user launching the app.
+                throw new ServiceSpecificException(ERROR_CODE_NO_PACKAGE, e.getMessage());
             } finally {
                 mConfigLock.unlockWrite(stamp);
             }
@@ -352,13 +355,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
     /** Notifies user switching. */
     public void handleCurrentUserSwitching(UserHandle newUser) {
-        long stamp = mConfigLock.writeLock();
-        try {
-            updateConfigForUserFromSettingsLocked(newUser);
-            updateStateOfAllPackagesForUserLocked(newUser.getIdentifier());
-        } finally {
-            mConfigLock.unlockWrite(stamp);
-        }
+        initConfig(newUser);
     }
 
     /**
@@ -377,6 +374,19 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
         writer.decreaseIndent();
         writer.decreaseIndent();
+    }
+
+    /** Initialise cache. */
+    private void initConfig(UserHandle user) {
+        long stamp = mConfigLock.writeLock();
+        try {
+            if (!initLocalConfigFromSettingsLocked(user)) {
+                initLocalConfigAndSettingsFromConfigFileLocked();
+                initLocalConfigAndSettingsForAllInstalledPackagesLocked(user.getIdentifier());
+            }
+        } finally {
+            mConfigLock.unlockWrite(stamp);
+        }
     }
 
     // @GuardedBy("mConfigLock")
@@ -405,14 +415,17 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         } catch (PackageManager.NameNotFoundException e) {
             // This shouldn't be the case if the user requesting the package is the same as
             // the user launching the app.
-            Slogf.e(TAG, "Package " + packageName + " not found", e);
+            Slogf.w(TAG, "Package %s for user %d not found", packageName, userId);
         }
         return displayId;
     }
 
+    /**
+     * Initializes local config and settings for all installed packages for the user.
+     */
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private void updateStateOfAllPackagesForUserLocked(@UserIdInt int userId) {
+    private void initLocalConfigAndSettingsForAllInstalledPackagesLocked(@UserIdInt int userId) {
         // TODO(b/329898692): can we fix the tests so we don't need this?
         if (mPackageManager == null) {
             // mPackageManager is null during tests.
@@ -420,49 +433,59 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
         ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(GET_META_DATA);
         List<ApplicationInfo> allPackagesForUser =
-                mPackageManager.getInstalledApplications(appFlags);
+                mCarCompatScaleProviderInterface.getInstalledApplicationsAsUser(appFlags, userId);
         for (int i = 0; i < allPackagesForUser.size(); i++) {
             ApplicationInfo appInfo = allPackagesForUser.get(i);
-            updateStateOfPackageForUserLocked(appInfo.packageName, userId);
+            try {
+                updateStateOfPackageForUserLocked(appInfo.packageName, userId);
+            } catch (PackageManager.NameNotFoundException e) {
+                Slogf.w(TAG, "Package %s for user %d not found", appInfo.packageName, userId);
+            }
         }
     }
 
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     private boolean updateStateOfPackageForUserLocked(@NonNull String packageName,
-            @UserIdInt int userId) {
+            @UserIdInt int userId) throws PackageManager.NameNotFoundException {
         int displayId = getPackageDisplayIdAsUserLocked(packageName, userId);
-        try {
-            CarDisplayCompatConfig.Key key =
-                    new CarDisplayCompatConfig.Key(displayId, packageName, userId);
-            float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-            boolean hasConfig = true;
+        CarDisplayCompatConfig.Key key =
+                new CarDisplayCompatConfig.Key(displayId, packageName, userId);
+        float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
+        boolean hasConfig = true;
+        if (scaleFactor == NO_SCALE) {
+            key.mUserId = UserHandle.ALL.getIdentifier();
+            scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
+            if (scaleFactor == NO_SCALE) {
+                hasConfig = false;
+            }
+        }
+
+        boolean result = requiresDisplayCompatNotCachedLocked(packageName, userId);
+        if (!hasConfig && !result) {
+            // Package is opt-out
+            mConfig.setScaleFactor(key, OPT_OUT);
+        } else if (!hasConfig && result) {
+            // Apply user default scale or display default scale to the package
+            key.mPackageName = ANY_PACKAGE;
+            key.mUserId = userId;
+            scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
             if (scaleFactor == NO_SCALE) {
                 key.mUserId = UserHandle.ALL.getIdentifier();
-                scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-                if (scaleFactor == NO_SCALE) {
-                    hasConfig = false;
-                }
-                key.mUserId = userId;
+                scaleFactor = mConfig.getScaleFactor(key, DEFAULT_SCALE);
             }
-
-            boolean result = requiresDisplayCompatNotCachedLocked(packageName, userId);
-            if (!hasConfig && !result) {
-                mConfig.setScaleFactor(key, OPT_OUT);
-            } else if (hasConfig && result && scaleFactor == OPT_OUT) {
-                mConfig.setScaleFactor(key, DEFAULT_SCALE);
-            }
-
-            mRequiresDisplayCompat.put(packageName, result);
-            return result;
-        } catch (PackageManager.NameNotFoundException e) {
-            // This shouldn't be the case if the user requesting the package is the same as
-            // the user launching the app.
-            Slogf.e(TAG, "Package " + packageName + " not found", e);
-            throw new ServiceSpecificException(
-                    ERROR_CODE_NO_PACKAGE,
-                    e.getMessage());
+            mConfig.setScaleFactor(key, scaleFactor);
+        } else if (hasConfig) {
+            // Package was opt-out, but now is opt-in or the otherway around
+            mConfig.setScaleFactor(key, result ? abs(scaleFactor) : -1 * abs(scaleFactor));
         }
+
+        mRequiresDisplayCompat.put(packageName, result);
+        mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
+                DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
+                getCurrentOrTargetUserId());
+
+        return result;
     }
 
     // @GuardedBy("mConfigLock")
@@ -478,7 +501,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // application has {@code FEATURE_CAR_DISPLAY_COMPATIBILITY} metadata
         if (applicationInfo != null &&  applicationInfo.metaData != null
                 && applicationInfo.metaData.containsKey(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
-            if (DBG) {
+            if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s has %s metadata", packageName,
                         FEATURE_CAR_DISPLAY_COMPATIBILITY);
             }
@@ -496,7 +519,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             for (FeatureInfo feature: features) {
                 if (FEATURE_AUTOMOTIVE.equals(feature.name)) {
                     boolean required = ((feature.flags & FLAG_REQUIRED) != 0);
-                    if (DBG) {
+                    if (isDebugLoggable()) {
                         Slogf.d(TAG, "Package %s has %s %b",
                                 packageName, FEATURE_AUTOMOTIVE, required);
                     }
@@ -507,7 +530,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         // Opt out if has no activities
         if (pkgInfo == null || pkgInfo.activities == null) {
-            if (DBG) {
+            if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s has no Activity", packageName);
             }
             return false;
@@ -520,7 +543,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             Bundle activityMetaData = ai.metaData;
             if (activityMetaData != null && activityMetaData
                     .getBoolean(META_DATA_DISTRACTION_OPTIMIZED)) {
-                if (DBG) {
+                if (isDebugLoggable()) {
                     Slogf.d(TAG, "Package %s has %s", packageName,
                             META_DATA_DISTRACTION_OPTIMIZED);
                 }
@@ -531,7 +554,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         if (applicationInfo != null) {
             // Opt out if it's a privileged package
             if (applicationInfo.isPrivilegedApp()) {
-                if (DBG) {
+                if (isDebugLoggable()) {
                     Slogf.d(TAG, "Package %s isPrivileged", packageName);
                 }
                 return false;
@@ -539,7 +562,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
             // Opt out if it's a system package
             if ((applicationInfo.flags & FLAG_SYSTEM) != 0) {
-                if (DBG) {
+                if (isDebugLoggable()) {
                     Slogf.d(TAG, "Package %s has FLAG_SYSTEM", packageName);
                 }
                 return false;
@@ -549,7 +572,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // Opt out if package has platform signature
         if (mPackageManager.checkSignatures(PLATFORM_PACKAGE_NAME, packageName)
                 == SIGNATURE_MATCH) {
-            if (DBG) {
+            if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s is platform signed", packageName);
             }
             return false;
@@ -559,15 +582,19 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         return true;
     }
 
+    /**
+     * @return {@code true} if local config and settings is successfully updated, false otherwise.
+     */
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private boolean updateCurrentConfigFromDeviceLocked() {
+    private boolean initLocalConfigAndSettingsFromConfigFileLocked() {
         // read the default config from device if user settings is not available.
-        try (InputStream in = getConfigFile().openRead()) {
+        try (InputStream in = openReadConfigFile()) {
             mConfig.populate(in);
+            mRequiresDisplayCompat.clear();
             mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
                     DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
-                    UserHandle.CURRENT.getIdentifier());
+                    getCurrentOrTargetUserId());
             return true;
         } catch (XmlPullParserException | IOException | SecurityException e) {
             Slogf.e(TAG, "read config failed from device " + getConfigFile(), e);
@@ -575,9 +602,13 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         return false;
     }
 
+    /**
+     * @return {@code true} if settings exists and is successfully populated into the local config,
+     * false otherwise.
+     */
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private boolean updateConfigForUserFromSettingsLocked(@NonNull UserHandle user) {
+    private boolean initLocalConfigFromSettingsLocked(@NonNull UserHandle user) {
         // Read the config and populate the in memory cache
         String configString = mCarCompatScaleProviderInterface.getStringForUser(
                 mContext.getContentResolver(), DISPLAYCOMPAT_SETTINGS_SECURE_KEY,
@@ -588,6 +619,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         try (InputStream in =
                 new ByteArrayInputStream(configString.getBytes())) {
             mConfig.populate(in);
+            mRequiresDisplayCompat.clear();
             return true;
         } catch (XmlPullParserException | IOException | SecurityException e) {
             Slogf.e(TAG, "read config failed from Settings.Secure", e);
@@ -620,28 +652,28 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(displayId, packageName, userId);
         float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE && scaleFactor != OPT_OUT) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, scaleFactor);
+        if (scaleFactor != NO_SCALE) {
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
         }
         // Query the scale factor for all packages for a specific user.
         key.mPackageName = ANY_PACKAGE;
         scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE && scaleFactor != OPT_OUT) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, scaleFactor);
+        if (scaleFactor != NO_SCALE) {
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
         }
         // Query the scale factor for a specific package across all users.
         key.mPackageName = packageName;
         key.mUserId = UserHandle.ALL.getIdentifier();
         scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE && scaleFactor != OPT_OUT) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, scaleFactor);
+        if (scaleFactor != NO_SCALE) {
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
         }
         // Query the scale factor for a specific display regardless of
         // user or package name.
         key.mPackageName = ANY_PACKAGE;
         scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
-        if (scaleFactor != NO_SCALE && scaleFactor != OPT_OUT) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, scaleFactor);
+        if (scaleFactor != NO_SCALE) {
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
         }
         return null;
     }
@@ -650,5 +682,16 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private static AtomicFile getConfigFile() {
         File configFile = new File(Environment.getProductDirectory(), CONFIG_PATH);
         return new AtomicFile(configFile);
+    }
+
+    /** This method is needed to be overwritten to provide a test InputStream for the config */
+    @VisibleForTesting
+    @NonNull
+    InputStream openReadConfigFile() throws FileNotFoundException {
+        return getConfigFile().openRead();
+    }
+
+    private static boolean isDebugLoggable() {
+        return Slogf.isLoggable(TAG, Log.DEBUG);
     }
 }
