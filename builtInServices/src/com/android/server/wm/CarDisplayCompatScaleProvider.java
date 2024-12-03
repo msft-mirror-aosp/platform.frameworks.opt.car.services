@@ -32,7 +32,6 @@ import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
 import static com.android.server.wm.CompatScaleProvider.COMPAT_SCALE_MODE_PRODUCT;
 
 import static java.lang.Math.abs;
-import java.util.ArrayList;
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
@@ -57,6 +56,7 @@ import android.net.Uri;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
@@ -73,6 +73,7 @@ import java.io.ByteArrayInputStream;
 import java.io.File;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.locks.StampedLock;
@@ -88,6 +89,8 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
     private static final boolean DBG_VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
+    private static final boolean INSTALL_SOURCE_CHECK_ENABLED = SystemProperties.getBoolean(
+            "ro.boot.car.displaycompat.install_source_check", false);
     private static final String META_DATA_DISTRACTION_OPTIMIZED = "distractionOptimized";
     private static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
@@ -499,25 +502,32 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         }
 
         // Opt out if the package is not installed via an allowed install source
-        try {
-            if (DBG) {
-                Slogf.d(TAG, "allowedAppInstallSources: " + mAllowedAppInstallSources);
-            }
-
-            if (mAllowedAppInstallSources != null) {
-                String installerName = mPackageManager.getInstallerPackageName(
-                        packageName);
-                if (installerName == null || (installerName != null
-                        && !mAllowedAppInstallSources.contains(installerName))) {
-                    Slogf.w(TAG,
-                            packageName + " not installed from permitted sources "
-                                    + (installerName == null ? "NULL" : installerName));
-                    return false;
+        if (INSTALL_SOURCE_CHECK_ENABLED) {
+            try {
+                if (DBG) {
+                    Slogf.d(TAG, "allowedAppInstallSources check enabled, sources: "
+                            + mAllowedAppInstallSources);
                 }
+
+                if (mAllowedAppInstallSources != null) {
+                    String installerName = mPackageManager.getInstallerPackageName(
+                            packageName);
+                    if (installerName == null || (installerName != null
+                            && !mAllowedAppInstallSources.contains(installerName))) {
+                        Slogf.w(TAG,
+                                packageName + " not installed from permitted sources "
+                                        + (installerName == null ? "NULL" : installerName));
+                        return false;
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                Slogf.w(TAG, packageName + " not installed!");
+                return false;
             }
-        } catch (IllegalArgumentException e) {
-            Slogf.w(TAG, packageName + " not installed!");
-            return false;
+        } else {
+            if (DBG) {
+                Slogf.d(TAG, "allowedAppInstallSources check is disabled");
+            }
         }
 
         // Opt in by default
