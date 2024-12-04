@@ -851,16 +851,6 @@ public class CarServiceHelperService extends SystemService
             }
             service.handleClientsNotResponding(processIdentifiers);
         }
-
-        @Override
-        public String getInterfaceHash() {
-            return ICarWatchdogMonitor.HASH;
-        }
-
-        @Override
-        public int getInterfaceVersion() {
-            return ICarWatchdogMonitor.VERSION;
-        }
     }
 
     private final class ProcessTerminator {
