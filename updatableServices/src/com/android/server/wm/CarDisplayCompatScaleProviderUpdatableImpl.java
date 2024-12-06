@@ -252,7 +252,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @Nullable
     @Override
     public CompatScaleWrapper getCompatScale(@NonNull String packageName, @UserIdInt int userId) {
-        if (!Flags.displayCompatibility()) {
+        if (!Flags.displayCompatibility() || !Flags.displayCompatibilityDensity()) {
             return null;
         }
         if (mPackageManager != null
@@ -277,14 +277,19 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         float compatModeScalingFactor = mCarCompatScaleProviderInterface
                 .getCompatModeScalingFactor(packageName, UserHandle.of(userId));
         if (compatModeScalingFactor == DEFAULT_SCALE) {
+            Slogf.i(TAG, "Returning CompatScale " + compatScale + " for package " + packageName);
             return compatScale;
         }
         // This shouldn't happen outside of CTS, because CompatModeChanges has higher
         // priority and will already return a scale.
         // See {@code com.android.server.wm.CompatModePackage#getCompatScale} for details.
-        CompatScaleWrapper res = new CompatScaleWrapper(DEFAULT_SCALE,
-                (1f / compatModeScalingFactor) * compatScale.getDensityScaleFactor());
-        return res;
+        if(compatScale != null) {
+            CompatScaleWrapper res = new CompatScaleWrapper(DEFAULT_SCALE,
+                    (1f / compatModeScalingFactor) * compatScale.getDensityScaleFactor());
+            return res;
+        }
+        Slogf.i(TAG, "Returning CompatScale " + compatScale + " for package " + packageName);
+        return compatScale;
     }
 
     @Nullable
