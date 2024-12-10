@@ -45,4 +45,10 @@ public final class CompatScaleWrapper {
     public float getDensityScaleFactor() {
         return mDensityScaleFactor;
     }
+
+    @Override
+    public String toString() {
+        return "CompatScaleWrapper{ mScaleFactor=" + mScaleFactor + ", mDensityScaleFactor="
+                + mDensityScaleFactor + "}";
+    }
 }

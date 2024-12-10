@@ -252,7 +252,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @Nullable
     @Override
     public CompatScaleWrapper getCompatScale(@NonNull String packageName, @UserIdInt int userId) {
-        if (!Flags.displayCompatibility()) {
+        if (!Flags.displayCompatibility() || !Flags.displayCompatibilityDensity()) {
             return null;
         }
         if (mPackageManager != null
@@ -277,6 +277,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         float compatModeScalingFactor = mCarCompatScaleProviderInterface
                 .getCompatModeScalingFactor(packageName, UserHandle.of(userId));
         if (compatModeScalingFactor == DEFAULT_SCALE) {
+            Slogf.i(TAG, "Returning CompatScale " + compatScale + " for package " + packageName);
             return compatScale;
         }
         // This shouldn't happen outside of CTS, because CompatModeChanges has higher
@@ -287,6 +288,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                     (1f / compatModeScalingFactor) * compatScale.getDensityScaleFactor());
             return res;
         }
+        Slogf.i(TAG, "Returning CompatScale " + compatScale + " for package " + packageName);
         return compatScale;
     }
 
