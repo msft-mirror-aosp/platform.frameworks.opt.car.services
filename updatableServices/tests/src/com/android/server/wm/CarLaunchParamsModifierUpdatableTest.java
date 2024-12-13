@@ -88,6 +88,7 @@ public class CarLaunchParamsModifierUpdatableTest {
     private static final int PASSENGER_DISPLAY_ID_11 = 11;
     private static final int RANDOM_DISPLAY_ID_99 = 99;
     private static final int VIRTUAL_DISPLAY_ID_2 = 2;
+    private static final int OVERLAY_DISPLAY_ID_3 = 3;
     private static final int FEATURE_MAP_ID = 1111;
 
     private MockitoSession mMockingSession;
@@ -120,6 +121,8 @@ public class CarLaunchParamsModifierUpdatableTest {
     private InputManagerService mInputManagerService;
     @Mock
     private UserManagerInternal mUserManagerInternal;
+    @Mock
+    private AppCompatConfiguration mAppCompatConfiguration;
 
     @Mock
     private Display mDisplay0ForDriver;
@@ -136,6 +139,13 @@ public class CarLaunchParamsModifierUpdatableTest {
     @Mock
     private Display mDisplay2Virtual;
     private TaskDisplayArea mDisplayArea2Virtual;
+    @Mock
+    private Display mDisplay3Overlay;
+    private TaskDisplayArea mDisplayArea3Overlay;
+    @Mock
+    private Display mDisplay99Random;
+    private TaskDisplayArea mDisplayArea99Random;
+
     private TaskDisplayArea mMapTaskDisplayArea;
 
     // All mocks from here before CarLaunchParamsModifier are arguments for
@@ -213,7 +223,8 @@ public class CarLaunchParamsModifierUpdatableTest {
                 mContext, mInputManagerService, /* showBootMsgs= */ false, /* policy= */ null,
                 mActivityTaskManagerService,
                 /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
-                /* surfaceControlFactory= */ null);
+                /* surfaceControlFactory= */ null,
+                /* appCompatConfiguration= */ mAppCompatConfiguration);
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
         mRootWindowContainer.mWindowManager = mWindowManagerService;
 
@@ -240,6 +251,10 @@ public class CarLaunchParamsModifierUpdatableTest {
                 FLAG_TRUSTED | FLAG_PRIVATE, /* type= */ 0);
         mDisplayArea2Virtual = mockDisplay(mDisplay2Virtual, VIRTUAL_DISPLAY_ID_2,
                 FLAG_PRIVATE, /* type= */ 0);
+        mDisplayArea3Overlay = mockDisplay(mDisplay3Overlay, OVERLAY_DISPLAY_ID_3,
+                FLAG_TRUSTED, /* type= */ Display.TYPE_OVERLAY);
+        mDisplayArea99Random = mockDisplay(mDisplay99Random, RANDOM_DISPLAY_ID_99,
+                FLAG_TRUSTED, /* type= */ 0);
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mBuiltin = mModifier.getBuiltinInterface();
@@ -782,6 +797,64 @@ public class CarLaunchParamsModifierUpdatableTest {
                 .thenReturn(PASSENGER_DISPLAY_ID_11);
         // Try to start Activity on the non-main display.
         when(mActivityOptions.getLaunchDisplayId()).thenReturn(RANDOM_DISPLAY_ID_99);
+
+        // For the visible user, fallbacks to the main display.
+        assertDisplayIsAssigned(visibleUserId, mDisplayArea11ForPassenger);
+    }
+
+    @Test
+    public void testCallerDisplayButNoDisplayIsAssigned() {
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, OVERLAY_DISPLAY_ID_3});
+        final int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(OVERLAY_DISPLAY_ID_3))
+                .thenReturn(visibleUserId);
+        when(mActivityOptions.getCallerDisplayId()).thenReturn(OVERLAY_DISPLAY_ID_3);
+
+        // CarLaunchParamsModifier admires the callerDisplayId, not assigning a display.
+        assertNoDisplayIsAssigned(visibleUserId);
+    }
+
+    @Test
+    public void testVisibleUserUsesMainDisplayAsFallback_whenCallerDisplayIsRandomDisplay() {
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        final int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(PASSENGER_DISPLAY_ID_11))
+                .thenReturn(visibleUserId);
+        when(mUserManagerInternal.getMainDisplayAssignedToUser(visibleUserId))
+                .thenReturn(PASSENGER_DISPLAY_ID_11);
+        // Try to start Activity on display that is not assigned to the user.
+        when(mActivityOptions.getCallerDisplayId()).thenReturn(RANDOM_DISPLAY_ID_99);
+
+        // For the visible user, fallbacks to the main display.
+        assertDisplayIsAssigned(visibleUserId, mDisplayArea11ForPassenger);
+    }
+
+    @Test
+    public void testDisplayFromSourceButNoDisplayIsAssigned() {
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, OVERLAY_DISPLAY_ID_3});
+        final int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(OVERLAY_DISPLAY_ID_3))
+                .thenReturn(visibleUserId);
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea3Overlay);
+
+        // CarLaunchParamsModifier admires the display area from source, not assigning a display.
+        assertNoDisplayIsAssigned(visibleUserId);
+    }
+
+    @Test
+    public void testVisibleUserUsesMainDisplayAsFallback_whenDisplayFromSourceIsRandomDisplay() {
+        mUpdatable.setPassengerDisplays(
+                new int[]{PASSENGER_DISPLAY_ID_10, PASSENGER_DISPLAY_ID_11});
+        final int visibleUserId = 100;
+        when(mUserManagerInternal.getUserAssignedToDisplay(PASSENGER_DISPLAY_ID_11))
+                .thenReturn(visibleUserId);
+        when(mUserManagerInternal.getMainDisplayAssignedToUser(visibleUserId))
+                .thenReturn(PASSENGER_DISPLAY_ID_11);
+        // Try to start Activity on display that is not assigned to the user.
+        when(mActivityRecordSource.getDisplayArea()).thenReturn(mDisplayArea99Random);
 
         // For the visible user, fallbacks to the main display.
         assertDisplayIsAssigned(visibleUserId, mDisplayArea11ForPassenger);

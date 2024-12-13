@@ -18,6 +18,7 @@ package com.android.internal.car;
 import static android.view.Display.FLAG_PRIVATE;
 import static android.view.Display.FLAG_TRUSTED;
 import static android.view.Display.TYPE_OVERLAY;
+import static android.view.Display.TYPE_VIRTUAL;
 
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
@@ -622,7 +623,8 @@ public class CarServiceHelperService extends SystemService
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
-                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
+                /* criticalEventSection= */ null, /* extraHeaders= */ null,
+                 Runnable::run, /* latencyTracker= */ null);
     }
 
     @Override
@@ -805,7 +807,7 @@ public class CarServiceHelperService extends SystemService
     }
 
     @Override
-    public boolean isOverlayDisplay(int displayId) {
+    public boolean isPublicOverlayDisplay(int displayId) {
         Display display = mDisplayManager.getDisplay(displayId);
         if (display == null) {
             return false;
@@ -813,6 +815,25 @@ public class CarServiceHelperService extends SystemService
         int displayFlags = display.getFlags();
         return ((displayFlags & FLAG_PRIVATE) == 0 && (displayFlags & FLAG_TRUSTED) != 0
                 && display.getType() == TYPE_OVERLAY);
+    }
+
+    @Override
+    public boolean isPublicVirtualDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return false;
+        }
+        int displayFlags = display.getFlags();
+        return ((displayFlags & FLAG_PRIVATE) == 0 && display.getType() == TYPE_VIRTUAL);
+    }
+
+    @Override
+    public @UserIdInt int getOwnerUserIdForDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return UserHandle.USER_NULL;
+        }
+        return UserHandle.getUserId(display.getOwnerUid());
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
