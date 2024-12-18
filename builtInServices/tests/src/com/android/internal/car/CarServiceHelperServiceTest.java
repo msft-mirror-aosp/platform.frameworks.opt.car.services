@@ -45,10 +45,10 @@ import android.os.UserHandle;
 import androidx.test.ext.junit.runners.AndroidJUnit4;
 
 import com.android.server.LocalServices;
-import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.SystemService.UserCompletedEventType;
 import com.android.server.pm.UserManagerInternal;
+import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -88,6 +88,11 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Mock
     private ActivityManager mActivityManager;
 
+    @Mock
+    private CarActivityInterceptor mActivityInterceptor;
+    @Mock
+    private CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
+
     public CarServiceHelperServiceTest() {
         super(CarServiceHelperService.TAG);
     }
@@ -109,7 +114,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
                 mCarServiceHelperServiceUpdatable,
-                mCarDevicePolicySafetyChecker);
+                mCarDevicePolicySafetyChecker,
+                mActivityInterceptor,
+                mCarDisplayCompatScaleProvider);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
         when(mMockContext.getSystemService(ActivityManager.class)).thenReturn(mActivityManager);
 
@@ -176,13 +183,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         mHelper.onUserStopped(newTargetUser(userId));
 
         verifyICarOnUserLifecycleEventCalled(USER_LIFECYCLE_EVENT_TYPE_STOPPED, userId);
-    }
-
-    @Test
-    public void testOnBootPhase_thirdPartyCanStart_initBootUser() throws Exception {
-        mHelper.onBootPhase(SystemService.PHASE_THIRD_PARTY_APPS_CAN_START);
-
-        verifyInitBootUser();
     }
 
     @Test
@@ -279,10 +279,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
             @UserIdInt int userId) throws Exception {
         verify(mCarServiceHelperServiceUpdatable).sendUserLifecycleEvent(eventType,
                 null, UserHandle.of(userId));
-    }
-
-    private void verifyInitBootUser() throws Exception {
-        verify(mCarServiceHelperServiceUpdatable).initBootUser();
     }
 
     private ServiceDebugInfo newServiceDebugInfo(String name, int debugPid) {

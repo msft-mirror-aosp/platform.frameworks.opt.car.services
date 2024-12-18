@@ -150,13 +150,6 @@ public final class CarServiceHelperServiceUpdatableImplTest
     }
 
     @Test
-    public void testInitBootUser() throws Exception {
-        mCarServiceHelperServiceUpdatableImpl.initBootUser();
-
-        verify(mCarServiceProxy).initBootUser();
-    }
-
-    @Test
     public void testSendUserLifecycleEvent_nullFromUser() throws Exception {
         int eventType = 1;
         UserHandle userFrom = null;
@@ -225,6 +218,24 @@ public final class CarServiceHelperServiceUpdatableImplTest
         assertWithMessage("getUserAssignedToDisplay(42)")
                 .that(mCarServiceHelperServiceUpdatableImpl.mHelper.getUserAssignedToDisplay(42))
                 .isEqualTo(108);
+    }
+
+    @Test
+    public void testAssignUserToExtraDisplay() throws Exception {
+        int userId = 42;
+        int displayId = 37;
+        mCarServiceHelperInterface.assignUserToExtraDisplay(userId, displayId);
+
+        verify(mCarServiceHelperInterface).assignUserToExtraDisplay(userId, displayId);
+    }
+
+    @Test
+    public void testUnassignUserToExtraDisplay() throws Exception {
+        int userId = 42;
+        int displayId = 37;
+        mCarServiceHelperInterface.unassignUserFromExtraDisplay(userId, displayId);
+
+        verify(mCarServiceHelperInterface).unassignUserFromExtraDisplay(userId, displayId);
     }
 
     private void mockICarBinder() {

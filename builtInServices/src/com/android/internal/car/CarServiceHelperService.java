@@ -15,6 +15,11 @@
  */
 package com.android.internal.car;
 
+import static android.view.Display.FLAG_PRIVATE;
+import static android.view.Display.FLAG_TRUSTED;
+import static android.view.Display.TYPE_OVERLAY;
+import static android.view.Display.TYPE_VIRTUAL;
+
 import static com.android.car.internal.common.CommonConstants.INVALID_PID;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
@@ -44,6 +49,7 @@ import android.car.builtin.util.EventLogHelper;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.pm.UserInfo;
+import android.hardware.display.DisplayManager;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
 import android.os.HandlerThread;
@@ -61,6 +67,7 @@ import android.util.ArrayMap;
 import android.util.Dumpable;
 import android.util.Log;
 import android.util.TimeUtils;
+import android.view.Display;
 
 import com.android.car.internal.common.UserHelperLite;
 import com.android.internal.annotations.GuardedBy;
@@ -82,6 +89,9 @@ import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
+import com.android.server.wm.WindowManagerService;
+import com.android.server.wm.WindowProcessController;
+import com.android.server.wm.WindowProcessControllerHelper;
 
 import java.io.BufferedReader;
 import java.io.File;
@@ -151,6 +161,9 @@ public class CarServiceHelperService extends SystemService
     private static final String AIDL_VHAL_INTERFACE_PREFIX =
             "android.hardware.automotive.vehicle.IVehicle/";
 
+    private static final boolean sVisibleBackgroundUsersEnabled =
+            UserManager.isVisibleBackgroundUsersEnabled();
+
     static  {
         // Load this JNI before other classes are loaded.
         System.loadLibrary("carservicehelperjni");
@@ -164,6 +177,8 @@ public class CarServiceHelperService extends SystemService
     private final CarLaunchParamsModifier mCarLaunchParamsModifier;
     private final CarActivityInterceptor mCarActivityInterceptor;
     private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
+    private final ActivityTaskManagerInternal mActivityTaskManagerInternal;
+    private final DisplayManager mDisplayManager;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread("CarServiceHelperService");
@@ -184,6 +199,7 @@ public class CarServiceHelperService extends SystemService
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
+    private WindowManagerService mWindowManagerService;
 
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
@@ -195,7 +211,9 @@ public class CarServiceHelperService extends SystemService
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
-                /* carDevicePolicySafetyChecker= */ null
+                /* carDevicePolicySafetyChecker= */ null,
+                new CarActivityInterceptor(),
+                new CarDisplayCompatScaleProvider(context)
         );
     }
 
@@ -205,15 +223,17 @@ public class CarServiceHelperService extends SystemService
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
-            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
+            @Nullable CarActivityInterceptor carActivityInterceptor,
+            @Nullable CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
         super(context);
 
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
-        mCarActivityInterceptor = new CarActivityInterceptor();
-        mCarDisplayCompatScaleProvider = new CarDisplayCompatScaleProvider();
+        mCarActivityInterceptor = carActivityInterceptor;
+        mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
@@ -287,6 +307,8 @@ public class CarServiceHelperService extends SystemService
         mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
+        mActivityTaskManagerInternal = LocalServices.getService(ActivityTaskManagerInternal.class);
+        mDisplayManager = mContext.getSystemService(DisplayManager.class);
     }
 
     @Override
@@ -298,7 +320,15 @@ public class CarServiceHelperService extends SystemService
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
-            setupAndStartUsers(t);
+            // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
+            // to cache the package states early before user starts interacting with apps.
+            // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            activityTaskManagerInternal.registerActivityStartInterceptor(
+                    PRODUCT_ORDERED_ID,
+                    mCarActivityInterceptor);
+            mCarDisplayCompatScaleProvider.init();
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
             t.traceBegin("onBootPhase.completed");
@@ -311,12 +341,6 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
-            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
-                    ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mContext);
             t.traceEnd();
         }
     }
@@ -328,7 +352,30 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper.addOnConnectionChangeListener(mConnectionListener);
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
+
+        mWindowManagerService = (WindowManagerService) ServiceManager.getService(
+                Context.WINDOW_SERVICE);
+        mWindowManagerService.addWindowChangeListener(mWindowChangeListener);
     }
+
+    private final WindowManagerService.WindowChangeListener mWindowChangeListener =
+            new WindowManagerService.WindowChangeListener() {
+                @Override
+                public void windowsChanged() {
+                    // Do nothing
+                }
+
+                @Override
+                public void focusChanged() {
+                    WindowProcessController topApp = mActivityTaskManagerInternal.getTopApp();
+                    if (topApp == null) {
+                        return;
+                    }
+                    int pid = topApp.getPid();
+                    int uid = WindowProcessControllerHelper.getUid(topApp);
+                    mCarServiceHelperServiceUpdatable.notifyFocusChanged(pid, uid);
+                }
+            };
 
     @Override
     public void dump(PrintWriter pw, String[] args) {
@@ -496,13 +543,6 @@ public class CarServiceHelperService extends SystemService
         return new TimingsTraceAndSlog(TAG, Trace.TRACE_TAG_SYSTEM_SERVER);
     }
 
-    private void setupAndStartUsers(@NonNull TimingsTraceAndSlog t) {
-        // TODO(b/156263735): decide if it should return in case the device's on Retail Mode
-        t.traceBegin("setupAndStartUsers");
-        mCarServiceHelperServiceUpdatable.initBootUser();
-        t.traceEnd();
-    }
-
     // Adapted from frameworks/base/services/core/java/com/android/server/Watchdog.java
     // TODO(b/131861630) use implementation common with Watchdog.java
     private static void addInterestingHidlPids(HashSet<Integer> pids) {
@@ -583,7 +623,8 @@ public class CarServiceHelperService extends SystemService
                 pids, /* processCpuTracker= */ null, /* lastPids= */ null,
                 CompletableFuture.completedFuture(getInterestingNativePids()),
                 /* logExceptionCreatingFile= */ null, /* subject= */ null,
-                /* criticalEventSection= */ null, Runnable::run, /* latencyTracker= */ null);
+                /* criticalEventSection= */ null, /* extraHeaders= */ null,
+                 Runnable::run, /* latencyTracker= */ null);
     }
 
     @Override
@@ -736,6 +777,63 @@ public class CarServiceHelperService extends SystemService
             Slogf.d(TAG, "getUserAssignedToDisplay(%d): %d", displayId, userId);
         }
         return userId;
+    }
+
+    @Override
+    public boolean assignUserToExtraDisplay(int userId, int displayId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        boolean success = umi.assignUserToExtraDisplay(userId, displayId);
+        if (DBG) {
+            Slogf.d(TAG, "assignUserToExtraDisplay(userId=%d, displayId=%d): %b",
+                    userId, displayId, success);
+        }
+        return success;
+    }
+
+    @Override
+    public boolean unassignUserFromExtraDisplay(int userId, int displayId) {
+        UserManagerInternal umi = LocalServices.getService(UserManagerInternal.class);
+        boolean success = umi.unassignUserFromExtraDisplay(userId, displayId);
+        if (DBG) {
+            Slogf.d(TAG, "unassignUserFromExtraDisplay(userId=%d, displayId=%d): %b",
+                    userId, displayId, success);
+        }
+        return success;
+    }
+
+    @Override
+    public boolean isVisibleBackgroundUsersEnabled() {
+        return sVisibleBackgroundUsersEnabled;
+    }
+
+    @Override
+    public boolean isPublicOverlayDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return false;
+        }
+        int displayFlags = display.getFlags();
+        return ((displayFlags & FLAG_PRIVATE) == 0 && (displayFlags & FLAG_TRUSTED) != 0
+                && display.getType() == TYPE_OVERLAY);
+    }
+
+    @Override
+    public boolean isPublicVirtualDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return false;
+        }
+        int displayFlags = display.getFlags();
+        return ((displayFlags & FLAG_PRIVATE) == 0 && display.getType() == TYPE_VIRTUAL);
+    }
+
+    @Override
+    public @UserIdInt int getOwnerUserIdForDisplay(int displayId) {
+        Display display = mDisplayManager.getDisplay(displayId);
+        if (display == null) {
+            return UserHandle.USER_NULL;
+        }
+        return UserHandle.getUserId(display.getOwnerUid());
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {
