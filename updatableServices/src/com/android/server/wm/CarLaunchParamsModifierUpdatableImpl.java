@@ -16,7 +16,6 @@
 
 package com.android.server.wm;
 
-import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
@@ -296,13 +295,29 @@ public final class CarLaunchParamsModifierUpdatableImpl
         decision:
         synchronized (mLock) {
             // If originalDisplayArea is set, respect that before ActivityOptions check.
-            if (originalDisplayArea == null) {
-                if (options != null) {
-                    originalDisplayArea = options.getLaunchTaskDisplayArea();
-                    if (originalDisplayArea == null) {
-                        originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
-                                options.getOptions().getLaunchDisplayId());
-                    }
+            if (originalDisplayArea == null && options != null) {
+                originalDisplayArea = options.getLaunchTaskDisplayArea();
+                if (originalDisplayArea == null) {
+                    // If task display area is not specified in options - try launch display id
+                    originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                            options.getOptions().getLaunchDisplayId());
+                }
+            }
+            if (originalDisplayArea == null && source != null) {
+                // try the display area of the source
+                TaskDisplayAreaWrapper sourceDisplayArea = source.getDisplayArea();
+                int sourceDisplayId = sourceDisplayArea == null
+                        ? Display.INVALID_DISPLAY : sourceDisplayArea.getDisplay().getDisplayId();
+                if (userId == getUserForDisplayLocked(sourceDisplayId)) {
+                    originalDisplayArea = sourceDisplayArea;
+                }
+            }
+            if (originalDisplayArea == null && options != null) {
+                // try the caller display id
+                int callerDisplayId = options.getCallerDisplayId();
+                if (userId == getUserForDisplayLocked(callerDisplayId)) {
+                    originalDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
+                            callerDisplayId);
                 }
             }
             if (mPersistentActivities.containsKey(activityName)) {
@@ -391,27 +406,18 @@ public final class CarLaunchParamsModifierUpdatableImpl
     @GuardedBy("mLock")
     @Nullable
     private TaskDisplayAreaWrapper getAlternativeDisplayAreaForPassengerLocked(int userId,
-            @NonNull ActivityRecordWrapper activtyRecord, @Nullable RequestWrapper request) {
+            @Nullable ActivityRecordWrapper activityRecord, @Nullable RequestWrapper request) {
         if (DBG) Slogf.d(TAG, "getAlternativeDisplayAreaForPassengerLocked:%d", userId);
         List<TaskDisplayAreaWrapper> fallbacks = mBuiltin.getFallbackDisplayAreasForActivity(
-                activtyRecord, request);
+                activityRecord, request);
         for (int i = 0, size = fallbacks.size(); i < size; ++i) {
             TaskDisplayAreaWrapper fallbackTda = fallbacks.get(i);
-            int userForDisplay = getUserIdForDisplayLocked(fallbackTda.getDisplay().getDisplayId());
+            int userForDisplay = getUserForDisplayLocked(fallbackTda.getDisplay().getDisplayId());
             if (userForDisplay == userId) {
                 return fallbackTda;
             }
         }
         return fallbackDisplayAreaForUserLocked(userId);
-    }
-
-    /**
-     * Returns {@code userId} who is allowed to use the given {@code displayId}, or
-     * {@code UserHandle.USER_NULL} if the display doesn't exist in the mapping.
-     */
-    @GuardedBy("mLock")
-    private int getUserIdForDisplayLocked(int displayId) {
-        return mDisplayToProfileUserMapping.get(displayId, UserManagerHelper.USER_NULL);
     }
 
     /**
