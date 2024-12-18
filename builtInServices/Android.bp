@@ -8,7 +8,7 @@ java_sdk_library {
     libs: [
         "services",
         "android.car",
-        "android.car.builtin",  // Will remove once split is complete
+        "android.car.builtin.stubs.module_lib",  // Will remove once split is complete
         "android.hardware.automotive.vehicle-V2.0-java",
     ],
     srcs: [
@@ -16,7 +16,7 @@ java_sdk_library {
     ],
     static_libs: [
         "android.car.watchdoglib",
-        "android.automotive.watchdog.internal-V3-java",
+        "android.automotive.watchdog.internal-java",
     ],
     api_lint: {
         enabled: true,
