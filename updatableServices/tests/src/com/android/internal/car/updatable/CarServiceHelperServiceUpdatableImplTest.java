@@ -20,6 +20,7 @@ import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERF
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.verify;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.when;
 
+import static com.google.common.truth.Truth.assertThat;
 import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -29,12 +30,15 @@ import static org.mockito.Mockito.doThrow;
 
 import android.car.ICar;
 import android.car.builtin.os.UserManagerHelper;
+import android.car.feature.Flags;
 import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.content.Context;
 import android.os.Bundle;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
+import android.platform.test.annotations.EnableFlags;
+import android.platform.test.flag.junit.SetFlagsRule;
 import android.util.ArrayMap;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -42,9 +46,11 @@ import androidx.test.ext.junit.runners.AndroidJUnit4;
 import com.android.internal.car.CarServiceHelperInterface;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
+import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -79,6 +85,10 @@ public final class CarServiceHelperServiceUpdatableImplTest
     private ICar mICarBinder;
     @Mock
     private IBinder mIBinder;
+    @Mock
+    private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatableImpl;
+    @Rule
+    public final SetFlagsRule mSetFlagsRule = new SetFlagsRule();
 
     private CarServiceHelperServiceUpdatableImpl mCarServiceHelperServiceUpdatableImpl;
 
@@ -237,6 +247,39 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
         verify(mCarServiceHelperInterface).unassignUserFromExtraDisplay(userId, displayId);
     }
+
+    @EnableFlags(Flags.FLAG_DISPLAY_COMPATIBILITY_CAPTION_BAR)
+    @Test
+    public void requiresDisplayCompatForUser_returnsTrue() {
+        int userId = 42;
+        String pkgName = "com.test.packagename";
+        mCarServiceHelperServiceUpdatableImpl.setCarDisplayCompatScaleProviderUpdatableImpl(
+                mCarDisplayCompatScaleProviderUpdatableImpl);
+        when(mCarDisplayCompatScaleProviderUpdatableImpl
+                .requiresDisplayCompat(eq(pkgName), eq(userId))).thenReturn(true);
+
+        boolean result = mCarServiceHelperServiceUpdatableImpl.mHelper
+                .requiresDisplayCompatForUser(pkgName, userId);
+
+        assertThat(result).isEqualTo(true);
+    }
+
+    @EnableFlags(Flags.FLAG_DISPLAY_COMPATIBILITY_CAPTION_BAR)
+    @Test
+    public void requiresDisplayCompatForUser_returnsFalse() {
+        int userId = 42;
+        String pkgName = "com.test.packagename";
+        mCarServiceHelperServiceUpdatableImpl.setCarDisplayCompatScaleProviderUpdatableImpl(
+                mCarDisplayCompatScaleProviderUpdatableImpl);
+        when(mCarDisplayCompatScaleProviderUpdatableImpl
+                .requiresDisplayCompat(eq(pkgName), eq(userId))).thenReturn(false);
+
+        boolean result = mCarServiceHelperServiceUpdatableImpl.mHelper
+                .requiresDisplayCompatForUser(pkgName, userId);
+
+        assertThat(result).isEqualTo(false);
+    }
+
 
     private void mockICarBinder() {
         when(ICar.Stub.asInterface(mIBinder)).thenReturn(mICarBinder);

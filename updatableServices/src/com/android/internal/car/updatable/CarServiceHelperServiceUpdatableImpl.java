@@ -26,6 +26,7 @@ import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
+import android.car.feature.Flags;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -110,8 +111,7 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
-    private final CarDisplayCompatScaleProviderUpdatableImpl
-            mCarDisplayCompatScaleProviderUpdatable;
+    private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatable;
 
     private ExtraDisplayMonitor mExtraDisplayMonitor;
 
@@ -427,6 +427,21 @@ public final class CarServiceHelperServiceUpdatableImpl
             return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
                     Binder.getCallingUserHandle().getIdentifier());
         }
+
+        @Override
+        public boolean requiresDisplayCompatForUser(String packageName, int userId) {
+            if (Flags.displayCompatibilityCaptionBar()) {
+                return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
+                        userId);
+            }
+            return false;
+        }
+    }
+
+    @VisibleForTesting
+    void setCarDisplayCompatScaleProviderUpdatableImpl(
+            CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatScaleProviderUpdatableImpl) {
+        mCarDisplayCompatScaleProviderUpdatable = carDisplayCompatScaleProviderUpdatableImpl;
     }
 
     private final class CarServiceConnectedCallback extends ICarResultReceiver.Stub {
