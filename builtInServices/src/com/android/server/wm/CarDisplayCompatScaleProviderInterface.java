@@ -89,5 +89,5 @@ public interface CarDisplayCompatScaleProviderInterface {
      * see {@link CompatChanges#isChangeEnabled}
      */
     float getCompatModeScalingFactor(@NonNull String packageName,
-            @NonNull UserHandle user);
+            @NonNull UserHandle userHandle);
 }
