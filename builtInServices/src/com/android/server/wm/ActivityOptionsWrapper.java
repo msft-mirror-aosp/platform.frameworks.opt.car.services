@@ -83,10 +83,7 @@ public final class ActivityOptionsWrapper {
 
     @Override
     public String toString() {
-        StringBuilder sb = new StringBuilder(mOptions.toString());
-        sb.append(" ,mLaunchDisplayId=");
-        sb.append(mOptions.getLaunchDisplayId());
-        return sb.toString();
+        return mOptions.toString();
     }
 
     /**
