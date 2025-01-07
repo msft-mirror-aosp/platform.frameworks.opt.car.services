@@ -297,10 +297,14 @@ public class CarServiceHelperService extends SystemService
             // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
             ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
                     ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
-            mCarDisplayCompatScaleProvider.init(mCarActivityInterceptor);
+            if (activityTaskManagerInternal != null) {
+                activityTaskManagerInternal.registerActivityStartInterceptor(
+                        PRODUCT_ORDERED_ID,
+                        mCarActivityInterceptor);
+                mCarDisplayCompatScaleProvider.init(mCarActivityInterceptor);
+            } else {
+                Slogf.e(TAG, "ActivityTaskManagerInternal is null - should only happen on unit tests");
+            }
             setupAndStartUsers(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
