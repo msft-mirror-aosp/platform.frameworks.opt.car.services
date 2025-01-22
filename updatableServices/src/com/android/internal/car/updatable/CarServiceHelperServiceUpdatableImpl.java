@@ -15,6 +15,7 @@
  */
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.SystemConstants.ICAR_SYSTEM_SERVER_CLIENT;
 import static com.android.car.internal.common.CommonConstants.CAR_SERVICE_INTERFACE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_SWITCHING;
@@ -42,6 +43,7 @@ import android.os.RemoteException;
 import android.os.SystemProperties;
 import android.os.UserHandle;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarServiceHelper;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -311,6 +313,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         }
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     @Override
     public void dump(PrintWriter writer,  String[] args) {
         if (args != null && args.length > 0 && "--user-metrics-only".equals(args[0])) {
