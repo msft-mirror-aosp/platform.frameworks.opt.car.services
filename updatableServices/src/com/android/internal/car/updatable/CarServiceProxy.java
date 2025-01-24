@@ -16,6 +16,7 @@
 
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_CREATED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_INVISIBLE;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_REMOVED;
@@ -42,6 +43,7 @@ import android.util.Log;
 import android.util.SparseArray;
 import android.util.SparseIntArray;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.ICarSystemServerClient;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.DebugUtils;
@@ -534,6 +536,7 @@ final class CarServiceProxy {
     /**
      * Dump
      */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dump(IndentingPrintWriter writer) {
         // Do not change the next line, Used in cts test: testCarServiceHelperServiceDump
         writer.println("CarServiceProxy");
@@ -574,6 +577,7 @@ final class CarServiceProxy {
     /**
      * Dump User metrics
      */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     void dumpUserMetrics(IndentingPrintWriter writer) {
         mUserMetrics.dump(writer);
     }

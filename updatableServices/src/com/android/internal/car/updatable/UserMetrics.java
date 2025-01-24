@@ -16,6 +16,7 @@
 
 package com.android.internal.car.updatable;
 
+import static com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport.DUMP_INFO;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STARTING;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPED;
 import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVENT_TYPE_STOPPING;
@@ -30,6 +31,7 @@ import android.car.builtin.util.Slogf;
 import android.car.builtin.util.TimeUtils;
 import android.util.SparseArray;
 
+import com.android.car.internal.ExcludeFromCodeCoverageGeneratedReport;
 import com.android.car.internal.common.CommonConstants.UserLifecycleEventType;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.car.internal.util.LocalLog;
@@ -231,6 +233,7 @@ final class UserMetrics {
     /**
      * Dumps its contents.
      */
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     public void dump(@NonNull IndentingPrintWriter pw) {
         pw.println("* User Metrics *");
         synchronized (mLock) {
@@ -248,6 +251,7 @@ final class UserMetrics {
         }
     }
 
+    @ExcludeFromCodeCoverageGeneratedReport(reason = DUMP_INFO)
     private void dump(@NonNull IndentingPrintWriter pw, @NonNull String message,
             @NonNull SparseArray<? extends BaseUserMetric> metrics) {
         pw.increaseIndent();
