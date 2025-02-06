@@ -217,14 +217,13 @@ public class CarLaunchParamsModifierUpdatableTest {
         when(mUserManagerInternal.getMainDisplayAssignedToUser(anyInt()))
                 .thenReturn(INVALID_DISPLAY);
 
-        LocalServices.removeServiceForTest(WindowManagerInternal.class);
-        LocalServices.removeServiceForTest(ImeTargetVisibilityPolicy.class);
-        mWindowManagerService = WindowManagerService.main(
-                mContext, mInputManagerService, /* showBootMsgs= */ false, /* policy= */ null,
-                mActivityTaskManagerService,
-                /* displayWindowSettingsProvider= */ null, () -> new SurfaceControl.Transaction(),
-                /* surfaceControlFactory= */ null,
-                /* appCompatConfiguration= */ mAppCompatConfiguration);
+        WindowManagerServiceTestSupport.tearDownService();
+        mWindowManagerService = WindowManagerServiceTestSupport.setUpService(mContext,
+                mInputManagerService, mock(WindowManagerPolicy.class),
+                mActivityTaskManagerService, mock(DisplayWindowSettingsProvider.class),
+                new SurfaceControl.Transaction(), new SurfaceControl.Builder(),
+                mAppCompatConfiguration);
+
         mActivityTaskManagerService.mWindowManager = mWindowManagerService;
         mRootWindowContainer.mWindowManager = mWindowManagerService;
 
@@ -265,8 +264,8 @@ public class CarLaunchParamsModifierUpdatableTest {
 
     @After
     public void tearDown() {
-        LocalServices.removeServiceForTest(WindowManagerInternal.class);
-        LocalServices.removeServiceForTest(WindowManagerPolicy.class);
+        WindowManagerServiceTestSupport.tearDownService();
+
         LocalServices.removeServiceForTest(ColorDisplayService.ColorDisplayServiceInternal.class);
         // If the exception is thrown during the MockingSession setUp, mMockingSession can be null.
         if (mMockingSession != null) {
