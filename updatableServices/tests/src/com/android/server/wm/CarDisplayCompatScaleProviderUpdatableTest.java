@@ -17,6 +17,7 @@
 package com.android.server.wm;
 
 import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY;
+import static android.car.feature.Flags.FLAG_DISPLAY_COMPATIBILITY_DENSITY;
 import static android.content.ContentResolver.NOTIFY_INSERT;
 import static android.content.pm.ApplicationInfo.FLAG_SYSTEM;
 import static android.content.pm.FeatureInfo.FLAG_REQUIRED;
@@ -87,7 +88,7 @@ import java.io.InputStream;
 import java.util.ArrayList;
 import java.util.Collections;
 
-@RequiresFlagsEnabled(FLAG_DISPLAY_COMPATIBILITY)
+@RequiresFlagsEnabled({FLAG_DISPLAY_COMPATIBILITY, FLAG_DISPLAY_COMPATIBILITY_DENSITY})
 @RunWith(AndroidJUnit4.class)
 public class CarDisplayCompatScaleProviderUpdatableTest {
 
