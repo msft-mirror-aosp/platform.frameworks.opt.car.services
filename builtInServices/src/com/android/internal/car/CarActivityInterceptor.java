@@ -15,10 +15,22 @@
  */
 package com.android.internal.car;
 
+import static android.content.pm.PackageManager.FEATURE_CAR_DISPLAY_COMPATIBILITY;
+import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.Display.INVALID_DISPLAY;
+
+
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.TaskInfo;
 import android.car.builtin.util.Slogf;
+import android.content.Context;
+import android.content.Intent;
 import android.content.pm.ActivityInfo;
+import android.content.pm.PackageManager;
+import android.util.SparseIntArray;
+
+import com.android.internal.annotations.GuardedBy;
 
 import com.android.server.LocalServices;
 import com.android.server.pm.UserManagerInternal;
@@ -27,6 +39,7 @@ import com.android.server.wm.ActivityInterceptorCallback;
 import com.android.server.wm.ActivityInterceptorInfoWrapper;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatable;
+
 
 /**
  * See {@link ActivityInterceptorCallback}.
@@ -37,8 +50,30 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
     private static final String TAG  = CarActivityInterceptor.class.getSimpleName();
     private CarActivityInterceptorUpdatable mCarActivityInterceptorUpdatable;
 
-    public CarActivityInterceptor() {
+    private final PackageManager mPackageManager;
+
+    private final Object mLock = new Object();
+    /**
+     * Maps package names to the id of the display that the package is set up to launch on.
+     *
+     * TODO(b/331089039): This is needed in order to get the correct scaling factor from the config
+     * file. For example, a package might need a different scaling on display 0 vs display 2.
+     *
+     * Note that this value is cached based on when the process is created for the first activity
+     * of the package. Therefore, if subsequent activities of the package launch on different
+     * displays their configuration will be based on the new display's configuration.
+     *
+     * Also, the package scaling will be based on the {@link DEFAULT_DISPLAY}'s configuration
+     * if the process of a package is created because of a broadcast receiver or a content provider.
+     */
+    @GuardedBy("mLock")
+    @NonNull
+    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap =
+            new SparseIntArray();
+
+    public CarActivityInterceptor(@NonNull Context context) {
         mCarActivityInterceptorUpdatable = null;
+        mPackageManager = context.getPackageManager();
     }
 
     /**
@@ -56,6 +91,35 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
             Slogf.w(TAG, "mCarActivityInterceptorUpdatable not set");
             return null;
         }
+
+        if (mPackageManager.hasSystemFeature(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
+            if (info.getIntent() != null
+                && info.getIntent().getComponent() != null
+                && info.getCheckedOptions() != null) {
+
+                    synchronized (mLock) {
+                        int displayId = info.getCheckedOptions().getLaunchDisplayId();
+                        if (displayId == INVALID_DISPLAY) {
+                            displayId = DEFAULT_DISPLAY;
+                            // TODO(b/331089039): {@link Activity} should start on the display of the
+                            // calling package if {@code ActivityOptions#launchDisplayId} is set to
+                            // {@link INVALID_DISPLAY}. Therefore, the display will be set to
+                            // {@link DEFAULT_DISPLAY} if the calling package's display isn't available in
+                            // the cache.
+                            int callingUid = info.getCallingUid() != -1 ? info.getCallingUid() : info.getRealCallingUid();
+                            if (callingUid != -1) {
+                                displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
+                                        .get(callingUid, displayId);
+                            }
+                        }
+
+                        mPackageUidToLastLaunchedActivityDisplayIdMap
+                                .put(info.getActivityInfo().applicationInfo.uid, displayId);
+                    }
+            }
+
+        }
+
         ActivityInterceptResultWrapper interceptResultWrapper = mCarActivityInterceptorUpdatable
                 .onInterceptActivityLaunch(ActivityInterceptorInfoWrapper.create(info));
         if (interceptResultWrapper == null) {
@@ -86,5 +150,14 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
                 return displayId;
             }
         };
+    }
+
+    /**
+    * Returns display id of for the given uid.
+    */
+    public int getPackageDisplay(int uid) {
+        synchronized (mLock) {
+            return mPackageUidToLastLaunchedActivityDisplayIdMap.get(uid, DEFAULT_DISPLAY);
+        }
     }
 }

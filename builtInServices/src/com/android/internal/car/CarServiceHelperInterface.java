@@ -27,6 +27,7 @@ import android.os.UserHandle;
 import com.android.annotation.AddedIn;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * Interface implemented by CarServiceHelperService.
@@ -98,4 +99,16 @@ public interface CarServiceHelperInterface {
     @RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
     @AddedIn(PlatformVersion.UPSIDE_DOWN_CAKE_0)
     int fetchAidlVhalPid();
+
+    /**
+     * Returns true if a package requires display compat features
+     */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
+    boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId);
+
+    /**
+     * Set allowed app install sources
+     */
+    @AddedIn(PlatformVersion.TIRAMISU_0)
+    void setAllowedAppInstallSources(List<String> allowedAppInstallSources);
 }

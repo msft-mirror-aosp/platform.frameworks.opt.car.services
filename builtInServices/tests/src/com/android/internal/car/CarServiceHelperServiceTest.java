@@ -49,6 +49,7 @@ import com.android.server.SystemService;
 import com.android.server.SystemService.TargetUser;
 import com.android.server.SystemService.UserCompletedEventType;
 import com.android.server.pm.UserManagerInternal;
+import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
 
 import org.junit.Before;
@@ -78,9 +79,10 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     private IBinder mICarBinder;
     @Mock
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
-
     @Mock
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
+    @Mock
+    private CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
 
     @Mock
     private UserManagerInternal mUserManagerInternal;
@@ -109,7 +111,8 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarLaunchParamsModifier,
                 mCarWatchdogDaemonHelper,
                 mCarServiceHelperServiceUpdatable,
-                mCarDevicePolicySafetyChecker);
+                mCarDevicePolicySafetyChecker,
+                mCarDisplayCompatScaleProvider);
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
         when(mMockContext.getSystemService(ActivityManager.class)).thenReturn(mActivityManager);
 

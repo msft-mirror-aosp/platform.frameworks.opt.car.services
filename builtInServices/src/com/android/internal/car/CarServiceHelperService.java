@@ -76,6 +76,7 @@ import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CarActivityInterceptorInterface;
+import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 
@@ -186,12 +187,15 @@ public class CarServiceHelperService extends SystemService
      */
     private long mFirstUnlockedUserDuration;
 
+    private final CarDisplayCompatScaleProvider mCarDisplayCompatScaleProvider;
+
     public CarServiceHelperService(Context context) {
         this(context,
                 new CarLaunchParamsModifier(context),
                 new CarWatchdogDaemonHelper(TAG),
                 /* carServiceHelperServiceUpdatable= */ null,
-                /* carDevicePolicySafetyChecker= */ null
+                /* carDevicePolicySafetyChecker= */ null,
+                new CarDisplayCompatScaleProvider(context)
         );
     }
 
@@ -201,14 +205,15 @@ public class CarServiceHelperService extends SystemService
             CarLaunchParamsModifier carLaunchParamsModifier,
             CarWatchdogDaemonHelper carWatchdogDaemonHelper,
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
-            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker) {
+            @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
+            CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
         super(context);
 
         mContext = context;
         mHandlerThread.start();
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarLaunchParamsModifier = carLaunchParamsModifier;
-        mCarActivityInterceptor = new CarActivityInterceptor();
+        mCarActivityInterceptor = new CarActivityInterceptor(context);
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
         try {
             if (carServiceHelperServiceUpdatable == null) {
@@ -276,17 +281,30 @@ public class CarServiceHelperService extends SystemService
         mCarDevicePolicySafetyChecker = carDevicePolicySafetyChecker == null
                 ? new CarDevicePolicySafetyChecker(this)
                 : carDevicePolicySafetyChecker;
+        mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
     }
 
     @Override
     public void onBootPhase(int phase) {
         EventLogHelper.writeCarHelperBootPhase(phase);
         if (DBG) Slogf.d(TAG, "onBootPhase: %d", phase);
-
         TimingsTraceAndSlog t = newTimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
             mCarLaunchParamsModifier.init();
+            // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
+            // to cache the package states early before user starts interacting with apps.
+            // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
+            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
+                    ActivityTaskManagerInternal.class);
+            if (activityTaskManagerInternal != null) {
+                activityTaskManagerInternal.registerActivityStartInterceptor(
+                        PRODUCT_ORDERED_ID,
+                        mCarActivityInterceptor);
+                mCarDisplayCompatScaleProvider.init(mCarActivityInterceptor);
+            } else {
+                Slogf.e(TAG, "ActivityTaskManagerInternal is null - should only happen on unit tests");
+            }
             setupAndStartUsers(t);
             t.traceEnd();
         } else if (phase == SystemService.PHASE_BOOT_COMPLETED) {
@@ -300,11 +318,6 @@ public class CarServiceHelperService extends SystemService
             } catch (RemoteException | RuntimeException e) {
                 Slogf.w(TAG, "Failed to notify boot phase change: %s", e);
             }
-            ActivityTaskManagerInternal activityTaskManagerInternal = getLocalService(
-                    ActivityTaskManagerInternal.class);
-            activityTaskManagerInternal.registerActivityStartInterceptor(
-                    PRODUCT_ORDERED_ID,
-                    mCarActivityInterceptor);
             t.traceEnd();
         }
     }
@@ -432,6 +445,7 @@ public class CarServiceHelperService extends SystemService
                 to.getUserHandle());
         int userId = to.getUserIdentifier();
         mCarLaunchParamsModifier.handleCurrentUserSwitching(userId);
+        mCarDisplayCompatScaleProvider.handleCurrentUserSwitching(userId);
     }
 
     @Override
@@ -724,6 +738,18 @@ public class CarServiceHelperService extends SystemService
             Slogf.d(TAG, "getUserAssignedToDisplay(%d): %d", displayId, userId);
         }
         return userId;
+    }
+
+    @Override
+    public boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId) {
+        return mCarDisplayCompatScaleProvider.requiresDisplayCompat(packageName, userId);
+    }
+
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mCarDisplayCompatScaleProvider.setAllowedAppInstallSources(allowedAppInstallSources);
+        }
     }
 
     private class ICarWatchdogMonitorImpl extends ICarWatchdogMonitor.Stub {

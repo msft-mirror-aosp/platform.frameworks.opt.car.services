@@ -8,6 +8,8 @@ package com.android.internal.car {
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getMainDisplayAssignedToUser(int);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getProcessGroup(int);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public int getUserAssignedToDisplay(int);
+    method public boolean requiresDisplayCompat(@NonNull String, int);
+    method public void setAllowedAppInstallSources(java.util.List<java.lang.String>);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void setProcessGroup(int, int);
     method @RequiresApi(android.os.Build.VERSION_CODES.UPSIDE_DOWN_CAKE) public void setProcessProfile(int, int, @NonNull String);
     method public void setSafetyMode(boolean);
