@@ -89,8 +89,6 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     private static final String TAG = CarDisplayCompatScaleProvider.class.getSimpleName();
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
     private static final boolean DBG_VERBOSE = Log.isLoggable(TAG, Log.VERBOSE);
-    private static final boolean INSTALL_SOURCE_CHECK_ENABLED = SystemProperties.getBoolean(
-            "ro.boot.car.displaycompat.install_source_check", false);
     private static final String META_DATA_DISTRACTION_OPTIMIZED = "distractionOptimized";
     private static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
@@ -501,8 +499,10 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             return false;
         }
 
+        boolean install_source_check_enabled = SystemProperties.getBoolean(
+            "ro.boot.car.displaycompat.install_source_check", false);
         // Opt out if the package is not installed via an allowed install source
-        if (INSTALL_SOURCE_CHECK_ENABLED) {
+        if (install_source_check_enabled) {
             try {
                 if (DBG) {
                     Slogf.d(TAG, "allowedAppInstallSources check enabled, sources: "
