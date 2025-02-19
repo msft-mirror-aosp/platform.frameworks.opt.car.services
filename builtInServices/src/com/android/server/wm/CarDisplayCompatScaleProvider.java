@@ -422,6 +422,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                 .getPackageInfoAsUser(packageName,
                         GET_CONFIGURATIONS
                         | GET_ACTIVITIES
+                        | GET_META_DATA
                         | MATCH_DIRECT_BOOT_AWARE
                         | MATCH_DIRECT_BOOT_UNAWARE, userId);
 
