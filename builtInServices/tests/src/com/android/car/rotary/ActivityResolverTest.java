@@ -26,6 +26,7 @@ import android.content.Intent;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityManager;
 
+import androidx.test.filters.FlakyTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.Condition;
 import androidx.test.uiautomator.UiDevice;
@@ -107,6 +108,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
+    @FlakyTest(bugId = 397717760)
     public void testListItemFocusable_twoItems() throws UiObjectNotFoundException, IOException {
         assumeHasRotaryService();
         launchResolverActivity();
@@ -205,6 +207,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
+    @FlakyTest(bugId = 397717760)
     public void testClickListItem_twoItems() throws UiObjectNotFoundException, IOException {
         assumeHasRotaryService();
         launchResolverActivity();
@@ -226,6 +229,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
+    @FlakyTest(bugId = 397717760)
     public void testClickJustOnceButton_twoItems() throws UiObjectNotFoundException, IOException {
         assumeHasRotaryService();
         launchResolverActivity();
