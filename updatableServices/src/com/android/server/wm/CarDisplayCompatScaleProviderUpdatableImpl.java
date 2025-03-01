@@ -515,7 +515,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
 
         PackageInfoFlags pkgFlags = PackageInfoFlags
-                .of(GET_CONFIGURATIONS | GET_ACTIVITIES);
+                .of(GET_CONFIGURATIONS | GET_ACTIVITIES | GET_META_DATA);
         PackageInfo pkgInfo = mCarCompatScaleProviderInterface
                 .getPackageInfoAsUser(packageName, pkgFlags, userId);
 
