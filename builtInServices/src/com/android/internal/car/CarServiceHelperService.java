@@ -60,6 +60,7 @@ import android.hardware.display.DisplayManager;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceDebugInfo;
@@ -100,7 +101,7 @@ import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
-import com.android.server.wm.WindowManagerService;
+import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowProcessController;
 import com.android.server.wm.WindowProcessControllerHelper;
 
@@ -210,7 +211,6 @@ public class CarServiceHelperService extends SystemService
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
-    private WindowManagerService mWindowManagerService;
 
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
@@ -364,20 +364,14 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
 
-        mWindowManagerService = (WindowManagerService) ServiceManager.getService(
-                Context.WINDOW_SERVICE);
-        mWindowManagerService.addWindowChangeListener(mWindowChangeListener);
+        WindowManagerInternal wmInternal = LocalServices.getService(WindowManagerInternal.class);
+        wmInternal.registerWindowFocusChangeListener(mWindowFocusChangeListener);
     }
 
-    private final WindowManagerService.WindowChangeListener mWindowChangeListener =
-            new WindowManagerService.WindowChangeListener() {
+    private final WindowManagerInternal.WindowFocusChangeListener mWindowFocusChangeListener =
+            new WindowManagerInternal.WindowFocusChangeListener() {
                 @Override
-                public void windowsChanged() {
-                    // Do nothing
-                }
-
-                @Override
-                public void focusChanged() {
+                public void focusChanged(IBinder focusedWindowToken) {
                     WindowProcessController topApp = mActivityTaskManagerInternal.getTopApp();
                     if (topApp == null) {
                         return;
