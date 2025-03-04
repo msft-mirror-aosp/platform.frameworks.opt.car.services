@@ -48,12 +48,15 @@ import android.car.test.mocks.AbstractExtendedMockitoTestCase;
 import android.car.watchdoglib.CarWatchdogDaemonHelper;
 import android.content.Context;
 import android.content.pm.PackageManager;
+import android.content.res.AssetManager;
 import android.os.IBinder;
 import android.os.ServiceDebugInfo;
 import android.os.ServiceManager;
 import android.os.UserHandle;
+import android.util.Slog;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
+import androidx.test.platform.app.InstrumentationRegistry;
 
 import com.android.internal.util.CarWatchdogKillStatsReported;
 import com.android.internal.util.CarWatchdogProcessStats;
@@ -66,6 +69,9 @@ import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
 
+import libcore.io.Streams;
+
+import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -73,10 +79,15 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 
+import java.io.File;
+import java.io.FileOutputStream;
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.Future;
 
 /**
@@ -84,9 +95,17 @@ import java.util.concurrent.Future;
  */
 @RunWith(AndroidJUnit4.class)
 public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase {
+    private static final String TAG = CarServiceHelperServiceTest.class.getSimpleName();
+    private static final String ROOT_DIR_NAME = "CarServiceHelperServiceTest";
     private static final String SAMPLE_AIDL_VHAL_INTERFACE_NAME =
             "android.hardware.automotive.vehicle.IVehicle/SampleVehicleHalService";
     private static final int MAX_WAIT_TIME_MS = 3000;
+
+    private final Context mContext =
+            InstrumentationRegistry.getInstrumentation().getTargetContext();
+    private final File mCacheRoot = new File(mContext.getCacheDir(), ROOT_DIR_NAME);
+    private final AssetManager mAssetManager = mContext.getAssets();
+
 
     private CarServiceHelperService mHelper;
 
@@ -147,7 +166,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Before
-    public void setTestFixtures() {
+    public void setTestFixtures() throws Exception {
         mHelper = new CarServiceHelperService(
                 mMockContext,
                 mCarLaunchParamsModifier,
@@ -155,12 +174,24 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 mCarServiceHelperServiceUpdatable,
                 mCarDevicePolicySafetyChecker,
                 mActivityInterceptor,
-                mCarDisplayCompatScaleProvider);
+                mCarDisplayCompatScaleProvider,
+                String.format("%s/proc", mCacheRoot.getAbsolutePath()));
         when(mMockContext.getPackageManager()).thenReturn(mPackageManager);
         when(mMockContext.getSystemService(ActivityManager.class)).thenReturn(mActivityManager);
 
         doReturn(mUserManagerInternal)
                 .when(() -> LocalServices.getService(UserManagerInternal.class));
+
+        copyAssets(ROOT_DIR_NAME, mContext.getCacheDir());
+        assertWithMessage("Cache root dir %s", mCacheRoot.getAbsolutePath())
+            .that(mCacheRoot.exists()).isTrue();
+    }
+
+    @After
+    public void teardown() throws Exception {
+        if (!deleteDirectory(mCacheRoot)) {
+            Slog.e(TAG, "Failed to delete cache root directory " + mCacheRoot.getAbsolutePath());
+        }
     }
 
     @Test
@@ -288,7 +319,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     public void
             testHandleClientsNotRespondingWithAnrMetricsFeatureDisabledOnEmptyProcessIdentifiers()
             throws Exception {
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
         List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
 
         mHelper.handleClientsNotResponding(processIdentifiers);
@@ -307,7 +337,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
-        processIdentifier1.processName = "name1";
+        processIdentifier1.processName = "process1";
         processIdentifier1.pid = 1;
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
@@ -315,7 +345,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
-        processIdentifier2.processName = "name2";
+        processIdentifier2.processName = "process2";
         processIdentifier2.pid = 2;
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
@@ -323,7 +353,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
-        processIdentifier3.processName = "name3";
+        processIdentifier3.processName = "process3";
         processIdentifier3.pid = 3;
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
@@ -331,10 +361,10 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
-        processIdentifier4.processName = "name4";
+        processIdentifier4.processName = "process4";
         processIdentifier4.pid = 4;
         processIdentifier4.uid = testUid2;
-        processIdentifier4.startTimeMillis = 4000;
+        processIdentifier4.startTimeMillis = 500;
         processIdentifiers.add(processIdentifier4);
 
         List<Integer> expectedPids = new ArrayList<>();
@@ -342,13 +372,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
             expectedPids.add(processIdentifier.pid);
         }
 
-        CarServiceHelperService.ProcessInfo invalidProcess =
-                new CarServiceHelperService.ProcessInfo(4,
-                    CarServiceHelperService.ProcessInfo.UNKNOWN_PROCESS,
-                    5000);
-
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
-        doReturn(invalidProcess).when(() -> CarServiceHelperService.getProcessInfo(4));
         doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
                 any(), any(), any()));
         doReturn(mMockPath).when(() -> Files.readSymbolicLink(any()));
@@ -378,34 +401,33 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     @Test
     public void testHandleClientsNotRespondingWithAnrMetricsFeatureDisabled() throws Exception {
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
         int testUid1 = 1001;
         int testUid2 = 1002;
         List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
-        processIdentifier1.processName = "name1";
+        processIdentifier1.processName = "process1";
         processIdentifier1.pid = 1;
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
         expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
-        processIdentifier2.processName = "name2";
+        processIdentifier2.processName = "process2";
         processIdentifier2.pid = 2;
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
         expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
-        processIdentifier3.processName = "name3";
+        processIdentifier3.processName = "process3";
         processIdentifier3.pid = 3;
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
         expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
-        processIdentifier4.processName = "name4";
+        processIdentifier4.processName = "process4";
         processIdentifier4.pid = 4;
         processIdentifier4.uid = testUid2;
         processIdentifier4.startTimeMillis = 4000;
@@ -446,7 +468,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     @Test
     public void testHandleClientsNotRespondingOnEmptyClientsNotRespondingInfo() throws Exception {
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
         List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ClientsNotRespondingInfo clientsNotRespondingInfo = new ClientsNotRespondingInfo();
@@ -468,7 +489,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
-        processIdentifier1.processName = "name1";
+        processIdentifier1.processName = "process1";
         processIdentifier1.pid = 1;
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
@@ -476,7 +497,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
-        processIdentifier2.processName = "name2";
+        processIdentifier2.processName = "process2";
         processIdentifier2.pid = 2;
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
@@ -484,7 +505,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
-        processIdentifier3.processName = "name3";
+        processIdentifier3.processName = "process3";
         processIdentifier3.pid = 3;
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
@@ -492,10 +513,10 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
-        processIdentifier4.processName = "name4";
+        processIdentifier4.processName = "process4";
         processIdentifier4.pid = 4;
         processIdentifier4.uid = testUid2;
-        processIdentifier4.startTimeMillis = 4000;
+        processIdentifier4.startTimeMillis = 500;
         processIdentifiers.add(processIdentifier4);
 
         List<Integer> expectedPids = new ArrayList<>();
@@ -507,13 +528,6 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         clientsNotRespondingInfo.processIdentifiers = processIdentifiers;
         clientsNotRespondingInfo.garageMode = GarageMode.GARAGE_MODE_ON;
 
-        CarServiceHelperService.ProcessInfo invalidProcess =
-                new CarServiceHelperService.ProcessInfo(4,
-                    CarServiceHelperService.ProcessInfo.UNKNOWN_PROCESS,
-                    5000);
-
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
-        doReturn(invalidProcess).when(() -> CarServiceHelperService.getProcessInfo(4));
         doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
                 any(), any(), any()));
         doReturn(mMockPath).when(() -> Files.readSymbolicLink(any()));
@@ -560,34 +574,33 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     @Test
     public void testHandleClientsNotResponding() throws Exception {
-        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
         int testUid1 = 1001;
         int testUid2 = 1002;
         List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
-        processIdentifier1.processName = "name1";
+        processIdentifier1.processName = "process1";
         processIdentifier1.pid = 1;
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
         expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
-        processIdentifier2.processName = "name2";
+        processIdentifier2.processName = "process2";
         processIdentifier2.pid = 2;
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
         expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
-        processIdentifier3.processName = "name3";
+        processIdentifier3.processName = "process3";
         processIdentifier3.pid = 3;
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
         expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
-        processIdentifier4.processName = "name4";
+        processIdentifier4.processName = "process4";
         processIdentifier4.pid = 4;
         processIdentifier4.uid = testUid2;
         processIdentifier4.startTimeMillis = 4000;
@@ -727,5 +740,35 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         serviceDebugInfo.name = name;
         serviceDebugInfo.debugPid = debugPid;
         return serviceDebugInfo;
+    }
+
+    private void copyAssets(String assetPath, File targetRoot) throws Exception {
+        File target = new File(targetRoot, assetPath);
+        String[] assets = mAssetManager.list(assetPath);
+        if (assets == null || assets.length == 0) {
+            try (InputStream in = mAssetManager.open(assetPath);
+                    OutputStream out = new FileOutputStream(target)) {
+                Streams.copy(in, out);
+            }
+            return;
+        }
+        assertWithMessage("Make target directory %s", target).that(target.mkdir()).isTrue();
+        for (int i = 0; i < assets.length; i++) {
+            copyAssets(String.format("%s%s%s", assetPath, File.separator, assets[i]), targetRoot);
+        }
+    }
+
+    private static boolean deleteDirectory(File rootDir) {
+        if (!rootDir.exists() || !rootDir.isDirectory()) {
+            return false;
+        }
+        for (File file : Objects.requireNonNull(rootDir.listFiles())) {
+            if (file.isDirectory()) {
+                deleteDirectory(file);
+            } else if (!file.delete()) {
+                return false;
+            }
+        }
+        return rootDir.delete();
     }
 }
