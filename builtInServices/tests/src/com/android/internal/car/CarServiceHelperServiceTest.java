@@ -36,6 +36,7 @@ import static com.google.common.truth.Truth.assertWithMessage;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.timeout;
 
 import android.annotation.UserIdInt;
@@ -125,7 +126,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     @Captor private ArgumentCaptor<Integer> mKillReasonCaptor;
     @Captor private ArgumentCaptor<ArrayList<Integer>> mDumpJavaPidCaptor;
     @Captor private ArgumentCaptor<Future<ArrayList<Integer>>> mDumpNativePidCaptor;
-    @Captor private ArgumentCaptor<ProcessIdentifier> mProcessIdentifierCaptor;
+    @Captor private ArgumentCaptor<ArrayList<ProcessIdentifier>> mProcessIdentifierCaptor;
 
     public CarServiceHelperServiceTest() {
         super(CarServiceHelperService.TAG);
@@ -141,6 +142,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
                 .spyStatic(LocalServices.class)
                 .spyStatic(Files.class)
                 .spyStatic(FrameworkStatsLog.class)
+                .spyStatic(CarServiceHelperService.class)
                 .spyStatic(StackTracesDumpHelper.class);
     }
 
@@ -283,10 +285,26 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     }
 
     @Test
-    public void testHandleClientsNotRespondingWithAnrMetricsFeatureDisabled() throws Exception {
+    public void
+            testHandleClientsNotRespondingWithAnrMetricsFeatureDisabledOnEmptyProcessIdentifiers()
+            throws Exception {
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
+
+        mHelper.handleClientsNotResponding(processIdentifiers);
+
+        verify(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(), any(),
+                any(), any()), never());
+        verify(mCarWatchdogDaemonHelper, never()).tellDumpFinished(any(), any());
+    }
+
+    @Test
+    public void testHandleClientsNotRespondingWithAnrMetricsFeatureDisabledOnDeadProcessIdentifier()
+            throws Exception {
         int testUid1 = 1001;
         int testUid2 = 1002;
         List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
+        List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
         processIdentifier1.processName = "name1";
@@ -294,6 +312,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
         processIdentifiers.add(processIdentifier1);
+        expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
         processIdentifier2.processName = "name2";
@@ -301,6 +320,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
         processIdentifiers.add(processIdentifier2);
+        expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
         processIdentifier3.processName = "name3";
@@ -308,6 +328,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
         processIdentifiers.add(processIdentifier3);
+        expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
         processIdentifier4.processName = "name4";
@@ -316,11 +337,18 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier4.startTimeMillis = 4000;
         processIdentifiers.add(processIdentifier4);
 
-        List<Integer> allTestPids = new ArrayList<>();
-        for (ProcessIdentifier processIdentifier : processIdentifiers) {
-            allTestPids.add(processIdentifier.pid);
+        List<Integer> expectedPids = new ArrayList<>();
+        for (ProcessIdentifier processIdentifier : expectedProcessIdentifiers) {
+            expectedPids.add(processIdentifier.pid);
         }
 
+        CarServiceHelperService.ProcessInfo invalidProcess =
+                new CarServiceHelperService.ProcessInfo(4,
+                    CarServiceHelperService.ProcessInfo.UNKNOWN_PROCESS,
+                    5000);
+
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        doReturn(invalidProcess).when(() -> CarServiceHelperService.getProcessInfo(4));
         doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
                 any(), any(), any()));
         doReturn(mMockPath).when(() -> Files.readSymbolicLink(any()));
@@ -329,33 +357,115 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         mHelper.handleClientsNotResponding(processIdentifiers);
 
         verify(() -> StackTracesDumpHelper.dumpStackTraces(mDumpJavaPidCaptor.capture(), eq(null),
-                eq(null), mDumpNativePidCaptor.capture(), eq(null), any(), eq(null)),
+                    eq(null), mDumpNativePidCaptor.capture(), eq(null), any(), eq(null)),
                 timeout(MAX_WAIT_TIME_MS).times(1));
-        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(processIdentifiers.size()))
+        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(1))
                 .tellDumpFinished(any(), mProcessIdentifierCaptor.capture());
 
-        List<ProcessIdentifier> allDumpFinishedProcessIdentifierValues =
-                mProcessIdentifierCaptor.getAllValues();
-        List<Integer> allDumpPidValues = new ArrayList<>();
-        for (ArrayList<Integer> pids : mDumpJavaPidCaptor.getAllValues()) {
-            allDumpPidValues.addAll(pids);
-        }
-        for (Future<ArrayList<Integer>> pids : mDumpNativePidCaptor.getAllValues()) {
-            allDumpPidValues.addAll(pids.get());
-        }
+        // Methods are only called once, so they will only contain one list at index 0
+        List<ProcessIdentifier> actualProcessIdentifiers =
+                new ArrayList<>(mProcessIdentifierCaptor.getAllValues().get(0));
+        List<Integer> actualPids = new ArrayList<>(mDumpJavaPidCaptor.getAllValues().get(0));
+        // Call .get() because mDumpNativePidCaptor contains future objects
+        actualPids.addAll(mDumpNativePidCaptor.getAllValues().get(0).get());
 
-        assertWithMessage("ANRed processes dumped").that(allDumpPidValues)
-                .containsAtLeastElementsIn(allTestPids);
+        assertWithMessage("ANRed processes dumped").that(actualPids)
+                .containsAtLeastElementsIn(expectedPids);
         assertWithMessage("ANRed processes told dump finished")
-                .that(allDumpFinishedProcessIdentifierValues)
-                .containsExactlyElementsIn(processIdentifiers);
+                .that(actualProcessIdentifiers)
+                .containsExactlyElementsIn(expectedProcessIdentifiers);
     }
 
     @Test
-    public void testHandleClientsNotResponding() throws Exception {
+    public void testHandleClientsNotRespondingWithAnrMetricsFeatureDisabled() throws Exception {
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        int testUid1 = 1001;
+        int testUid2 = 1002;
+        List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
+
+        ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
+        processIdentifier1.processName = "name1";
+        processIdentifier1.pid = 1;
+        processIdentifier1.uid = testUid1;
+        processIdentifier1.startTimeMillis = 1000;
+        expectedProcessIdentifiers.add(processIdentifier1);
+
+        ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
+        processIdentifier2.processName = "name2";
+        processIdentifier2.pid = 2;
+        processIdentifier2.uid = testUid1;
+        processIdentifier2.startTimeMillis = 2000;
+        expectedProcessIdentifiers.add(processIdentifier2);
+
+        ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
+        processIdentifier3.processName = "name3";
+        processIdentifier3.pid = 3;
+        processIdentifier3.uid = testUid2;
+        processIdentifier3.startTimeMillis = 3000;
+        expectedProcessIdentifiers.add(processIdentifier3);
+
+        ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
+        processIdentifier4.processName = "name4";
+        processIdentifier4.pid = 4;
+        processIdentifier4.uid = testUid2;
+        processIdentifier4.startTimeMillis = 4000;
+        expectedProcessIdentifiers.add(processIdentifier4);
+
+        List<Integer> expectedPids = new ArrayList<>();
+        for (ProcessIdentifier processIdentifier : expectedProcessIdentifiers) {
+            expectedPids.add(processIdentifier.pid);
+        }
+
+        doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
+                any(), any(), any()));
+        doReturn(mMockPath).when(() -> Files.readSymbolicLink(any()));
+        doReturn("/system/bin/app_process32").when(mMockPath).toString();
+
+        mHelper.handleClientsNotResponding(
+                new ArrayList<ProcessIdentifier>(expectedProcessIdentifiers));
+
+        verify(() -> StackTracesDumpHelper.dumpStackTraces(mDumpJavaPidCaptor.capture(), eq(null),
+                eq(null), mDumpNativePidCaptor.capture(), eq(null), any(), eq(null)),
+                timeout(MAX_WAIT_TIME_MS).times(1));
+        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(1))
+                .tellDumpFinished(any(), mProcessIdentifierCaptor.capture());
+
+        // Methods are only called once, so they will only contain one list at index 0
+        List<ProcessIdentifier> actualProcessIdentifiers =
+                new ArrayList<>(mProcessIdentifierCaptor.getAllValues().get(0));
+        List<Integer> actualPids = new ArrayList<>(mDumpJavaPidCaptor.getAllValues().get(0));
+        // Call .get() because mDumpNativePidCaptor contains future objects
+        actualPids.addAll(mDumpNativePidCaptor.getAllValues().get(0).get());
+
+        assertWithMessage("ANRed processes dumped").that(actualPids)
+                .containsAtLeastElementsIn(expectedPids);
+        assertWithMessage("ANRed processes told dump finished")
+                .that(actualProcessIdentifiers)
+                .containsExactlyElementsIn(expectedProcessIdentifiers);
+    }
+
+    @Test
+    public void testHandleClientsNotRespondingOnEmptyClientsNotRespondingInfo() throws Exception {
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
+
+        ClientsNotRespondingInfo clientsNotRespondingInfo = new ClientsNotRespondingInfo();
+        clientsNotRespondingInfo.processIdentifiers = processIdentifiers;
+        clientsNotRespondingInfo.garageMode = GarageMode.GARAGE_MODE_ON;
+
+        mHelper.handleClientsNotResponding(clientsNotRespondingInfo);
+
+        verify(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(), any(),
+                any(), any()), never());
+        verify(mCarWatchdogDaemonHelper, never()).tellDumpFinished(any(), any());
+    }
+
+    @Test
+    public void testHandleClientsNotRespondingOnDeadClientsNotRespondingInfo() throws Exception {
         int testUid1 = 1001;
         int testUid2 = 1002;
         List<ProcessIdentifier> processIdentifiers = new ArrayList<ProcessIdentifier>();
+        List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
 
         ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
         processIdentifier1.processName = "name1";
@@ -363,6 +473,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier1.uid = testUid1;
         processIdentifier1.startTimeMillis = 1000;
         processIdentifiers.add(processIdentifier1);
+        expectedProcessIdentifiers.add(processIdentifier1);
 
         ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
         processIdentifier2.processName = "name2";
@@ -370,6 +481,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier2.uid = testUid1;
         processIdentifier2.startTimeMillis = 2000;
         processIdentifiers.add(processIdentifier2);
+        expectedProcessIdentifiers.add(processIdentifier2);
 
         ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
         processIdentifier3.processName = "name3";
@@ -377,6 +489,7 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier3.uid = testUid2;
         processIdentifier3.startTimeMillis = 3000;
         processIdentifiers.add(processIdentifier3);
+        expectedProcessIdentifiers.add(processIdentifier3);
 
         ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
         processIdentifier4.processName = "name4";
@@ -385,13 +498,109 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         processIdentifier4.startTimeMillis = 4000;
         processIdentifiers.add(processIdentifier4);
 
-        List<Integer> allTestPids = new ArrayList<>();
-        for (ProcessIdentifier processIdentifier : processIdentifiers) {
-            allTestPids.add(processIdentifier.pid);
+        List<Integer> expectedPids = new ArrayList<>();
+        for (ProcessIdentifier processIdentifier : expectedProcessIdentifiers) {
+            expectedPids.add(processIdentifier.pid);
         }
 
         ClientsNotRespondingInfo clientsNotRespondingInfo = new ClientsNotRespondingInfo();
         clientsNotRespondingInfo.processIdentifiers = processIdentifiers;
+        clientsNotRespondingInfo.garageMode = GarageMode.GARAGE_MODE_ON;
+
+        CarServiceHelperService.ProcessInfo invalidProcess =
+                new CarServiceHelperService.ProcessInfo(4,
+                    CarServiceHelperService.ProcessInfo.UNKNOWN_PROCESS,
+                    5000);
+
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        doReturn(invalidProcess).when(() -> CarServiceHelperService.getProcessInfo(4));
+        doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
+                any(), any(), any()));
+        doReturn(mMockPath).when(() -> Files.readSymbolicLink(any()));
+        doReturn("/system/bin/app_process32").when(mMockPath).toString();
+
+        mHelper.handleClientsNotResponding(clientsNotRespondingInfo);
+
+        verify(() -> StackTracesDumpHelper.dumpStackTraces(mDumpJavaPidCaptor.capture(), eq(null),
+                    eq(null), mDumpNativePidCaptor.capture(), eq(null), any(), eq(null)),
+                timeout(MAX_WAIT_TIME_MS).times(1));
+        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(1))
+                .tellDumpFinished(any(), mProcessIdentifierCaptor.capture());
+
+        // Methods are only called once, so they will only contain one list at index 0
+        List<ProcessIdentifier> actualProcessIdentifiers =
+                new ArrayList<>(mProcessIdentifierCaptor.getAllValues().get(0));
+        List<Integer> actualPids = new ArrayList<>(mDumpJavaPidCaptor.getAllValues().get(0));
+        // Call .get() because mDumpNativePidCaptor contains future objects
+        actualPids.addAll(mDumpNativePidCaptor.getAllValues().get(0).get());
+
+        assertWithMessage("ANRed processes dumped").that(actualPids)
+                .containsAtLeastElementsIn(expectedPids);
+        assertWithMessage("ANRed processes told dump finished")
+                .that(actualProcessIdentifiers)
+                .containsExactlyElementsIn(expectedProcessIdentifiers);
+
+        captureAndVerifyKillStatsReported(
+            new ArrayList<CarWatchdogKillStatsReported>(
+                List.of(constructCarWatchdogKillStatsReported(
+                        testUid1,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__UID_STATE__UNKNOWN_UID_STATE,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__GARAGE_MODE,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__KILL_REASON__KILLED_ON_ANR,
+                        CarServiceHelperService.constructCarWatchdogProcessStatsLocked(
+                            List.of(processIdentifier1, processIdentifier2))),
+                    constructCarWatchdogKillStatsReported(
+                        testUid2,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__UID_STATE__UNKNOWN_UID_STATE,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__SYSTEM_STATE__GARAGE_MODE,
+                        CAR_WATCHDOG_KILL_STATS_REPORTED__KILL_REASON__KILLED_ON_ANR,
+                        CarServiceHelperService.constructCarWatchdogProcessStatsLocked(
+                            List.of(processIdentifier3))))));
+    }
+
+    @Test
+    public void testHandleClientsNotResponding() throws Exception {
+        // TODO(b/400455938): Update ANR metrics tests to mock the /proc/<pid>/stat files
+        int testUid1 = 1001;
+        int testUid2 = 1002;
+        List<ProcessIdentifier> expectedProcessIdentifiers = new ArrayList<ProcessIdentifier>();
+
+        ProcessIdentifier processIdentifier1 = new ProcessIdentifier();
+        processIdentifier1.processName = "name1";
+        processIdentifier1.pid = 1;
+        processIdentifier1.uid = testUid1;
+        processIdentifier1.startTimeMillis = 1000;
+        expectedProcessIdentifiers.add(processIdentifier1);
+
+        ProcessIdentifier processIdentifier2 = new ProcessIdentifier();
+        processIdentifier2.processName = "name2";
+        processIdentifier2.pid = 2;
+        processIdentifier2.uid = testUid1;
+        processIdentifier2.startTimeMillis = 2000;
+        expectedProcessIdentifiers.add(processIdentifier2);
+
+        ProcessIdentifier processIdentifier3 = new ProcessIdentifier();
+        processIdentifier3.processName = "name3";
+        processIdentifier3.pid = 3;
+        processIdentifier3.uid = testUid2;
+        processIdentifier3.startTimeMillis = 3000;
+        expectedProcessIdentifiers.add(processIdentifier3);
+
+        ProcessIdentifier processIdentifier4 = new ProcessIdentifier();
+        processIdentifier4.processName = "name4";
+        processIdentifier4.pid = 4;
+        processIdentifier4.uid = testUid2;
+        processIdentifier4.startTimeMillis = 4000;
+        expectedProcessIdentifiers.add(processIdentifier4);
+
+        List<Integer> expectedPids = new ArrayList<>();
+        for (ProcessIdentifier processIdentifier : expectedProcessIdentifiers) {
+            expectedPids.add(processIdentifier.pid);
+        }
+
+        ClientsNotRespondingInfo clientsNotRespondingInfo = new ClientsNotRespondingInfo();
+        clientsNotRespondingInfo.processIdentifiers =
+                new ArrayList<ProcessIdentifier>(expectedProcessIdentifiers);
         clientsNotRespondingInfo.garageMode = GarageMode.GARAGE_MODE_ON;
 
         doReturn(null).when(() -> StackTracesDumpHelper.dumpStackTraces(any(), any(), any(), any(),
@@ -404,24 +613,21 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         verify(() -> StackTracesDumpHelper.dumpStackTraces(mDumpJavaPidCaptor.capture(), eq(null),
                 eq(null), mDumpNativePidCaptor.capture(), eq(null), any(), eq(null)),
                 timeout(MAX_WAIT_TIME_MS).times(1));
-        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(processIdentifiers.size()))
+        verify(mCarWatchdogDaemonHelper, timeout(MAX_WAIT_TIME_MS).times(1))
                 .tellDumpFinished(any(), mProcessIdentifierCaptor.capture());
 
-        List<ProcessIdentifier> allDumpFinishedProcessIdentifierValues =
-                mProcessIdentifierCaptor.getAllValues();
-        List<Integer> allDumpPidValues = new ArrayList<>();
-        for (ArrayList<Integer> pids : mDumpJavaPidCaptor.getAllValues()) {
-            allDumpPidValues.addAll(pids);
-        }
-        for (Future<ArrayList<Integer>> pids : mDumpNativePidCaptor.getAllValues()) {
-            allDumpPidValues.addAll(pids.get());
-        }
+        // Methods are only called once, so they will only contain one list at index 0
+        List<ProcessIdentifier> actualProcessIdentifiers =
+                new ArrayList<>(mProcessIdentifierCaptor.getAllValues().get(0));
+        List<Integer> actualPids = new ArrayList<>(mDumpJavaPidCaptor.getAllValues().get(0));
+        // Call .get() because mDumpNativePidCaptor contains future objects
+        actualPids.addAll(mDumpNativePidCaptor.getAllValues().get(0).get());
 
-        assertWithMessage("ANRed processes dumped").that(allDumpPidValues)
-                .containsAtLeastElementsIn(allTestPids);
+        assertWithMessage("ANRed processes dumped").that(actualPids)
+                .containsAtLeastElementsIn(expectedPids);
         assertWithMessage("ANRed processes told dump finished")
-                .that(allDumpFinishedProcessIdentifierValues)
-                .containsExactlyElementsIn(processIdentifiers);
+                .that(actualProcessIdentifiers)
+                .containsExactlyElementsIn(expectedProcessIdentifiers);
 
         captureAndVerifyKillStatsReported(
             new ArrayList<CarWatchdogKillStatsReported>(
