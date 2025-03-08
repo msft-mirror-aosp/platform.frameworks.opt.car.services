@@ -60,6 +60,7 @@ import android.hardware.display.DisplayManager;
 import android.hidl.manager.V1_0.IServiceManager;
 import android.os.Handler;
 import android.os.HandlerThread;
+import android.os.IBinder;
 import android.os.Process;
 import android.os.RemoteException;
 import android.os.ServiceDebugInfo;
@@ -100,7 +101,7 @@ import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
-import com.android.server.wm.WindowManagerService;
+import com.android.server.wm.WindowManagerInternal;
 import com.android.server.wm.WindowProcessController;
 import com.android.server.wm.WindowProcessControllerHelper;
 
@@ -210,7 +211,6 @@ public class CarServiceHelperService extends SystemService
     private final CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
-    private WindowManagerService mWindowManagerService;
 
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
@@ -364,20 +364,14 @@ public class CarServiceHelperService extends SystemService
         mCarWatchdogDaemonHelper.connect();
         mCarServiceHelperServiceUpdatable.onStart();
 
-        mWindowManagerService = (WindowManagerService) ServiceManager.getService(
-                Context.WINDOW_SERVICE);
-        mWindowManagerService.addWindowChangeListener(mWindowChangeListener);
+        WindowManagerInternal wmInternal = LocalServices.getService(WindowManagerInternal.class);
+        wmInternal.registerWindowFocusChangeListener(mWindowFocusChangeListener);
     }
 
-    private final WindowManagerService.WindowChangeListener mWindowChangeListener =
-            new WindowManagerService.WindowChangeListener() {
+    private final WindowManagerInternal.WindowFocusChangeListener mWindowFocusChangeListener =
+            new WindowManagerInternal.WindowFocusChangeListener() {
                 @Override
-                public void windowsChanged() {
-                    // Do nothing
-                }
-
-                @Override
-                public void focusChanged() {
+                public void focusChanged(IBinder focusedWindowToken) {
                     WindowProcessController topApp = mActivityTaskManagerInternal.getTopApp();
                     if (topApp == null) {
                         return;
@@ -734,15 +728,22 @@ public class CarServiceHelperService extends SystemService
     }
 
     private void reportProcessesToMonitor(List<ProcessIdentifier> processIdentifiers) {
-        for (int i = 0; i < processIdentifiers.size(); i++) {
-            ProcessIdentifier processIdentifier = processIdentifiers.get(i);
-            try {
-                // TODO(b/391893590): refactor tellDumpFinished to take a list of ProcessIdentifiers
-                mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, processIdentifier);
-            } catch (RemoteException | RuntimeException e) {
-                Slogf.e(TAG, "Cannot report monitor result for pid %d to car watchdog daemon: %s",
-                        processIdentifier.pid, e);
+        if (processIdentifiers.isEmpty()) {
+            return;
+        }
+        try {
+            mCarWatchdogDaemonHelper.tellDumpFinished(mCarWatchdogMonitor, processIdentifiers);
+        } catch (RemoteException | RuntimeException e) {
+            StringBuilder builder = new StringBuilder("[");
+            for (int i = 1; i < processIdentifiers.size(); i++) {
+                builder.append(processIdentifiers.get(i)).append(", ");
             }
+            if (builder.length() > 1) {
+                builder.delete(builder.length() - 2, builder.length());
+            }
+            builder.append(']');
+            Slogf.e(TAG, "Cannot report monitor result to car "
+                    + "watchdog daemon for PIDs = %s: %s", builder.toString(), e);
         }
     }
 
@@ -761,7 +762,11 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private static ProcessInfo getProcessInfo(int pid) {
+    static ProcessInfo getProcessInfo(int pid) {
+        // TODO(b/400455938): This function used to be private but it was updated to enable
+        // tests to access this method for stubbing. However, this approach is not
+        // recommended. Once the tests are modified to use fake proc fs files, revert this
+        // change. The tests must verify this implementation and not stub it.
         String filename = "/proc/" + pid + "/stat";
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine().replace('\0', ' ').trim();
@@ -922,6 +927,9 @@ public class CarServiceHelperService extends SystemService
         private int mQueuedTask;
 
         public void requestTerminateProcesses(@NonNull List<ProcessIdentifier> processIdentifiers) {
+            if (processIdentifiers.isEmpty()) {
+                return;
+            }
             long startTimeMs = SystemClock.uptimeMillis();
             synchronized (mProcessLock) {
                 // If there is a running thread, we re-use it instead of starting a new thread.
@@ -934,14 +942,21 @@ public class CarServiceHelperService extends SystemService
                 TimingsTraceAndSlog t = newTimingsTraceAndSlog();
                 t.traceBegin("DumpAndKillProcesses_ProcessIdentifiers");
                 EventLogHelper.writeCarHelperWatchdogAnrKill();
-                removeDeadProcesses(processIdentifiers);
+                removeDeadProcesses(/* out */ processIdentifiers);
+                if (processIdentifiers.isEmpty()) {
+                    t.traceEnd();
+                    return;
+                }
 
                 dumpProcesses(processIdentifiers);
 
                 long killWaitMs = SystemClock.uptimeMillis() - startTimeMs;
                 // To give clients a chance of wrapping up before the termination.
                 mHandler.postDelayed(() -> {
-                    removeDeadProcesses(processIdentifiers);
+                    removeDeadProcesses(/* out */ processIdentifiers);
+                    if (processIdentifiers.isEmpty()) {
+                        return;
+                    }
                     killProcesses(processIdentifiers, /* useSigsys= */ false);
                     reportProcessesToMonitor(processIdentifiers);
                 }, (killWaitMs < ONE_SECOND_MS ? ONE_SECOND_MS - killWaitMs : 0));
@@ -955,6 +970,9 @@ public class CarServiceHelperService extends SystemService
 
         public void requestTerminateProcesses(
                 @NonNull ClientsNotRespondingInfo clientsNotRespondingInfo) {
+            if (clientsNotRespondingInfo.processIdentifiers.isEmpty()) {
+                return;
+            }
             long startTimeMs = SystemClock.uptimeMillis();
             synchronized (mProcessLock) {
                 // If there is a running thread, we re-use it instead of starting a new thread.
@@ -969,13 +987,20 @@ public class CarServiceHelperService extends SystemService
                 EventLogHelper.writeCarHelperWatchdogAnrKill();
                 List<ProcessIdentifier> processIdentifiers =
                         clientsNotRespondingInfo.processIdentifiers;
-                removeDeadProcesses(processIdentifiers);
+                removeDeadProcesses(/* out */ processIdentifiers);
+                if (processIdentifiers.isEmpty()) {
+                    t.traceEnd();
+                    return;
+                }
 
                 dumpProcesses(processIdentifiers);
 
                 Runnable killProcessRunnable = new Runnable() {
                     public void run() {
-                        removeDeadProcesses(processIdentifiers);
+                        removeDeadProcesses(/* out */ processIdentifiers);
+                        if (processIdentifiers.isEmpty()) {
+                            return;
+                        }
                         killProcesses(processIdentifiers, /* useSigsys= */ true);
                         mHandler.postDelayed(() -> {
                             List<ProcessIdentifier> processIdentifiersNotKilled =
@@ -1095,7 +1120,10 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private static final class ProcessInfo {
+    @VisibleForTesting
+    static final class ProcessInfo {
+        // TODO(b/400455938): Refer to the comment in `getProcessInfo` for context.
+        // Revert this class to private.
         public static final String UNKNOWN_PROCESS = "unknown process";
         public static final int INVALID_START_TIME = -1;
 
