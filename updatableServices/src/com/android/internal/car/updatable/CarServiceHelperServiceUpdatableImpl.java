@@ -54,10 +54,10 @@ import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
 import com.android.server.wm.CarDisplayCompatActivityInterceptor;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
-import com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
+import com.android.server.wm.CarLaunchRedirectActivityInterceptor;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -110,6 +110,8 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private final CarLaunchParamsModifierUpdatableImpl mCarLaunchParamsModifierUpdatable;
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
+    private final CarLaunchRedirectActivityInterceptor
+            mCarLaunchRedirectActivityInterceptor;
     private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatable;
 
     private ExtraDisplayMonitor mExtraDisplayMonitor;
@@ -139,9 +141,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarActivityInterceptorUpdatable.registerInterceptor(0,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
-        // Interceptor for the launch on a private display
+        // Interceptor for redirecting launch on a private display or a root task
+        mCarLaunchRedirectActivityInterceptor =
+                new CarLaunchRedirectActivityInterceptor(context);
         mCarActivityInterceptorUpdatable.registerInterceptor(1,
-                new CarLaunchOnPrivateDisplayActivityInterceptor(context));
+                mCarLaunchRedirectActivityInterceptor);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
         // not been fully constructed.
@@ -358,6 +362,16 @@ public final class CarServiceHelperServiceUpdatableImpl
                 IBinder rootTaskToken) {
             mCarActivityInterceptorUpdatable.setPersistentActivityOnRootTask(activities,
                     rootTaskToken);
+        }
+
+        @Override
+        public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
+            mCarLaunchRedirectActivityInterceptor.onRootTaskAppeared(name, rootTaskToken);
+        }
+
+        @Override
+        public void onRootTaskVanished(String name) {
+            mCarLaunchRedirectActivityInterceptor.onRootTaskVanished(name);
         }
 
         @Override
