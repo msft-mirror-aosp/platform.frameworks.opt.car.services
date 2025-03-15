@@ -128,9 +128,6 @@ public final class CarServiceHelperServiceUpdatableImpl
         mHandler = new Handler(mHandlerThread.getLooper());
         mCarServiceHelperInterface = (CarServiceHelperInterface) interfaces
                 .get(CarServiceHelperInterface.class.getSimpleName());
-        mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
-                (CarLaunchParamsModifierInterface) interfaces
-                        .get(CarLaunchParamsModifierInterface.class.getSimpleName()));
         mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
                 (CarActivityInterceptorInterface) interfaces
                         .get(CarActivityInterceptorInterface.class.getSimpleName()));
@@ -139,6 +136,10 @@ public final class CarServiceHelperServiceUpdatableImpl
                     mContext,
                     (CarDisplayCompatScaleProviderInterface) interfaces
                             .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+        mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
+                (CarLaunchParamsModifierInterface) interfaces.get(
+                        CarLaunchParamsModifierInterface.class.getSimpleName()),
+                mCarDisplayCompatScaleProviderUpdatable);
         mCarActivityInterceptorUpdatable.registerInterceptor(0,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
