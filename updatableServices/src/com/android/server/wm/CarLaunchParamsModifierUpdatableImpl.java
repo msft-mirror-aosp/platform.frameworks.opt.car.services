@@ -33,6 +33,7 @@ import android.util.Pair;
 import android.util.SparseIntArray;
 import android.view.Display;
 
+import com.android.car.internal.dep.Trace;
 import com.android.car.internal.util.IndentingPrintWriter;
 import com.android.internal.annotations.GuardedBy;
 
@@ -263,6 +264,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
      */
     public int calculate(CalculateParams params) {
+        Trace.beginSection("CarLaunchParamsModifier-calculate");
         TaskWrapper task = params.getTask();
         ActivityRecordWrapper activity = params.getActivity();
         ActivityRecordWrapper source = params.getSource();
@@ -278,6 +280,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
             userId = activity.getUserId();
         } else {
             Slogf.w(TAG, "onCalculate, cannot decide user");
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_SKIP;
         }
         // DisplayArea where user wants to launch the Activity.
@@ -387,8 +390,10 @@ public final class CarLaunchParamsModifierUpdatableImpl
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
             }
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_DONE;
         } else {
+            Trace.endSection();
             return LaunchParamsWrapper.RESULT_SKIP;
         }
     }
@@ -458,30 +463,36 @@ public final class CarLaunchParamsModifierUpdatableImpl
      * See {@link CarActivityManager#setPersistentActivity(android.content.ComponentName,int, int)}
      */
     public int setPersistentActivity(ComponentName activity, int displayId, int featureId) {
-        if (DBG) {
-            Slogf.d(TAG, "setPersistentActivity: activity=%s, displayId=%d, featureId=%d",
-                    activity, displayId, featureId);
-        }
-        if (featureId == DisplayAreaOrganizerHelper.FEATURE_UNDEFINED) {
-            synchronized (mLock) {
-                TaskDisplayAreaWrapper removed = mPersistentActivities.remove(activity);
-                if (removed == null) {
-                    throw new ServiceSpecificException(
-                            CarActivityManager.ERROR_CODE_ACTIVITY_NOT_FOUND,
-                            "Failed to remove " + activity.toShortString());
-                }
-                return CarActivityManager.RESULT_SUCCESS;
+        try {
+            Trace.beginSection(
+                    "CarLaunchParamsModifier-setPersistentActivityOnDisplay: " + displayId);
+            if (DBG) {
+                Slogf.d(TAG, "setPersistentActivity: activity=%s, displayId=%d, featureId=%d",
+                        activity, displayId, featureId);
             }
+            if (featureId == DisplayAreaOrganizerHelper.FEATURE_UNDEFINED) {
+                synchronized (mLock) {
+                    TaskDisplayAreaWrapper removed = mPersistentActivities.remove(activity);
+                    if (removed == null) {
+                        throw new ServiceSpecificException(
+                                CarActivityManager.ERROR_CODE_ACTIVITY_NOT_FOUND,
+                                "Failed to remove " + activity.toShortString());
+                    }
+                    return CarActivityManager.RESULT_SUCCESS;
+                }
+            }
+            TaskDisplayAreaWrapper tda = mBuiltin.findTaskDisplayArea(displayId, featureId);
+            if (tda == null) {
+                throw new IllegalArgumentException(
+                        "Unknown display=" + displayId + " or feature=" + featureId);
+            }
+            synchronized (mLock) {
+                mPersistentActivities.put(activity, tda);
+            }
+            return CarActivityManager.RESULT_SUCCESS;
+        } finally {
+            Trace.endSection();
         }
-        TaskDisplayAreaWrapper tda = mBuiltin.findTaskDisplayArea(displayId, featureId);
-        if (tda == null) {
-            throw new IllegalArgumentException("Unknown display=" + displayId
-                    + " or feature=" + featureId);
-        }
-        synchronized (mLock) {
-            mPersistentActivities.put(activity, tda);
-        }
-        return CarActivityManager.RESULT_SUCCESS;
     }
 
     /**
