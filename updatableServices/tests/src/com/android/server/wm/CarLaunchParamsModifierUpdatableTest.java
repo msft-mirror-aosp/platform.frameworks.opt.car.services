@@ -144,6 +144,8 @@ public class CarLaunchParamsModifierUpdatableTest {
     private TaskDisplayArea mDisplayArea3Overlay;
     @Mock
     private Display mDisplay99Random;
+    @Mock
+    private CarDisplayCompatScaleProviderUpdatableImpl mMockCarDisplayCompatScaleProvider;
     private TaskDisplayArea mDisplayArea99Random;
 
     private TaskDisplayArea mMapTaskDisplayArea;
@@ -257,7 +259,8 @@ public class CarLaunchParamsModifierUpdatableTest {
 
         mModifier = new CarLaunchParamsModifier(mContext);
         mBuiltin = mModifier.getBuiltinInterface();
-        mUpdatable = new CarLaunchParamsModifierUpdatableImpl(mBuiltin);
+        mUpdatable = new CarLaunchParamsModifierUpdatableImpl(mBuiltin,
+                mMockCarDisplayCompatScaleProvider);
         mModifier.setUpdatable(mUpdatable);
         mModifier.init();
     }
@@ -322,14 +325,17 @@ public class CarLaunchParamsModifierUpdatableTest {
         assertThat(mOutParams.mPreferredTaskDisplayArea).isNull();
     }
 
-    private ActivityRecord buildActivityRecord(String packageName, String className) {
+    private ActivityRecord buildActivityRecord(String packageName, String className,
+            Intent intent) {
         ActivityInfo info = new ActivityInfo();
         info.packageName = packageName;
         info.name = className;
         info.applicationInfo = new ApplicationInfo();
         info.applicationInfo.packageName = packageName;
-        Intent intent = new Intent();
-        intent.setClassName(packageName, className);
+        if (intent == null) {
+            intent = new Intent();
+            intent.setClassName(packageName, className);
+        }
 
         return new ActivityRecord.Builder(mActivityTaskManagerService)
                 .setIntent(intent)
@@ -338,8 +344,67 @@ public class CarLaunchParamsModifierUpdatableTest {
                 .build();
     }
 
+    private ActivityRecord buildActivityRecord(String packageName, String className) {
+        return buildActivityRecord(packageName, className, null);
+    }
+
     private ActivityRecord buildActivityRecord(ComponentName componentName) {
         return buildActivityRecord(componentName.getPackageName(), componentName.getClassName());
+    }
+
+    private ActivityRecord buildActivityRecord(ComponentName componentName, Intent intent) {
+        return buildActivityRecord(componentName.getPackageName(), componentName.getClassName(),
+                intent);
+    }
+
+    @Test
+    @SuppressWarnings("DirectInvocationOnMock")
+    public void testPassengerChange_requiresDisplayCompat_needsSafeRegionBoundsTrue() {
+        mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
+                mDisplay11ForPassenger.getDisplayId()});
+
+        int passengerUserId1 = 100;
+        mUpdatable.setDisplayAllowListForUser(passengerUserId1,
+                new int[]{mDisplay11ForPassenger.getDisplayId()});
+
+        int passengerUserId2 = 101;
+        mUpdatable.setDisplayAllowListForUser(passengerUserId2,
+                new int[]{mDisplay11ForPassenger.getDisplayId()});
+
+        Intent intent = getDisplayCompatRequiredActivity();
+        mActivityRecordActivity = buildActivityRecord(intent.getComponent(), intent);
+
+        // 11 not allowed, so reassigned to the 1st passenger display. This will return RESULT_DONE
+        assertDisplayIsReassigned(passengerUserId1, mDisplay11ForPassenger, mDisplay10ForPassenger);
+        // Since activity is display compat, mNeedsSafeRegionBounds should be true
+        assertThat(mOutParams.mNeedsSafeRegionBounds).isTrue();
+    }
+
+    @Test
+    public void testActivityRequiresDisplayCompat_needsSafeRegionBoundsTrue() {
+        Intent intent = getDisplayCompatRequiredActivity();
+        mActivityRecordActivity = buildActivityRecord(intent.getComponent(), intent);
+
+        assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
+                mActivityRecordSource, mActivityOptions, /* request= */ null, /* phase= */ 0,
+                mCurrentParams, mOutParams))
+                .isEqualTo(LaunchParamsController.LaunchParamsModifier.RESULT_CONTINUE);
+        assertThat(mOutParams.mNeedsSafeRegionBounds).isTrue();
+    }
+
+    /**
+     * Returns an {@link Intent} associated with an {@link android.app.Activity} that needs to run
+     * in display compat mode.
+     */
+    private Intent getDisplayCompatRequiredActivity() {
+        ComponentName displayCompatActivity =
+                ComponentName.unflattenFromString("com.test/.DisplayCompatRequiredActivity");
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(displayCompatActivity);
+        when(mMockCarDisplayCompatScaleProvider
+                .requiresDisplayCompat(eq(displayCompatActivity.getPackageName()), any(int.class)))
+                .thenReturn(true);
+        return intent;
     }
 
     @Test
