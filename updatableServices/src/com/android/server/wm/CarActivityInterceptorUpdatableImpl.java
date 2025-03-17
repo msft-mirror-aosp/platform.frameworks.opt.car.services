@@ -25,6 +25,7 @@ import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
 import android.os.IBinder;
 import android.os.RemoteException;
+import android.os.UserHandle;
 import android.util.ArrayMap;
 import android.util.ArraySet;
 import android.util.Log;
@@ -178,6 +179,10 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return false;
         }
         int userIdFromActivity = activityInterceptorInfoWrapper.getUserId();
+        if (userIdFromActivity == UserHandle.SYSTEM.getIdentifier()) {
+            // System user activity should be allowed to run on any root task
+            return true;
+        }
         int userIdFromRootTask = mBuiltIn.getUserAssignedToDisplay(rootTask
                 .getTaskDisplayArea().getDisplay().getDisplayId());
         if (userIdFromActivity == userIdFromRootTask) {
