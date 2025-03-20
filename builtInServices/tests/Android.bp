@@ -39,6 +39,7 @@ android_test {
         "testng",
         "truth",
         "car-frameworks-service.impl",
+        "flag-junit",
     ],
 
     // mockito-target-extended dependencies
