@@ -27,7 +27,6 @@ import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
 import android.car.builtin.util.EventLogHelper;
 import android.car.builtin.util.Slogf;
-import android.car.feature.Flags;
 import android.content.ComponentName;
 import android.content.Context;
 import android.content.Intent;
@@ -434,11 +433,8 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public boolean requiresDisplayCompatForUser(String packageName, int userId) {
-            if (Flags.displayCompatibilityCaptionBar()) {
-                return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
-                        userId);
-            }
-            return false;
+            return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
+                    userId);
         }
     }
 
