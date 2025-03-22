@@ -18,10 +18,10 @@ package com.android.server.wm;
 
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.doReturn;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
-import static com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor.LAUNCH_ACTIVITY;
-import static com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor.LAUNCH_ACTIVITY_DISPLAY_ID;
-import static com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor.LAUNCH_ON_PRIVATE_DISPLAY;
-import static com.android.server.wm.CarLaunchOnPrivateDisplayActivityInterceptor.PERMISSION_ACCESS_PRIVATE_DISPLAY_ID;
+import static com.android.server.wm.CarLaunchRedirectActivityInterceptor.LAUNCH_ACTIVITY;
+import static com.android.server.wm.CarLaunchRedirectActivityInterceptor.LAUNCH_ACTIVITY_DISPLAY_ID;
+import static com.android.server.wm.CarLaunchRedirectActivityInterceptor.LAUNCH_REDIRECT_ON_CONTAINER;
+import static com.android.server.wm.CarLaunchRedirectActivityInterceptor.PERMISSION_ACCESS_PRIVATE_DISPLAY_ID;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -53,11 +53,11 @@ import org.mockito.quality.Strictness;
 import java.util.Objects;
 
 /**
- * Unit tests for launching on private displays (physical or virtual).
+ * Unit tests for redirecting launch on private displays (physical or virtual) or root tasks.
  */
 @RunWith(AndroidJUnit4.class)
-public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
-    private static final String DISPLAY_ID_NO_LAUNCH_PRIVATE_DISPLAY_KEY = "-999";
+public class CarLaunchRedirectActivityInterceptorTest {
+    private static final String NO_LAUNCH_REDIRECT_CONTAINER = "-999";
     private static final String INVALID_DISPLAY = "-1";
     private static final int DISPLAY_ID_PHYSICAL_PRIVATE = 0;
     private static final int DISPLAY_ID_VIRTUAL_PRIVATE = 2;
@@ -69,6 +69,8 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
     private final ComponentName mRouterActivity = ComponentName.unflattenFromString(
             "com.test/.LaunchOnPrivateDisplayRouterActivity");
     private final String[] mAllowlistedPackageNames = {"com.test.allowlisted"};
+
+    private WindowContainer.RemoteToken mRootTaskToken;
 
     @Mock
     private Resources mMockResources;
@@ -84,9 +86,11 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
     private Display mDisplay1;
     @Mock
     private Display mDisplay2;
+    @Mock
+    private Task mWindowContainer;
 
     private MockitoSession mMockingSession;
-    private CarLaunchOnPrivateDisplayActivityInterceptor mInterceptor;
+    private CarLaunchRedirectActivityInterceptor mInterceptor;
 
     @Before
     public void setUp() {
@@ -114,8 +118,10 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
         when(mMockPackageManager.resolveActivity(any(Intent.class),
                 any(PackageManager.ResolveInfoFlags.class))).thenReturn(mock(ResolveInfo.class));
         when(mMockContext.getPackageManager()).thenReturn(mMockPackageManager);
+        mRootTaskToken = new WindowContainer.RemoteToken(mWindowContainer);
+        mWindowContainer.mRemoteToken = mRootTaskToken;
 
-        mInterceptor = new CarLaunchOnPrivateDisplayActivityInterceptor(mMockContext);
+        mInterceptor = new CarLaunchRedirectActivityInterceptor(mMockContext);
     }
 
     @After
@@ -127,8 +133,8 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
     }
 
     @Test
-    public void launchOnPhysicalPrivateDisplay_noLaunchOnPrivateDisplayKey_returnsNull() {
-        mMockInfo = createMockActivityInterceptorInfo(DISPLAY_ID_NO_LAUNCH_PRIVATE_DISPLAY_KEY,
+    public void launch_noRootTaskKey_noLaunchOnPrivateDisplayKey_returnsNull() {
+        mMockInfo = createMockActivityInterceptorInfo(NO_LAUNCH_REDIRECT_CONTAINER,
                 ALLOWLISTED_ACTIVITY);
 
         ActivityInterceptResultWrapper result =
@@ -167,6 +173,47 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
                 mInterceptor.onInterceptActivityLaunch(mMockInfo);
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    public void launchOnRootTask_invalidRootTask_returnsNull() {
+        String testRootTaskName1 = "testRootTaskName1";
+        String testRootTaskName2 = "testRootTaskName2";
+        mInterceptor.onRootTaskAppeared(testRootTaskName1, mRootTaskToken);
+        // Pass in an invalid root task name
+        mMockInfo = createMockActivityInterceptorInfo(testRootTaskName2, ALLOWLISTED_ACTIVITY);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void launchOnRootTask_notAllowlisted_returnsNull() {
+        String testRootTaskName = "testRootTaskName";
+        mInterceptor.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
+        mMockInfo = createMockActivityInterceptorInfo(testRootTaskName, DENYLISTED_ACTIVITY);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        assertThat(result).isNull();
+    }
+
+    @Test
+    public void launchOnRootTask_isAllowlisted_returnsNotNull() {
+        String testRootTaskName = "testRootTaskName";
+        mInterceptor.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
+        mMockInfo = createMockActivityInterceptorInfo(testRootTaskName, ALLOWLISTED_ACTIVITY);
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(mMockInfo);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getInterceptResult().getActivityOptions().getLaunchRootTask())
+                .isEqualTo(WindowContainer.fromBinder(mRootTaskToken)
+                        .mRemoteToken.toWindowContainerToken());
     }
 
     @Test
@@ -253,13 +300,12 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
                 LAUNCH_ACTIVITY_DISPLAY_ID)).isEqualTo(displayId);
     }
 
-    private Intent getActivityLaunchOnDisplay(String displayId, String allowlistedActivity) {
-        ComponentName exampleActivity =
-                ComponentName.unflattenFromString(allowlistedActivity);
+    private Intent getActivityLaunchOnContainer(String containerName, String allowlistedActivity) {
+        ComponentName exampleActivity = ComponentName.unflattenFromString(allowlistedActivity);
         Intent intent = new Intent(Intent.ACTION_MAIN);
         intent.setComponent(exampleActivity);
-        if (!Objects.equals(displayId, DISPLAY_ID_NO_LAUNCH_PRIVATE_DISPLAY_KEY)) {
-            intent.putExtra(LAUNCH_ON_PRIVATE_DISPLAY, displayId);
+        if (!Objects.equals(containerName, NO_LAUNCH_REDIRECT_CONTAINER)) {
+            intent.putExtra(LAUNCH_REDIRECT_ON_CONTAINER, containerName);
         }
         return intent;
     }
@@ -271,9 +317,9 @@ public class CarLaunchOnPrivateDisplayActivityInterceptorTest {
                 .thenReturn(permissionValue);
     }
 
-    private ActivityInterceptorInfoWrapper createMockActivityInterceptorInfo(String displayId,
+    private ActivityInterceptorInfoWrapper createMockActivityInterceptorInfo(String containerName,
             String allowlistedActivity) {
-        Intent intent = getActivityLaunchOnDisplay(displayId, allowlistedActivity);
+        Intent intent = getActivityLaunchOnContainer(containerName, allowlistedActivity);
         when(mMockInfo.getIntent()).thenReturn(intent);
         when(mMockInfo.getCallingPackage()).thenReturn(intent.getPackage());
         return mMockInfo;
