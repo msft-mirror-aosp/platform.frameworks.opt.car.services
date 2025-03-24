@@ -33,6 +33,7 @@ import android.content.ComponentName;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ResolveInfo;
+import android.os.UserHandle;
 import android.view.Display;
 
 import androidx.test.ext.junit.runners.AndroidJUnit4;
@@ -283,6 +284,27 @@ public class CarActivityInterceptorUpdatableTest {
                 mInterceptor.onInterceptActivityLaunch(info);
 
         assertThat(result).isNull();
+    }
+
+    @Test
+    public void interceptActivityLaunch_persistedActivity_systemUser_setsLaunchRootTask() {
+        List<ComponentName> activities = List.of(
+                ComponentName.unflattenFromString("com.example.app/com.example.app.MainActivity"),
+                ComponentName.unflattenFromString("com.example.app2/com.example.app2.MainActivity")
+        );
+        mInterceptor.setPersistentActivityOnRootTask(activities, mRootTaskToken1);
+        ActivityInterceptorInfoWrapper info =
+                createActivityInterceptorInfoWithMainIntent(activities.get(0).getPackageName(),
+                        activities.get(0).getClassName(),
+                        /* userId= */ UserHandle.SYSTEM.getIdentifier());
+
+        ActivityInterceptResultWrapper result =
+                mInterceptor.onInterceptActivityLaunch(info);
+
+        assertThat(result).isNotNull();
+        assertThat(result.getInterceptResult().getActivityOptions().getLaunchRootTask())
+                .isEqualTo(WindowContainer.fromBinder(mRootTaskToken1)
+                        .mRemoteToken.toWindowContainerToken());
     }
 
     @Test
