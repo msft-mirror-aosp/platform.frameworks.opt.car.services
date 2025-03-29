@@ -140,6 +140,17 @@ public class CarServiceHelperService extends SystemService
 
     private static final boolean DBG = Log.isLoggable(TAG, Log.DEBUG);
 
+    private static final String[] CAR_JAVA_STACKS_OF_INTEREST = new String[] {
+            "com.android.car"
+    };
+
+    private static final String[] CAR_NATIVE_STACKS_OF_INTEREST = new String[] {
+            "/system/bin/cardisplayproxyd",
+            "/system/bin/carpowerpolicyd",
+            "/system/bin/carwatchdogd",
+            "/system/bin/evsmanagerd",
+    };
+
     private static final List<String> CAR_HIDL_INTERFACES_OF_INTEREST = Arrays.asList(
             "android.hardware.automotive.audiocontrol@1.0::IAudioControl",
             "android.hardware.automotive.audiocontrol@2.0::IAudioControl",
@@ -553,8 +564,7 @@ public class CarServiceHelperService extends SystemService
     private static void addInterestingHidlPids(HashSet<Integer> pids) {
         try {
             IServiceManager serviceManager = IServiceManager.getService();
-            ArrayList<IServiceManager.InstanceDebugInfo> dump =
-                    serviceManager.debugDump();
+            List<IServiceManager.InstanceDebugInfo> dump = serviceManager.debugDump();
             for (IServiceManager.InstanceDebugInfo info : dump) {
                 if (info.pid == IServiceManager.PidConstant.NO_PID) {
                     continue;
@@ -603,10 +613,27 @@ public class CarServiceHelperService extends SystemService
         addInterestingHidlPids(pids);
         addInterestingAidlPids(pids);
 
-        int[] nativePids = Process.getPidsForCommands(Watchdog.NATIVE_STACKS_OF_INTEREST);
+        String[] nativeStacksOfInterest = Arrays.copyOf(Watchdog.NATIVE_STACKS_OF_INTEREST,
+            Watchdog.NATIVE_STACKS_OF_INTEREST.length + CAR_NATIVE_STACKS_OF_INTEREST.length);
+        System.arraycopy(CAR_NATIVE_STACKS_OF_INTEREST, 0, nativeStacksOfInterest,
+            Watchdog.NATIVE_STACKS_OF_INTEREST.length, CAR_NATIVE_STACKS_OF_INTEREST.length);
+        int[] nativePids = Process.getPidsForCommands(nativeStacksOfInterest);
         if (nativePids != null) {
             for (int i : nativePids) {
                 pids.add(i);
+            }
+        }
+
+        return new ArrayList<Integer>(pids);
+    }
+
+    private static List<Integer> getInterestingJavaPids() {
+        HashSet<Integer> pids = new HashSet<Integer>();
+
+        int[] javaPids = Process.getPidsForCommands(CAR_JAVA_STACKS_OF_INTEREST);
+        if (javaPids != null) {
+            for (int pid : javaPids) {
+                pids.add(pid);
             }
         }
 
@@ -637,6 +664,7 @@ public class CarServiceHelperService extends SystemService
     public File dumpServiceStacks() {
         ArrayList<Integer> pids = new ArrayList<>();
         pids.add(Process.myPid());
+        pids.addAll(getInterestingJavaPids());
 
         // Use the long version used by Watchdog since the short version is removed by the compiler.
         return StackTracesDumpHelper.dumpStackTraces(
@@ -1067,6 +1095,7 @@ public class CarServiceHelperService extends SystemService
                             processIdentifier.pid, e);
                 }
             }
+            javaPids.addAll(getInterestingJavaPids());
             nativePids.addAll(getInterestingNativePids());
             StackTracesDumpHelper.dumpStackTraces(
                     /* firstPids= */ javaPids, /* processCpuTracker= */ null, /* lastPids= */ null,
