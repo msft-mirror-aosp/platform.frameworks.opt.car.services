@@ -82,6 +82,13 @@ public final class LaunchParamsWrapper {
     }
 
     /**
+     * Sets whether safe region bounds are needed for the Activity in this launch.
+     */
+    public void setNeedsSafeRegionBounds(boolean needsSafeRegionBounds) {
+        mLaunchParams.mNeedsSafeRegionBounds = needsSafeRegionBounds;
+    }
+
+    /**
      *  Gets the bounds within the parent container.
      */
     public Rect getBounds() {
@@ -97,9 +104,10 @@ public final class LaunchParamsWrapper {
 
     @Override
     public String toString() {
-        return "LaunchParams{" +
-                "mPreferredTaskDisplayArea=" + mLaunchParams.mPreferredTaskDisplayArea +
-                ", mWindowingMode=" + mLaunchParams.mWindowingMode +
-                ", mBounds=" + mLaunchParams.mBounds.toString() + '}';
+        return "LaunchParams{"
+                + "mPreferredTaskDisplayArea=" + mLaunchParams.mPreferredTaskDisplayArea
+                + ", mWindowingMode=" + mLaunchParams.mWindowingMode
+                + ", mNeedsSafeRegionBounds=" + mLaunchParams.mNeedsSafeRegionBounds
+                + ", mBounds=" + mLaunchParams.mBounds.toString() + '}';
     }
 }

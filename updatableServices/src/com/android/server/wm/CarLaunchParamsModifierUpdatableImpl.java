@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
@@ -54,6 +55,8 @@ public final class CarLaunchParamsModifierUpdatableImpl
     private static final int USER_NULL = -10000;
 
     private final CarLaunchParamsModifierInterface mBuiltin;
+    @NonNull
+    private final CarDisplayCompatScaleProviderUpdatableImpl mDisplayCompatProvider;
     private final Object mLock = new Object();
 
     // Always start with USER_SYSTEM as the timing of handleCurrentUserSwitching(USER_SYSTEM) is not
@@ -83,8 +86,15 @@ public final class CarLaunchParamsModifierUpdatableImpl
     private final ArrayMap<ComponentName, TaskDisplayAreaWrapper> mPersistentActivities =
             new ArrayMap<>();
 
-    public CarLaunchParamsModifierUpdatableImpl(CarLaunchParamsModifierInterface builtin) {
+    public CarLaunchParamsModifierUpdatableImpl(CarLaunchParamsModifierInterface builtin,
+            @NonNull CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatProvider) {
         mBuiltin = builtin;
+        mDisplayCompatProvider = carDisplayCompatProvider;
+    }
+
+    private boolean requiresDisplayCompat(ComponentName launchIntent, int userId) {
+        return mDisplayCompatProvider
+                .requiresDisplayCompat(launchIntent.getPackageName(), userId);
     }
 
     public DisplayManager.DisplayListener getDisplayListener() {
@@ -387,10 +397,28 @@ public final class CarLaunchParamsModifierUpdatableImpl
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
             }
+            if (needsSafeRegionBounds(activity)) {
+                outParams.setNeedsSafeRegionBounds(true);
+            }
             return LaunchParamsWrapper.RESULT_DONE;
+        } else if (needsSafeRegionBounds(activity)) {
+            outParams.setNeedsSafeRegionBounds(true);
+            return LaunchParamsWrapper.RESULT_CONTINUE;
         } else {
             return LaunchParamsWrapper.RESULT_SKIP;
         }
+    }
+
+    private boolean needsSafeRegionBounds(ActivityRecordWrapper activity) {
+        if (activity != null && activity.getComponentName() != null
+                && requiresDisplayCompat(activity.getComponentName(), activity.getUserId())) {
+            if (DBG) {
+                Slogf.d(TAG, "Activity:%s needs to be within a safe region",
+                        activity.getComponentName());
+            }
+            return true;
+        }
+        return false;
     }
 
     @GuardedBy("mLock")
