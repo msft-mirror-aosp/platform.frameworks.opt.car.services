@@ -118,6 +118,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
@@ -183,6 +184,7 @@ public class CarServiceHelperService extends SystemService
                     + "(?<startClockTicks>[0-9]*)\\s(?:-?[0-9]*\\s)*-?[0-9]*";
     private static final String AIDL_VHAL_INTERFACE_PREFIX =
             "android.hardware.automotive.vehicle.IVehicle/";
+    private static final String DEFAULT_PROC_ROOT_DIR = "/proc";
 
     private static final boolean sVisibleBackgroundUsersEnabled =
             UserManager.isVisibleBackgroundUsersEnabled();
@@ -223,6 +225,8 @@ public class CarServiceHelperService extends SystemService
 
     private CarServiceHelperServiceUpdatable mCarServiceHelperServiceUpdatable;
 
+    private String mProcRootDir;
+
     /**
      * End-to-end time (from process start) for unlocking the first non-system user.
      */
@@ -235,7 +239,8 @@ public class CarServiceHelperService extends SystemService
                 /* carServiceHelperServiceUpdatable= */ null,
                 /* carDevicePolicySafetyChecker= */ null,
                 new CarActivityInterceptor(),
-                new CarDisplayCompatScaleProvider(context)
+                new CarDisplayCompatScaleProvider(context),
+                DEFAULT_PROC_ROOT_DIR
         );
     }
 
@@ -247,7 +252,8 @@ public class CarServiceHelperService extends SystemService
             @Nullable CarServiceHelperServiceUpdatable carServiceHelperServiceUpdatable,
             @Nullable CarDevicePolicySafetyChecker carDevicePolicySafetyChecker,
             @Nullable CarActivityInterceptor carActivityInterceptor,
-            @Nullable CarDisplayCompatScaleProvider carDisplayCompatScaleProvider) {
+            @Nullable CarDisplayCompatScaleProvider carDisplayCompatScaleProvider,
+            String procRootDir) {
         super(context);
 
         mContext = context;
@@ -257,6 +263,7 @@ public class CarServiceHelperService extends SystemService
         mCarActivityInterceptor = carActivityInterceptor;
         mCarDisplayCompatScaleProvider = carDisplayCompatScaleProvider;
         mCarWatchdogDaemonHelper = carWatchdogDaemonHelper;
+        mProcRootDir = procRootDir;
         try {
             if (carServiceHelperServiceUpdatable == null) {
                 Map<String, Object> interfaces = new ArrayMap<>();
@@ -739,7 +746,7 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private static void killProcesses(List<ProcessIdentifier> processIdentifiers,
+    private void killProcesses(List<ProcessIdentifier> processIdentifiers,
             boolean useSigsys) {
         for (int i = 0; i < processIdentifiers.size(); i++) {
             ProcessIdentifier processIdentifier = processIdentifiers.get(i);
@@ -775,8 +782,8 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    private static String getProcessCmdLine(int pid) {
-        String filename = "/proc/" + pid + "/cmdline";
+    private String getProcessCmdLine(int pid) {
+        String filename = String.format(Locale.getDefault(), "%s/%d/cmdline", mProcRootDir, pid);
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine().replace('\0', ' ').trim();
             int index = line.indexOf(' ');
@@ -790,12 +797,8 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    static ProcessInfo getProcessInfo(int pid) {
-        // TODO(b/400455938): This function used to be private but it was updated to enable
-        // tests to access this method for stubbing. However, this approach is not
-        // recommended. Once the tests are modified to use fake proc fs files, revert this
-        // change. The tests must verify this implementation and not stub it.
-        String filename = "/proc/" + pid + "/stat";
+    private ProcessInfo getProcessInfo(int pid) {
+        String filename = String.format(Locale.getDefault(), "%s/%d/stat", mProcRootDir, pid);
         try (BufferedReader reader = new BufferedReader(new FileReader(filename))) {
             String line = reader.readLine().replace('\0', ' ').trim();
             Matcher m = sProcPidStatPattern.matcher(line);
@@ -1076,7 +1079,7 @@ public class CarServiceHelperService extends SystemService
             }
         }
 
-        private static void dumpProcesses(List<ProcessIdentifier> processIdentifiers) {
+        private void dumpProcesses(List<ProcessIdentifier> processIdentifiers) {
             ArrayList<Integer> javaPids = new ArrayList<>(1);
             ArrayList<Integer> nativePids = new ArrayList<>();
             for (int i = 0; i < processIdentifiers.size(); i++) {
@@ -1104,8 +1107,9 @@ public class CarServiceHelperService extends SystemService
                     /* auxiliaryTaskExecutor= */ Runnable::run, /* latencyTracker= */ null);
         }
 
-        private static boolean isJavaApp(int pid) throws IOException {
-            Path exePath = new File("/proc/" + pid + "/exe").toPath();
+        private boolean isJavaApp(int pid) throws IOException {
+            Path exePath = new File(String.format(Locale.getDefault(),
+                    "%s/%d/exe", mProcRootDir, pid)).toPath();
             String target = Files.readSymbolicLink(exePath).toString();
             // Zygote's target exe is also /system/bin/app_process32 or /system/bin/app_process64.
             // But, we can be very sure that Zygote will not be the client of car watchdog daemon.
@@ -1138,7 +1142,7 @@ public class CarServiceHelperService extends SystemService
             }
         }
 
-        private static List<ProcessIdentifier> removeDeadProcesses(
+        private List<ProcessIdentifier> removeDeadProcesses(
                 List<ProcessIdentifier> processIdentifiers) {
             processIdentifiers.removeIf(processIdentifier -> {
                 ProcessInfo processInfo = getProcessInfo(processIdentifier.pid);
@@ -1149,10 +1153,7 @@ public class CarServiceHelperService extends SystemService
         }
     }
 
-    @VisibleForTesting
-    static final class ProcessInfo {
-        // TODO(b/400455938): Refer to the comment in `getProcessInfo` for context.
-        // Revert this class to private.
+    private static final class ProcessInfo {
         public static final String UNKNOWN_PROCESS = "unknown process";
         public static final int INVALID_START_TIME = -1;
 
