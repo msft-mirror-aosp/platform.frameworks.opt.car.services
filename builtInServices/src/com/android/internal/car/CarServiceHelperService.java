@@ -312,7 +312,7 @@ public class CarServiceHelperService extends SystemService
 
                 @Override
                 public void onUserRemoved(UserInfo user) {
-                    if (DBG) Slogf.d(TAG, "onUserRemoved(): $s", user.toFullString());
+                    if (DBG) Slogf.d(TAG, "onUserRemoved(): %s", user.toFullString());
                     mCarServiceHelperServiceUpdatable.onUserRemoved(user.getUserHandle());
                 }
             });
