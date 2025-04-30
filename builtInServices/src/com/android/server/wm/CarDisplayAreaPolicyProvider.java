@@ -81,17 +81,17 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                     imeContainer);
         }
 
-        TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(content, wmService,
+        TaskDisplayArea backgroundTaskDisplayArea = new TaskDisplayArea(wmService,
                 "BackgroundTaskDisplayArea", BACKGROUND_TASK_CONTAINER,
                 /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
         backgroundTaskDisplayArea.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
 
-        TaskDisplayArea controlBarDisplayArea = new TaskDisplayArea(content, wmService,
+        TaskDisplayArea controlBarDisplayArea = new TaskDisplayArea(wmService,
                 "ControlBarTaskDisplayArea", CONTROL_BAR_DISPLAY_AREA,
                 /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
         controlBarDisplayArea.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
 
-        TaskDisplayArea voicePlateTaskDisplayArea = new TaskDisplayArea(content, wmService,
+        TaskDisplayArea voicePlateTaskDisplayArea = new TaskDisplayArea(wmService,
                 "VoicePlateTaskDisplayArea", FEATURE_VOICE_PLATE,
                 /* createdByOrganizer= */ false, /* canHostHomeTask= */ false);
         // voicePlatTaskDisplayArea needs to be in full screen windowing mode.
@@ -121,8 +121,9 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                 "FeatureForegroundApplication", FOREGROUND_DISPLAY_AREA_ROOT);
         defaultAppsRoot.setWindowingMode(WINDOWING_MODE_MULTI_WINDOW);
 
-        TaskDisplayArea defaultAppTaskDisplayArea = new TaskDisplayArea(content, wmService,
-                "DefaultApplicationTaskDisplayArea", DEFAULT_APP_TASK_CONTAINER);
+        TaskDisplayArea defaultAppTaskDisplayArea = new TaskDisplayArea(wmService,
+                "DefaultApplicationTaskDisplayArea", DEFAULT_APP_TASK_CONTAINER,
+                false /* createdByOrganizer */, true /* canHostHomeTask */);
         List<TaskDisplayArea> firstTdaList = new ArrayList<>();
         firstTdaList.add(defaultAppTaskDisplayArea);
         DisplayAreaPolicyBuilder.HierarchyBuilder applicationHierarchy =
@@ -134,8 +135,7 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
                                 .and(TYPE_APPLICATION_OVERLAY)
                                 .build());
 
-        return new DisplayAreaPolicyBuilder()
-                .setRootHierarchy(rootHierarchy)
+        return new DisplayAreaPolicyBuilder(content.getDisplayId(), rootHierarchy)
                 .addDisplayAreaGroupHierarchy(applicationHierarchy)
                 .build(wmService);
     }
