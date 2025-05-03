@@ -175,8 +175,10 @@ public class CarLaunchParamsModifierUpdatableTest {
 
         // Return the same id as the display for simplicity
         DisplayContent dc = mock(DisplayContent.class);
-        TaskDisplayArea defaultTaskDisplayArea = new TaskDisplayArea(dc, mWindowManagerService,
-                "defaultTDA#" + displayId, DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER);
+        TaskDisplayArea defaultTaskDisplayArea = new TaskDisplayArea(mWindowManagerService,
+                "defaultTDA#" + displayId, DisplayAreaOrganizer.FEATURE_DEFAULT_TASK_CONTAINER,
+                false /* createdByOrganizer */, true /* canHostHomeTask */);
+        defaultTaskDisplayArea.mDisplayContent = dc;
         when(mRootWindowContainer.getDisplayContent(displayId)).thenReturn(dc);
         when(mRootWindowContainer.getDisplayContentOrCreate(displayId)).thenReturn(dc);
         when(dc.getDisplay()).thenReturn(display);
@@ -236,8 +238,9 @@ public class CarLaunchParamsModifierUpdatableTest {
         mDisplayArea0ForDriver = mockDisplay(mDisplay0ForDriver, DEFAULT_DISPLAY,
                 FLAG_TRUSTED, /* type= */ 0);
         DisplayContent defaultDC = mRootWindowContainer.getDisplayContentOrCreate(DEFAULT_DISPLAY);
-        mMapTaskDisplayArea = new TaskDisplayArea(
-                defaultDC, mWindowManagerService, "MapTDA", FEATURE_MAP_ID);
+        mMapTaskDisplayArea = new TaskDisplayArea(mWindowManagerService, "MapTDA", FEATURE_MAP_ID,
+                false /* createdByOrganizer */, true /* canHostHomeTask */);
+        mMapTaskDisplayArea.mDisplayContent = defaultDC;
         doAnswer((invocation) -> {
             Function<TaskDisplayArea, TaskDisplayArea> callback = invocation.getArgument(0);
             return callback.apply(mMapTaskDisplayArea);
