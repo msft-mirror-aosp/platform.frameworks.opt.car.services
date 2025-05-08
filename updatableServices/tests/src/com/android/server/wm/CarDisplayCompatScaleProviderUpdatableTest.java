@@ -32,7 +32,6 @@ import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.N
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DATA_SCHEME_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DISPLAYCOMPAT_SETTINGS_SECURE_KEY;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
-import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.META_DATA_DISTRACTION_OPTIMIZED;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.PLATFORM_PACKAGE_NAME;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.USER_NULL;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
@@ -242,19 +241,6 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     @Test
     public void hasNoActivities_returnsFalse() throws NameNotFoundException {
         mPackageInfo.activities = null;
-        when(mInterface.getPackageInfoAsUser(eq("package1"), any(PackageInfoFlags.class),
-                any(int.class))).thenReturn(mPackageInfo);
-
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
-    }
-
-    @Test
-    public void hasDistractionOptimizedActivity_returnsFalse() throws NameNotFoundException {
-        ActivityInfo[] activities = new ActivityInfo[1];
-        activities[0] = new ActivityInfo();
-        activities[0].metaData = new Bundle();
-        activities[0].metaData.putBoolean(META_DATA_DISTRACTION_OPTIMIZED, true);
-        mPackageInfo.activities = activities;
         when(mInterface.getPackageInfoAsUser(eq("package1"), any(PackageInfoFlags.class),
                 any(int.class))).thenReturn(mPackageInfo);
 
