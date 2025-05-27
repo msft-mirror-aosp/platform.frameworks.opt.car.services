@@ -50,7 +50,6 @@ import android.content.pm.PackageManager.PackageInfoFlags;
 import android.content.res.CompatScaleWrapper;
 import android.database.ContentObserver;
 import android.net.Uri;
-import android.os.Bundle;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.ServiceSpecificException;
@@ -89,8 +88,6 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // {@code PackageManager#FEATURE_CAR_DISPLAY_COMPATIBILITY}
     static final String FEATURE_CAR_DISPLAY_COMPATIBILITY =
             "android.software.car.display_compatibility";
-    @VisibleForTesting
-    static final String META_DATA_DISTRACTION_OPTIMIZED = "distractionOptimized";
     @VisibleForTesting
     static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
@@ -539,21 +536,6 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 Slogf.d(TAG, "Package %s has no Activity", packageName);
             }
             return false;
-        }
-
-        // Opt out if has at least 1 activity that has
-        // {@code META_DATA_DISTRACTION_OPTIMIZED} metadata set to true
-        // This case should prevent NDO apps to accidentally launch in display compat host.
-        for (ActivityInfo ai : pkgInfo.activities) {
-            Bundle activityMetaData = ai.metaData;
-            if (activityMetaData != null && activityMetaData
-                    .getBoolean(META_DATA_DISTRACTION_OPTIMIZED)) {
-                if (isDebugLoggable()) {
-                    Slogf.d(TAG, "Package %s has %s", packageName,
-                            META_DATA_DISTRACTION_OPTIMIZED);
-                }
-                return false;
-            }
         }
 
         if (applicationInfo != null) {
