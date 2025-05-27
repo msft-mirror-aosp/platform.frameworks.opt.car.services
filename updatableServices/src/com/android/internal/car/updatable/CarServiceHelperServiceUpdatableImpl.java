@@ -58,6 +58,7 @@ import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 import com.android.server.wm.CarLaunchRedirectActivityInterceptor;
+import com.android.server.wm.MediaTemplateActivityInterceptorForSuspension;
 
 import java.io.File;
 import java.io.PrintWriter;
@@ -139,13 +140,16 @@ public final class CarServiceHelperServiceUpdatableImpl
                 (CarLaunchParamsModifierInterface) interfaces.get(
                         CarLaunchParamsModifierInterface.class.getSimpleName()),
                 mCarDisplayCompatScaleProviderUpdatable);
-        mCarActivityInterceptorUpdatable.registerInterceptor(0,
+        // Interceptor for the launch of suspended media apps
+        mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 0,
+                new MediaTemplateActivityInterceptorForSuspension());
+        mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 1,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
         // Interceptor for redirecting launch on a private display or a root task
         mCarLaunchRedirectActivityInterceptor =
                 new CarLaunchRedirectActivityInterceptor(context);
-        mCarActivityInterceptorUpdatable.registerInterceptor(1,
+        mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 2,
                 mCarLaunchRedirectActivityInterceptor);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
         // "this" object in the previous constructor as CarServiceHelperServiceUpdatableImpl has
