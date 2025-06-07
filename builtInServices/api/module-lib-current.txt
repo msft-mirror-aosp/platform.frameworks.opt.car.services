@@ -142,6 +142,7 @@ package com.android.server.wm {
     method public com.android.server.wm.TaskDisplayAreaWrapper getPreferredTaskDisplayArea();
     method public int getWindowingMode();
     method public void setBounds(android.graphics.Rect);
+    method public void setNeedsSafeRegionBounds(boolean);
     method public void setPreferredTaskDisplayArea(com.android.server.wm.TaskDisplayAreaWrapper);
     method public void setWindowingMode(int);
     field public static int RESULT_CONTINUE;

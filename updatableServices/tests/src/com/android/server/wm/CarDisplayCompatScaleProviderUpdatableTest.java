@@ -28,11 +28,9 @@ import static android.view.Display.DEFAULT_DISPLAY;
 import static com.android.server.wm.CarDisplayCompatConfig.ANY_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.NO_SCALE;
-import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.OPT_OUT;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DATA_SCHEME_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DISPLAYCOMPAT_SETTINGS_SECURE_KEY;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
-import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.META_DATA_DISTRACTION_OPTIMIZED;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.PLATFORM_PACKAGE_NAME;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.USER_NULL;
 import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
@@ -249,19 +247,6 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     }
 
     @Test
-    public void hasDistractionOptimizedActivity_returnsFalse() throws NameNotFoundException {
-        ActivityInfo[] activities = new ActivityInfo[1];
-        activities[0] = new ActivityInfo();
-        activities[0].metaData = new Bundle();
-        activities[0].metaData.putBoolean(META_DATA_DISTRACTION_OPTIMIZED, true);
-        mPackageInfo.activities = activities;
-        when(mInterface.getPackageInfoAsUser(eq("package1"), any(PackageInfoFlags.class),
-                any(int.class))).thenReturn(mPackageInfo);
-
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
-    }
-
-    @Test
     public void isPrivileged_returnsFalse() throws NameNotFoundException {
         ActivityInfo[] activities = new ActivityInfo[1];
         activities[0] = new ActivityInfo();
@@ -326,13 +311,12 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
-
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE,
                         UserHandle.ALL.getIdentifier());
         mConfig.setScaleFactor(key, 0.5f);
 
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
     }
@@ -350,16 +334,15 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
-
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1",
                         UserHandle.ALL.getIdentifier());
         mConfig.setScaleFactor(key, 0.5f);
+
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package2", CURRENT_USER).getDensityScaleFactor())
-                .isEqualTo(DEFAULT_SCALE);
+        assertThat(mImpl.getCompatScale("package2", CURRENT_USER)).isNull();
     }
 
     @Test
@@ -375,17 +358,16 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
-        assertThat(mImpl.requiresDisplayCompat("package1", ANOTHER_USER)).isTrue();
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, CURRENT_USER);
         mConfig.setScaleFactor(key, 0.5f);
 
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
+        assertThat(mImpl.requiresDisplayCompat("package1", ANOTHER_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER).getDensityScaleFactor())
-                .isEqualTo(DEFAULT_SCALE);
+        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER)).isNull();
     }
 
     @Test
@@ -419,10 +401,8 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
 
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
-        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER).getDensityScaleFactor())
-                .isEqualTo(DEFAULT_SCALE);
-        assertThat(mImpl.getCompatScale("package2", CURRENT_USER).getDensityScaleFactor())
-                .isEqualTo(DEFAULT_SCALE);
+        assertThat(mImpl.getCompatScale("package1", ANOTHER_USER)).isNull();
+        assertThat(mImpl.getCompatScale("package2", CURRENT_USER)).isNull();
     }
 
     @Test
@@ -439,7 +419,6 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1", CURRENT_USER);
@@ -448,6 +427,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mConfig.setScaleFactor(key, 0.5f);
         mConfig.setScaleFactor(key1, 0.6f);
 
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
     }
@@ -465,8 +445,6 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
-
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, CURRENT_USER);
         CarDisplayCompatConfig.Key key1 =
@@ -475,6 +453,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mConfig.setScaleFactor(key, 0.5f);
         mConfig.setScaleFactor(key1, 0.6f);
 
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
     }
@@ -492,7 +471,6 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
                         .thenReturn(mApplicationInfo);
 
-        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1",
@@ -503,6 +481,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mConfig.setScaleFactor(key, 0.5f);
         mConfig.setScaleFactor(key1, 0.6f);
 
+        assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
         assertThat(mImpl.getCompatScale("package1", CURRENT_USER).getDensityScaleFactor())
                 .isEqualTo(0.5f);
     }
@@ -549,7 +528,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1",
                         UserHandle.ALL.getIdentifier());
 
-        assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(OPT_OUT);
+        assertThat(mConfig.getScaleFactor(key, NO_SCALE)).isEqualTo(NO_SCALE);
     }
 
     @Test
@@ -701,9 +680,11 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 return new ByteArrayInputStream(configWithDisplayValue.getBytes());
             }
         };
+
+        mImpl.requiresDisplayCompat(pkg1Name, CURRENT_USER);
         CompatScaleWrapper result = mImpl.getCompatScale(pkg1Name, CURRENT_USER);
 
-        assertThat(result.getDensityScaleFactor()).isEqualTo(DEFAULT_SCALE);
+        assertThat(result).isNull();
     }
 
     @Test
