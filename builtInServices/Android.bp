@@ -18,6 +18,7 @@ java_sdk_library {
         "android.car.watchdoglib",
         "android.automotive.watchdog.internal-java",
         "car-builtin-protos",
+        "compatibility-device-util-axt",
     ],
     api_lint: {
         enabled: true,

@@ -21,18 +21,22 @@ import static com.google.common.truth.Truth.assertWithMessage;
 import static org.junit.Assume.assumeTrue;
 
 import android.app.Instrumentation;
+import android.app.UiAutomation;
 import android.content.ComponentName;
 import android.content.Intent;
 import android.view.KeyEvent;
 import android.view.accessibility.AccessibilityManager;
 
-import androidx.test.filters.FlakyTest;
 import androidx.test.platform.app.InstrumentationRegistry;
 import androidx.test.uiautomator.Condition;
+import androidx.test.uiautomator.Configurator;
 import androidx.test.uiautomator.UiDevice;
 import androidx.test.uiautomator.UiObject;
 import androidx.test.uiautomator.UiObjectNotFoundException;
 import androidx.test.uiautomator.UiSelector;
+
+import com.android.compatibility.common.util.PollingCheck;
+import com.android.compatibility.common.util.SystemUtil;
 
 import org.junit.After;
 import org.junit.Before;
@@ -48,27 +52,45 @@ import java.io.IOException;
 public final class ActivityResolverTest {
 
     private static final long WAIT_TIMEOUT_MS = 3_000;
+    private static final long POLLING_CHECK_TIMEOUT_MILLIS = 10000L;
     private static final String TRIGGER_ACTIVITY_RESOLVER_RESOURCE_ID =
             "com.google.android.car.kitchensink:id/trigger_activity_resolver";
     private static final String DISMISS_BUTTON_RESOURCE_ID =
             "com.google.android.car.kitchensink:id/dismiss_button";
-    private static final String TITLE_ID = "android:id/title";
     private static final ComponentName ROTARY_SERVICE_COMPONENT_NAME =
             ComponentName.unflattenFromString("com.android.car.rotary/.RotaryService");
 
     private static final String KITCHEN_SINK_APP = "com.google.android.car.kitchensink";
+
+    private static final UiAutomation sUiAutomation =
+            InstrumentationRegistry.getInstrumentation().getUiAutomation(
+                    UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
 
     private Instrumentation mInstrumentation;
     private UiDevice mDevice;
     private AccessibilityManager mAccessibilityManager;
 
     @Before
-    public void setUp() throws IOException {
+    public void setUp() throws Exception {
         mInstrumentation = InstrumentationRegistry.getInstrumentation();
         mAccessibilityManager = mInstrumentation.getContext().getSystemService(
                 AccessibilityManager.class);
+
+        // If this flag is not set, RotaryService will be killed. See (b/421487382).
+        Configurator configurator = Configurator.getInstance();
+        configurator.setUiAutomationFlags(UiAutomation.FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES);
         mDevice = UiDevice.getInstance(mInstrumentation);
+
         closeKitchenSink();
+
+        assumeHasRotaryService();
+
+        launchResolverActivity();
+
+        // RotaryService might be killed by other tests using UiAutomation without
+        // FLAG_DONT_SUPPRESS_ACCESSIBILITY_SERVICES flag.
+        PollingCheck.waitFor(POLLING_CHECK_TIMEOUT_MILLIS, () -> isRotaryServiceRunning(),
+                "RotaryService is not running yet");
     }
 
     @After
@@ -82,8 +104,6 @@ public final class ActivityResolverTest {
 
     @Test
     public void testListItemFocusable_threeItems() throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
         // Press TAB key to focus first list item
@@ -108,10 +128,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
-    @FlakyTest(bugId = 397717760)
     public void testListItemFocusable_twoItems() throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
         // Press TAB key to focus first list item
@@ -139,8 +156,6 @@ public final class ActivityResolverTest {
     @Test
     public void testActionButtonsNotFocusable_threeItems()
             throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
         // The two buttons should be disabled if the test activity is never opened by
@@ -160,8 +175,6 @@ public final class ActivityResolverTest {
 
     @Test
     public void testClickListItem_threeItems() throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(hasThreeListItems());
 
         // Press TAB key to focus first list item
@@ -207,10 +220,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
-    @FlakyTest(bugId = 397717760)
     public void testClickListItem_twoItems() throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
         // Press TAB key to focus first list item
@@ -229,10 +239,7 @@ public final class ActivityResolverTest {
     }
 
     @Test
-    @FlakyTest(bugId = 397717760)
     public void testClickJustOnceButton_twoItems() throws UiObjectNotFoundException, IOException {
-        assumeHasRotaryService();
-        launchResolverActivity();
         assumeTrue(!hasThreeListItems());
 
         // Press TAB key thrice to focus justOnceButton
@@ -271,6 +278,7 @@ public final class ActivityResolverTest {
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK);
         intent.putExtra("select", "activity resolver");
         mInstrumentation.getContext().startActivity(intent);
+        mDevice.waitForIdle();
 
         UiObject button = mDevice.findObject(new UiSelector().resourceId(
                 TRIGGER_ACTIVITY_RESOLVER_RESOURCE_ID));
@@ -287,6 +295,7 @@ public final class ActivityResolverTest {
     }
 
     private void waitAndAssertFocused(UiObject view) throws UiObjectNotFoundException {
+        mDevice.waitForIdle();
         mDevice.wait(isViewFocused(view), WAIT_TIMEOUT_MS);
         assertWithMessage("The view " + view + " should be focused")
                 .that(view.isFocused())
@@ -301,5 +310,22 @@ public final class ActivityResolverTest {
                 throw new RuntimeException(e);
             }
         };
+    }
+
+    private static Boolean isRotaryServiceRunning() {
+        try {
+            String output = SystemUtil.runShellCommand(sUiAutomation, "dumpsys activity service "
+                    + ROTARY_SERVICE_COMPONENT_NAME.flattenToShortString());
+            // Wait for RotaryService to be recreated and running in case it was killed by other
+            // tests using UiAutomation.
+            // When it is running, the dumpsys result is like:
+            // SERVICE com.android.car.rotary/.RotaryService 898025b pid=2101 user=10
+            // Otherwise, the dumpsys result is like:
+            // SERVICE com.android.car.rotary/.RotaryService 19f3b7e pid=(not running))
+            return output.contains("user");
+
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 }
