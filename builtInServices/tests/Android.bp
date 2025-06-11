@@ -40,6 +40,7 @@ android_test {
         "truth",
         "car-frameworks-service.impl",
         "flag-junit",
+        "compatibility-device-util-axt",
     ],
 
     // mockito-target-extended dependencies
