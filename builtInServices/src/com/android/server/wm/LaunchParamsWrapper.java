@@ -85,7 +85,7 @@ public final class LaunchParamsWrapper {
     /**
      * Sets whether safe region bounds are needed for the Activity in this launch.
      */
-    @FlaggedApi(com.android.window.flags.Flags.FLAG_SAFE_REGION_LETTERBOXING)
+    @FlaggedApi(com.android.window.flags.Flags.FLAG_SAFE_REGION_LETTERBOXING_V1)
     public void setNeedsSafeRegionBounds(boolean needsSafeRegionBounds) {
         mLaunchParams.mNeedsSafeRegionBounds = needsSafeRegionBounds;
     }
