@@ -83,7 +83,22 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     private static final long CAR_SERVICE_BINDER_CALL_TIMEOUT_MS = 15_000;
 
+    /**
+     * Amount of time to wait after a failure to receive a response to the CarService bind request.
+     * This is deliberately set to not reconnect immediately after the 15 second bind request
+     * timeout since after bind failure with system_server, Car service will self crash which has a
+     * 20 second timeout. In order to allow the ANR case to dump, terminate and respawn a new
+     * CarService process set this value to be beyond (2 second ((15+7) - 20)) the 20 second.
+     * This value will be added to the 15 second time value used by
+     * CAR_SERVICE_BINDER_CALL_TIMEOUT_MS
+     */
+    private static final long CAR_SERVICE_REBIND_CALL_TIME_MS = 7_000;
+
     private final Runnable mCallbackForCarServiceUnresponsiveness;
+
+    private final Runnable mCallbackForCarServiceNoConnection;
+
+    private final Runnable mCallbackForCarServiceRebind;
 
     // exit code for
     private static final int STATUS_CODE_To_EXIT = 10;
@@ -94,6 +109,8 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final Object mLock = new Object();
     @GuardedBy("mLock")
     private ICar mCarServiceBinder;
+    @GuardedBy("mLock")
+    private boolean mIsCarServiceConnected;
 
     private final Handler mHandler;
     private final HandlerThread mHandlerThread = new HandlerThread(
@@ -163,6 +180,8 @@ public final class CarServiceHelperServiceUpdatableImpl
             mExtraDisplayMonitor = new ExtraDisplayMonitor(
                     displayManager, mHandler, mCarServiceHelperInterface);
         }
+        mCallbackForCarServiceNoConnection = () -> handleCarServiceNoConnection();
+        mCallbackForCarServiceRebind = () -> bindToCarService();
     }
 
     private final ServiceConnection mCarServiceConnection = new ServiceConnection() {
@@ -180,12 +199,7 @@ public final class CarServiceHelperServiceUpdatableImpl
 
     @Override
     public void onStart() {
-        Intent intent = new Intent(CAR_SERVICE_INTERFACE).setPackage(CAR_SERVICE_PACKAGE);
-        Context userContext = mContext.createContextAsUser(UserHandle.SYSTEM, /* flags= */ 0);
-        if (!userContext.bindService(intent, Context.BIND_AUTO_CREATE, this,
-                mCarServiceConnection)) {
-            Slogf.wtf(TAG, "cannot start car service");
-        }
+        bindToCarService();
         if (mExtraDisplayMonitor != null) {
             mExtraDisplayMonitor.init();
         }
@@ -237,6 +251,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     @VisibleForTesting
     void handleCarServiceConnection(IBinder iBinder) {
         synchronized (mLock) {
+            mIsCarServiceConnected = true;
             if (mCarServiceBinder == ICar.Stub.asInterface(iBinder)) {
                 return; // already connected.
             }
@@ -258,6 +273,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
         mHandler.postDelayed(mCallbackForCarServiceUnresponsiveness,
                 CAR_SERVICE_BINDER_CALL_TIMEOUT_MS);
+        mHandler.removeCallbacks(mCallbackForCarServiceNoConnection);
+        mHandler.removeCallbacks(mCallbackForCarServiceRebind);
 
         sendSetSystemServerConnectionsCall();
     }
@@ -270,6 +287,10 @@ public final class CarServiceHelperServiceUpdatableImpl
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
 
         mCarServiceHelperInterface.dumpServiceStacks();
+
+        synchronized (mLock) {
+            mIsCarServiceConnected = false;
+        }
         if (restartOnServiceCrash) {
             Slogf.w(TAG, "*** CARHELPER KILLING SYSTEM PROCESS: CarService crash");
             Slogf.w(TAG, "*** GOODBYE!");
@@ -303,6 +324,32 @@ public final class CarServiceHelperServiceUpdatableImpl
         Slogf.w(TAG, "*** GOODBYE!");
         Process.killProcess(Process.myPid());
         System.exit(STATUS_CODE_To_EXIT);
+    }
+
+    private void handleCarServiceNoConnection() {
+        synchronized (mLock) {
+            if (!mIsCarServiceConnected) {
+                Slogf.w(TAG, "CARHELPER failed to get connection from carService - dumping stacks");
+                mHandler.removeCallbacks(mCallbackForCarServiceNoConnection);
+                mCarServiceHelperInterface.dumpServiceStacks();
+                Slogf.w(TAG, "Trying to rebind to CarService after connection failure");
+                mHandler.removeCallbacks(mCallbackForCarServiceRebind);
+                mHandler.postDelayed(mCallbackForCarServiceRebind,
+                        CAR_SERVICE_REBIND_CALL_TIME_MS);
+            }
+        }
+    }
+
+    private void bindToCarService() {
+        Intent intent = new Intent(CAR_SERVICE_INTERFACE).setPackage(CAR_SERVICE_PACKAGE);
+        Context userContext = mContext.createContextAsUser(UserHandle.SYSTEM, /* flags= */ 0);
+        mHandler.removeCallbacks(mCallbackForCarServiceNoConnection);
+        mHandler.postDelayed(mCallbackForCarServiceNoConnection,
+                CAR_SERVICE_BINDER_CALL_TIMEOUT_MS);
+        if (!userContext.bindService(
+                intent, Context.BIND_AUTO_CREATE, this, mCarServiceConnection)) {
+            Slogf.wtf(TAG, "cannot start car service");
+        }
     }
 
     @Override
