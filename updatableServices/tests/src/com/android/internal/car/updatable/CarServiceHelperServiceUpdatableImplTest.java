@@ -27,6 +27,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.timeout;
 
 import android.car.ICar;
 import android.car.builtin.os.UserManagerHelper;
@@ -140,7 +141,7 @@ public final class CarServiceHelperServiceUpdatableImplTest
 
         mCarServiceHelperServiceUpdatableImpl.handleCarServiceConnection(mIBinder);
 
-        verify(mCarServiceHelperInterface).dumpServiceStacks();
+        verify(mCarServiceHelperInterface, timeout(1000)).dumpServiceStacks();
     }
 
     @Test
