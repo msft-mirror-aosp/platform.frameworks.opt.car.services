@@ -155,17 +155,17 @@ public final class CarServiceHelperServiceUpdatableImpl
                     mContext,
                     (CarDisplayCompatScaleProviderInterface) interfaces
                             .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+        mTaskStackRepository = new CarServiceHelperTaskStackRepository();
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 (CarLaunchParamsModifierInterface) interfaces.get(
                         CarLaunchParamsModifierInterface.class.getSimpleName()),
-                mCarDisplayCompatScaleProviderUpdatable);
+                mCarDisplayCompatScaleProviderUpdatable, mTaskStackRepository);
         // Interceptor for the launch of suspended media apps
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 0,
                 new MediaTemplateActivityInterceptorForSuspension());
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 1,
                 new CarDisplayCompatActivityInterceptor(context,
                         mCarDisplayCompatScaleProviderUpdatable));
-        mTaskStackRepository = new CarServiceHelperTaskStackRepository();
         // Interceptor for redirecting launch on a private display or a root task
         mCarLaunchRedirectActivityInterceptor =
                 new CarLaunchRedirectActivityInterceptor(context, mTaskStackRepository);
@@ -427,6 +427,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         @Override
         public void onRootTaskVanished(String name) {
             mTaskStackRepository.onRootTaskVanished(name);
+        }
+
+        @Override
+        public void setLaunchBehaviorForRootTask(IBinder rootTaskToken, int behavior) {
+            mCarLaunchParamsModifierUpdatable.setLaunchBehaviorForRootTask(rootTaskToken, behavior);
         }
 
         @Override

@@ -26,7 +26,9 @@ import android.car.builtin.util.Slogf;
 import android.car.builtin.view.DisplayHelper;
 import android.car.builtin.window.DisplayAreaOrganizerHelper;
 import android.content.ComponentName;
+import android.content.Intent;
 import android.hardware.display.DisplayManager;
+import android.os.IBinder;
 import android.os.ServiceSpecificException;
 import android.util.ArrayMap;
 import android.util.Log;
@@ -40,6 +42,7 @@ import com.android.internal.annotations.GuardedBy;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
 
 /**
  * Implementation of {@link CarLaunchParamsModifierUpdatable}.
@@ -57,6 +60,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
     private final CarLaunchParamsModifierInterface mBuiltin;
     @NonNull
     private final CarDisplayCompatScaleProviderUpdatableImpl mDisplayCompatProvider;
+    private final CarServiceHelperTaskStackRepository mTaskStackRepository;
     private final Object mLock = new Object();
 
     // Always start with USER_SYSTEM as the timing of handleCurrentUserSwitching(USER_SYSTEM) is not
@@ -86,10 +90,15 @@ public final class CarLaunchParamsModifierUpdatableImpl
     private final ArrayMap<ComponentName, TaskDisplayAreaWrapper> mPersistentActivities =
             new ArrayMap<>();
 
+    @GuardedBy("mLock")
+    private final Map<IBinder, Integer> mRootTaskLaunchBehaviors = new ArrayMap<>();
+
     public CarLaunchParamsModifierUpdatableImpl(CarLaunchParamsModifierInterface builtin,
-            @NonNull CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatProvider) {
+            @NonNull CarDisplayCompatScaleProviderUpdatableImpl carDisplayCompatProvider,
+            CarServiceHelperTaskStackRepository carServiceHelperTaskStackRepository) {
         mBuiltin = builtin;
         mDisplayCompatProvider = carDisplayCompatProvider;
+        mTaskStackRepository = carServiceHelperTaskStackRepository;
     }
 
     private boolean requiresDisplayCompat(ComponentName launchIntent, int userId) {
@@ -268,6 +277,46 @@ public final class CarLaunchParamsModifierUpdatableImpl
         }
     }
 
+    private boolean isLaunchAdjacent(RequestWrapper request) {
+        return request != null && request.getIntent() != null
+                && (request.getIntent().getFlags() & Intent.FLAG_ACTIVITY_LAUNCH_ADJACENT) != 0;
+    }
+
+    @GuardedBy("mLock")
+    @Nullable
+    private TaskWrapper getPreferredRootTask(@Nullable TaskWrapper task,
+            @Nullable ActivityRecordWrapper source, @Nullable RequestWrapper request) {
+        if (isLaunchAdjacent(request)) {
+            Slogf.i(TAG, "LaunchAdjacent detected, the routing behavior will be altered.");
+            return null;
+        }
+        if (source == null) {
+            return null;
+        }
+        TaskWrapper sourceTask = source.getTask();
+        if (sourceTask == null) {
+            return null;
+        }
+        TaskWrapper sourceRootTask = sourceTask.getRootTask();
+        if (sourceRootTask == null) {
+            return null;
+        }
+        boolean launchLeadsToANewTask = task == null;
+        Integer behavior = mRootTaskLaunchBehaviors.get(sourceRootTask.getBinder());
+        if (behavior == null) {
+            return null;
+        }
+        boolean shouldReparentToSource = behavior
+                == CarActivityManager.LAUNCH_BEHAVIOR_REPARENT_TO_SOURCE_ROOT_TASK;
+        boolean shouldRemainInSource = launchLeadsToANewTask && behavior
+                == CarActivityManager.LAUNCH_BEHAVIOR_REMAIN_IN_SOURCE_ROOT_TASK;
+        if (shouldReparentToSource || shouldRemainInSource) {
+            Slogf.i(TAG, "Applying root task behavior, preferred root task=%s", sourceRootTask);
+            return sourceRootTask;
+        }
+        return null;
+    }
+
     /**
      * Calculates {@code outParams} based on the given arguments.
      * See {@code LaunchParamsController.LaunchParamsModifier.onCalculate()} for the detail.
@@ -388,6 +437,17 @@ public final class CarLaunchParamsModifierUpdatableImpl
             targetDisplayArea = getAlternativeDisplayAreaForPassengerLocked(
                     userId, activity, request);
         }
+
+        // Modify the outParams now and track what all outParams were updated to send the correct
+        // result later
+        boolean needsSafeRegionApplied = false;
+        boolean displayAreaChanged = false;
+        boolean preferredRootTaskApplied = false;
+
+        if (needsSafeRegionBounds(activity)) {
+            outParams.setNeedsSafeRegionBounds(true);
+            needsSafeRegionApplied = true;
+        }
         if (targetDisplayArea != null && originalDisplayArea != targetDisplayArea) {
             Slogf.i(TAG, "Changed launching display, user:%d requested display area:%s"
                     + " target display area:%s", userId, originalDisplayArea, targetDisplayArea);
@@ -397,16 +457,33 @@ public final class CarLaunchParamsModifierUpdatableImpl
                     != ActivityOptionsWrapper.WINDOWING_MODE_UNDEFINED) {
                 outParams.setWindowingMode(options.getLaunchWindowingMode());
             }
-            if (needsSafeRegionBounds(activity)) {
-                outParams.setNeedsSafeRegionBounds(true);
-            }
-            return LaunchParamsWrapper.RESULT_DONE;
-        } else if (needsSafeRegionBounds(activity)) {
-            outParams.setNeedsSafeRegionBounds(true);
-            return LaunchParamsWrapper.RESULT_CONTINUE;
+            displayAreaChanged = true;
         } else {
-            return LaunchParamsWrapper.RESULT_SKIP;
+            // Reaching here means that all the user boundary checks resulted into the launch
+            // resolution on the same display. The task routing for-now only needs to work in such
+            // cases.
+            // TODO(b/441782369): Handle launch behaviors on different displays belonging to the
+            // same user.
+            TaskWrapper preferredRootTask = getPreferredRootTask(task, source, request);
+            if (preferredRootTask != null) {
+                outParams.setPreferredRootTask(preferredRootTask);
+                preferredRootTaskApplied = true;
+            }
         }
+
+        final int result;
+        if (displayAreaChanged || preferredRootTaskApplied) {
+            result = LaunchParamsWrapper.RESULT_DONE;
+        } else if (needsSafeRegionApplied) {
+            // For a launch that doesn't involve overriding display or task, RESULT_SKIP can't be
+            // used as that won't apply the safe region that is set in the outParams.
+            // Even RESULT_DONE can't be applied as the default LaunchParamsModifier will miss out
+            // on applying the default policy.
+            result = LaunchParamsWrapper.RESULT_CONTINUE;
+        } else {
+            result = LaunchParamsWrapper.RESULT_SKIP;
+        }
+        return result;
     }
 
     private boolean needsSafeRegionBounds(ActivityRecordWrapper activity) {
@@ -533,8 +610,48 @@ public final class CarLaunchParamsModifierUpdatableImpl
                                     + " , Feature ID: " + taskDisplayAreaWrapper.getFeatureId());
                 }
             }
+            writer.decreaseIndent();
+            writer.decreaseIndent();
+            writer.println("Root Task Launch Behaviors:");
+            writer.increaseIndent();
+            if (mRootTaskLaunchBehaviors.isEmpty()) {
+                writer.println("No root task launch behavior is specified.");
+            } else {
+                for (Map.Entry<IBinder, Integer> entry : mRootTaskLaunchBehaviors.entrySet()) {
+                    IBinder token = entry.getKey();
+                    String name = mTaskStackRepository.getRootTaskName(token);
+                    writer.println("Root task id: " + token + " ("
+                            + (name != null ? name : "name not found")
+                            + "), Behavior: " + launchBehaviorToString(entry.getValue()));
+                }
+            }
         }
-        writer.decreaseIndent();
-        writer.decreaseIndent();
+    }
+
+    private static String launchBehaviorToString(int behavior) {
+        return switch (behavior) {
+            case CarActivityManager.LAUNCH_BEHAVIOR_REPARENT_TO_SOURCE_ROOT_TASK ->
+                    "REPARENT_TO_SOURCE_ROOT_TASK";
+            case CarActivityManager.LAUNCH_BEHAVIOR_REMAIN_IN_SOURCE_ROOT_TASK ->
+                    "REMAIN_IN_SOURCE_ROOT_TASK";
+            default -> "DEFAULT";
+        };
+    }
+
+    /**
+     * Sets the launch behavior for a given root task.
+     * See {@link android.car.app.CarActivityManager#setLaunchBehaviorForRootTask(IBinder, int)}.
+     *
+     * @param rootTaskToken The token of the root task.
+     * @param behavior The launch behavior to set.
+     */
+    public void setLaunchBehaviorForRootTask(IBinder rootTaskToken, int behavior) {
+        synchronized (mLock) {
+            if (behavior == CarActivityManager.LAUNCH_BEHAVIOR_DEFAULT) {
+                mRootTaskLaunchBehaviors.remove(rootTaskToken);
+            } else {
+                mRootTaskLaunchBehaviors.put(rootTaskToken, behavior);
+            }
+        }
     }
 }

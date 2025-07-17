@@ -97,6 +97,13 @@ public final class ActivityRecordWrapper {
     }
 
     /**
+     * Gets the {@link TaskWrapper} that this activity is in.
+     */
+    public TaskWrapper getTask() {
+        return TaskWrapper.create(mActivityRecord.getTask());
+    }
+
+    /**
      * Returns whether the display where this Activity is located is trusted.
      */
     public boolean isDisplayTrusted() {
