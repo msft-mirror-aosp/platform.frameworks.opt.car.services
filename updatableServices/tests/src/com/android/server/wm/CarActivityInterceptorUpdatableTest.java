@@ -21,6 +21,7 @@ import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSess
 import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -29,7 +30,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import android.app.ActivityOptions;
+import android.app.role.RoleManager;
 import android.content.ComponentName;
+import android.content.Context;
 import android.content.Intent;
 import android.content.pm.ActivityInfo;
 import android.content.pm.ResolveInfo;
@@ -47,6 +50,8 @@ import org.mockito.Mock;
 import org.mockito.MockitoSession;
 import org.mockito.quality.Strictness;
 
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 
 @RunWith(AndroidJUnit4.class)
@@ -83,6 +88,10 @@ public class CarActivityInterceptorUpdatableTest {
     private CarActivityInterceptorUpdatable mMockInterceptor;
     @Mock
     private ActivityInterceptorInfoWrapper mMockInfo;
+    @Mock
+    private Context mContext;
+    @Mock
+    private RoleManager mRoleManager;
 
     private final CarActivityInterceptorInterface mCarActivityInterceptorInterface =
             new CarActivityInterceptorInterface() {
@@ -122,7 +131,11 @@ public class CarActivityInterceptorUpdatableTest {
         when(mWindowContainer2.getTaskDisplayArea()).thenReturn(mTda2);
         mWindowContainer2.mRemoteToken = mRootTaskToken2;
 
-        mInterceptor = new CarActivityInterceptorUpdatableImpl(mCarActivityInterceptorInterface);
+        when(mContext.getSystemService(RoleManager.class)).thenReturn(mRoleManager);
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(
+                new ArrayList<>(Arrays.asList("fakeHome")));
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
     }
 
     @After
@@ -334,8 +347,63 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     @Test
+    public void test_canRouteTheActivity_nullComponentName_returnsFalse() {
+        assertThat(mInterceptor.canRouteTheActivity(null)).isFalse();
+    }
+
+    @Test
+    public void test_canRouteTheActivity_nullHolder_returnsFalse() {
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(null);
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
+
+        assertThat(mInterceptor
+                .canRouteTheActivity(new ComponentName(mContext, "test"))).isFalse();
+    }
+
+    @Test
+    public void test_canRouteTheActivity_emptyHolder_returnsFalse() {
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(new ArrayList<>());
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
+
+        assertThat(mInterceptor
+                .canRouteTheActivity(new ComponentName(mContext, "test"))).isFalse();
+    }
+
+    @Test
+    public void test_canRouteTheActivity_anyActivity_returnsFalse() {
+        String homePackage = "my.home.package";
+        String anyActivity = "homeActivity";
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(new ArrayList<>(
+                List.of(homePackage)));
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
+
+        assertThat(mInterceptor
+                .canRouteTheActivity(new ComponentName(homePackage, anyActivity))).isFalse();
+    }
+
+    @Test
+    public void test_canRouteTheActivity_returnsTrue() {
+        String homePackage = "my.home.package";
+        String nonHomePackage = "my.nonHome.package";
+        String anyActivity = "homeActivity";
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(new ArrayList<>(
+                List.of(homePackage)));
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
+
+        assertThat(mInterceptor
+                .canRouteTheActivity(new ComponentName(nonHomePackage, anyActivity))).isTrue();
+    }
+
+    @Test
     public void registerInterceptor_works() {
-        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(
+                ComponentName.unflattenFromString("testPackage" + "/" + "testActivity"));
+        when(mMockInfo.getIntent()).thenReturn(intent);
         mInterceptor.registerInterceptor(0, mMockInterceptor);
         mInterceptor.onInterceptActivityLaunch(mMockInfo);
         verify(mMockInterceptor, times(1)).onInterceptActivityLaunch(eq(mMockInfo));
@@ -343,7 +411,10 @@ public class CarActivityInterceptorUpdatableTest {
 
     @Test
     public void unregisterInterceptor_works() {
-        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(
+                ComponentName.unflattenFromString("testPackage" + "/" + "testActivity"));
+        when(mMockInfo.getIntent()).thenReturn(intent);
         mInterceptor.registerInterceptor(0, mMockInterceptor);
         mInterceptor.onInterceptActivityLaunch(mMockInfo);
 
@@ -354,7 +425,10 @@ public class CarActivityInterceptorUpdatableTest {
 
     @Test
     public void registerInterceptor_respectsOrder() {
-        when(mMockInfo.getIntent()).thenReturn(new Intent(Intent.ACTION_MAIN));
+        Intent intent = new Intent(Intent.ACTION_MAIN);
+        intent.setComponent(
+                ComponentName.unflattenFromString("testPackage" + "/" + "testActivity"));
+        when(mMockInfo.getIntent()).thenReturn(intent);
         CarActivityInterceptorUpdatable interceptor1 = mock(CarActivityInterceptorUpdatable.class);
         CarActivityInterceptorUpdatable interceptor2 = mock(CarActivityInterceptorUpdatable.class);
 
