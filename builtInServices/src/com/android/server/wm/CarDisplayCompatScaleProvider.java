@@ -17,6 +17,8 @@ package com.android.server.wm;
 
 import static android.content.pm.PackageManager.FEATURE_CAR_DISPLAY_COMPATIBILITY;
 
+import static com.android.server.wm.CompatModePackages.DOWNSCALED;
+import static com.android.server.wm.CompatModePackages.DOWNSCALED_INVERSE;
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_90;
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_85;
 import static com.android.server.wm.CompatModePackages.DOWNSCALE_80;
@@ -155,44 +157,53 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
             @Override
             public float getCompatModeScalingFactor(@NonNull String packageName,
                     @NonNull UserHandle userHandle) {
+                boolean isDownscaled =
+                        CompatChanges.isChangeEnabled(DOWNSCALED, packageName, userHandle);
+                boolean isDownscaledInverse =
+                        CompatChanges.isChangeEnabled(DOWNSCALED_INVERSE, packageName, userHandle);
+
+                if (!isDownscaled && !isDownscaledInverse) {
+                    return 1f;
+                }
+
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_90, packageName, userHandle)) {
-                    return 0.9f;
+                    return isDownscaledInverse ? 0.9f : 1 / 0.9f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_85, packageName, userHandle)) {
-                    return 0.85f;
+                    return isDownscaledInverse ? 0.85f : 1 / 0.85f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_80, packageName, userHandle)) {
-                    return 0.8f;
+                    return isDownscaledInverse ? 0.8f : 1 / 0.8f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_75, packageName, userHandle)) {
-                    return 0.75f;
+                    return isDownscaledInverse ? 0.75f : 1 / 0.75f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_70, packageName, userHandle)) {
-                    return 0.7f;
+                    return isDownscaledInverse ? 0.7f : 1 / 0.7f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_65, packageName, userHandle)) {
-                    return 0.65f;
+                    return isDownscaledInverse ? 0.65f : 1 / 0.65f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_60, packageName, userHandle)) {
-                    return 0.6f;
+                    return isDownscaledInverse ? 0.6f : 1 / 0.6f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_55, packageName, userHandle)) {
-                    return 0.55f;
+                    return isDownscaledInverse ? 0.55f : 1 / 0.55f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_50, packageName, userHandle)) {
-                    return 0.5f;
+                    return isDownscaledInverse ? 0.5f : 1 / 0.50f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_45, packageName, userHandle)) {
-                    return 0.45f;
+                    return isDownscaledInverse ? 0.45f : 1 / 0.45f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_40, packageName, userHandle)) {
-                    return 0.4f;
+                    return isDownscaledInverse ? 0.4f : 1 / 0.4f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_35, packageName, userHandle)) {
-                    return 0.35f;
+                    return isDownscaledInverse ? 0.35f : 1 / 0.35f;
                 }
                 if (CompatChanges.isChangeEnabled(DOWNSCALE_30, packageName, userHandle)) {
-                    return 0.3f;
+                    return isDownscaledInverse ? 0.3f : 1 / 0.3f;
                 }
                 return 1f;
             }

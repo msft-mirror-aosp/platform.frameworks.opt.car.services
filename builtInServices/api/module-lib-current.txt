@@ -150,6 +150,11 @@ package com.android.server.wm {
     field public static int RESULT_SKIP;
   }
 
+  public final class MediaTemplateActivityInterceptorForSuspension implements com.android.server.wm.CarActivityInterceptorUpdatable {
+    ctor public MediaTemplateActivityInterceptorForSuspension();
+    method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(com.android.server.wm.ActivityInterceptorInfoWrapper);
+  }
+
   public final class RequestWrapper {
   }
 

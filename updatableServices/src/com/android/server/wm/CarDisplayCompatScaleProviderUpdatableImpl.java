@@ -276,15 +276,21 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         float compatModeScalingFactor = mCarCompatScaleProviderInterface
                 .getCompatModeScalingFactor(packageName, UserHandle.of(userId));
-        if (compatModeScalingFactor == DEFAULT_SCALE) {
+                if (compatModeScalingFactor == DEFAULT_SCALE) {
+            Slogf.i(TAG, "Returning CompatScale %s for package %s", compatScale, packageName);
             return compatScale;
         }
         // This shouldn't happen outside of CTS, because CompatModeChanges has higher
         // priority and will already return a scale.
         // See {@code com.android.server.wm.CompatModePackage#getCompatScale} for details.
-        CompatScaleWrapper res = new CompatScaleWrapper(DEFAULT_SCALE,
-                (1f / compatModeScalingFactor) * compatScale.getDensityScaleFactor());
-        return res;
+        if (compatScale != null) {
+            CompatScaleWrapper res = new CompatScaleWrapper(compatModeScalingFactor,
+                    compatModeScalingFactor * compatScale.getDensityScaleFactor());
+            Slogf.i(TAG, "Returning CompatScale %s for package %s", res, packageName);
+            return res;
+        }
+        Slogf.i(TAG, "Returning CompatScale %s for package %s", compatScale, packageName);
+        return compatScale;
     }
 
     @Nullable
