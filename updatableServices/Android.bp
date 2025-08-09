@@ -21,6 +21,7 @@ java_library {
             "android.car.builtin.stubs.module_lib",
             "car-frameworks-service.stubs.module_lib",
             "framework-annotations-lib",
+            "framework-permission-s.stubs.module_lib"
     ],
     srcs: [
         ":car-frameworks-updatable-service-sources",

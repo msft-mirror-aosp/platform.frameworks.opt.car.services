@@ -148,6 +148,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarServiceHelperInterface = (CarServiceHelperInterface) interfaces
                 .get(CarServiceHelperInterface.class.getSimpleName());
         mCarActivityInterceptorUpdatable = new CarActivityInterceptorUpdatableImpl(
+                mContext,
                 (CarActivityInterceptorInterface) interfaces
                         .get(CarActivityInterceptorInterface.class.getSimpleName()));
         mCarDisplayCompatScaleProviderUpdatable =
