@@ -2,8 +2,9 @@
 package android.content.res {
 
   public final class CompatScaleWrapper {
-    ctor public CompatScaleWrapper(float, float);
+    ctor public CompatScaleWrapper(float, float, int[]);
     method public float getDensityScaleFactor();
+    method public int[] getOverrideDensityDisplayIds();
     method public float getScaleFactor();
   }
 
