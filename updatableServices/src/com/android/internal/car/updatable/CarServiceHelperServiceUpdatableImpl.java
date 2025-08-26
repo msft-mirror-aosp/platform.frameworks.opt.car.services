@@ -60,6 +60,7 @@ import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 import com.android.server.wm.CarLaunchRedirectActivityInterceptor;
+import com.android.server.wm.CarServiceHelperTaskStackRepository;
 import com.android.server.wm.MediaTemplateActivityInterceptorForSuspension;
 
 import java.io.File;
@@ -133,6 +134,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
     private final CarLaunchRedirectActivityInterceptor
             mCarLaunchRedirectActivityInterceptor;
+    private final CarServiceHelperTaskStackRepository mTaskStackRepository;
     private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatable;
 
     private ExtraDisplayMonitor mExtraDisplayMonitor;
@@ -166,10 +168,11 @@ public final class CarServiceHelperServiceUpdatableImpl
                 new MediaTemplateActivityInterceptorForSuspension());
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 1,
                 new CarDisplayCompatActivityInterceptor(context,
-                       mCarDisplayCompatScaleProviderUpdatable));
+                        mCarDisplayCompatScaleProviderUpdatable));
+        mTaskStackRepository = new CarServiceHelperTaskStackRepository();
         // Interceptor for redirecting launch on a private display or a root task
         mCarLaunchRedirectActivityInterceptor =
-                new CarLaunchRedirectActivityInterceptor(context);
+                new CarLaunchRedirectActivityInterceptor(context, mTaskStackRepository);
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 2,
                 mCarLaunchRedirectActivityInterceptor);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
@@ -426,12 +429,12 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
-            mCarLaunchRedirectActivityInterceptor.onRootTaskAppeared(name, rootTaskToken);
+            mTaskStackRepository.onRootTaskAppeared(name, rootTaskToken);
         }
 
         @Override
         public void onRootTaskVanished(String name) {
-            mCarLaunchRedirectActivityInterceptor.onRootTaskVanished(name);
+            mTaskStackRepository.onRootTaskVanished(name);
         }
 
         @Override
