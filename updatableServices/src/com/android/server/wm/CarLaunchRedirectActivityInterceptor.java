@@ -33,14 +33,9 @@ import android.content.pm.ResolveInfo;
 import android.content.res.Resources;
 import android.hardware.display.DisplayManager;
 import android.os.IBinder;
-import android.os.RemoteException;
-import android.util.ArrayMap;
-import android.util.ArraySet;
 import android.util.Log;
 import android.view.Display;
 
-import com.android.car.internal.dep.Trace;
-import com.android.internal.annotations.GuardedBy;
 import com.android.internal.annotations.VisibleForTesting;
 
 import java.util.HashSet;
@@ -81,12 +76,7 @@ public final class CarLaunchRedirectActivityInterceptor implements
     @VisibleForTesting
     static final String LAUNCH_ACTIVITY_DISPLAY_ID = NAMESPACE_KEY + ".launch_activity_display_id";
 
-    private final Object mLock = new Object();
-    // K: Root task name, V: Root task token
-    @GuardedBy("mLock")
-    private final ArrayMap<String, IBinder> mRootTaskNameToRootTaskMap = new ArrayMap<>();
-    @GuardedBy("mLock")
-    private final Set<IBinder> mKnownRootTasks = new ArraySet<>();
+    private final CarServiceHelperTaskStackRepository mTaskStackRepository;
     @NonNull
     private final Context mContext;
     private final DisplayManager mDisplayManager;
@@ -103,9 +93,11 @@ public final class CarLaunchRedirectActivityInterceptor implements
     @Nullable
     private final Set<String> mAllowlist;
 
-    public CarLaunchRedirectActivityInterceptor(@NonNull Context context) {
+    public CarLaunchRedirectActivityInterceptor(@NonNull Context context,
+            @NonNull CarServiceHelperTaskStackRepository taskStackRepository) {
         mContext = context;
         mDisplayManager = context.getSystemService(DisplayManager.class);
+        mTaskStackRepository = taskStackRepository;
         PackageManager packageManager = context.getPackageManager();
         if (packageManager == null) {
             mRouterActivity = null;
@@ -156,7 +148,7 @@ public final class CarLaunchRedirectActivityInterceptor implements
             launchOptions = EMPTY_LAUNCH_OPTIONS_WRAPPER;
         }
         String containerName = launchIntent.getExtras().getString(LAUNCH_REDIRECT_ON_CONTAINER);
-        IBinder rootTaskToken = getLaunchRootTaskToken(containerName);
+        IBinder rootTaskToken = mTaskStackRepository.getLaunchRootTaskToken(containerName);
         if (rootTaskToken != null) {
             if (DBG) {
                 Slogf.d(TAG, "Launch activity %s on root task %s", launchIntent.getComponent(),
@@ -193,26 +185,6 @@ public final class CarLaunchRedirectActivityInterceptor implements
         return ActivityInterceptResultWrapper.create(intent, launchOptions.getOptions());
     }
 
-    /**
-     * Retrieves the root task token associated with the specified container name.
-     *
-     * <p>This method searches for a root task associated with the given {@code containerName}.
-     * If a matching root task is found, its token is returned.
-     *
-     * <p>If no root task is found with the provided {@code containerName}, this method returns
-     * {@code null}. A {@code null} return value indicates that no root task exists with the
-     * specified container name.
-     */
-    private IBinder getLaunchRootTaskToken(String containerName) {
-        synchronized (mLock) {
-            int keyIndex = mRootTaskNameToRootTaskMap.indexOfKey(containerName);
-            if (keyIndex >= 0) {
-                return mRootTaskNameToRootTaskMap.valueAt(keyIndex);
-            }
-            return null;
-        }
-    }
-
     private boolean ensureAccessPrivateDisplayIdPermission(ActivityInterceptorInfoWrapper info) {
         int callingPid = info.getCallingPid();
         int callingUid = info.getCallingUid();
@@ -224,79 +196,6 @@ public final class CarLaunchRedirectActivityInterceptor implements
             return false;
         }
         return true;
-    }
-
-    /**
-     * Updates {@code mRootTaskNameToRootTaskMap} with root task information that appeared.
-     *
-     * @param name          name of the root task.
-     * @param rootTaskToken the binder token of the root task which appeared.
-     */
-    public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
-        try {
-            beginTraceSection(
-                    "CarLaunchRedirectActivityInterceptor-onRootTaskAppeared: " + rootTaskToken);
-            synchronized (mLock) {
-                if (rootTaskToken == null) {
-                    Slogf.d(TAG, "The root task token is null.");
-                    return;
-                }
-                mRootTaskNameToRootTaskMap.put(name, rootTaskToken);
-                updateRootTaskInformationInKnownRootTasks(rootTaskToken);
-            }
-        } finally {
-            Trace.endSection();
-        }
-    }
-
-    /**
-     * Updates {@code mRootTaskNameToRootTaskMap} with root task information that vanished.
-     *
-     * @param name name of the root task which vanished.
-     */
-    public void onRootTaskVanished(String name) {
-        try {
-            beginTraceSection("CarLaunchRedirectActivityInterceptor-onRootTaskVanished: " + name);
-            synchronized (mLock) {
-                if (name.isEmpty()) {
-                    Slogf.d(TAG, "The name of the root task is empty.");
-                    return;
-                }
-                IBinder rootTaskToken = mRootTaskNameToRootTaskMap.get(name);
-                mRootTaskNameToRootTaskMap.remove(name);
-                mKnownRootTasks.remove(rootTaskToken);
-            }
-        } finally {
-            Trace.endSection();
-        }
-    }
-
-    @GuardedBy("mLock")
-    private void updateRootTaskInformationInKnownRootTasks(IBinder rootTaskToken) {
-        if (!mKnownRootTasks.contains(rootTaskToken)) {
-            // Seeing the token for the first time, set the listener
-            removeRootTaskTokenOnDeath(rootTaskToken);
-            mKnownRootTasks.add(rootTaskToken);
-        }
-    }
-
-    private void removeRootTaskTokenOnDeath(IBinder rootTaskToken) {
-        try {
-            rootTaskToken.linkToDeath(() -> removeRootTaskToken(rootTaskToken), /* flags= */ 0);
-        } catch (RemoteException e) {
-            throw new RuntimeException(e);
-        }
-    }
-
-    private void removeRootTaskToken(IBinder rootTaskToken) {
-        synchronized (mLock) {
-            mKnownRootTasks.remove(rootTaskToken);
-        }
-    }
-
-    private void beginTraceSection(String sectionName) {
-        // Traces can only have max 127 characters
-        Trace.beginSection(sectionName.substring(0, Math.min(sectionName.length(), 127)));
     }
 
     private boolean isAllowlistedApplication(String packageName) {
