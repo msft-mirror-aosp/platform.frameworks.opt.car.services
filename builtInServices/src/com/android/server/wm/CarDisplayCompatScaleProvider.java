@@ -110,7 +110,7 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
         CompatScaleWrapper wrapper = mCarCompatScaleProviderUpdatable
                 .getCompatScale(packageName, UserHandle.getUserId(uid));
         return wrapper == null ? null : new CompatScale(wrapper.getScaleFactor(),
-                wrapper.getDensityScaleFactor());
+                wrapper.getDensityScaleFactor(), wrapper.getOverrideDensityDisplayIds());
     }
 
     /**
