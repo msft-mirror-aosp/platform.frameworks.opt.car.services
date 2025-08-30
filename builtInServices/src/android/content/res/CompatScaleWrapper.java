@@ -17,6 +17,8 @@ package android.content.res;
 
 import android.annotation.SystemApi;
 
+import java.util.Arrays;
+
 /**
  * Wrapper for {@link CompatibilityInfo.CompatScale} class.
  *
@@ -26,10 +28,13 @@ import android.annotation.SystemApi;
 public final class CompatScaleWrapper {
     private final float mScaleFactor;
     private final float mDensityScaleFactor;
+    private final int[] mOverrideDensityDisplayIds;
 
-    public CompatScaleWrapper(float scaleFactor, float densityScaleFactor) {
+    public CompatScaleWrapper(float scaleFactor, float densityScaleFactor,
+            int[] overrideDensityDisplayIds) {
         mScaleFactor = scaleFactor;
         mDensityScaleFactor = densityScaleFactor;
+        mOverrideDensityDisplayIds = overrideDensityDisplayIds;
     }
 
     /**
@@ -46,9 +51,17 @@ public final class CompatScaleWrapper {
         return mDensityScaleFactor;
     }
 
+    /**
+     * @return int array of display ids that are scaled
+     */
+    public int[] getOverrideDensityDisplayIds() {
+        return mOverrideDensityDisplayIds;
+    }
+
     @Override
     public String toString() {
         return "CompatScaleWrapper{ mScaleFactor=" + mScaleFactor + ", mDensityScaleFactor="
-                + mDensityScaleFactor + "}";
+                + mDensityScaleFactor + "mOverrideDensityDisplayIds="
+                + Arrays.toString(mOverrideDensityDisplayIds) + "}";
     }
 }

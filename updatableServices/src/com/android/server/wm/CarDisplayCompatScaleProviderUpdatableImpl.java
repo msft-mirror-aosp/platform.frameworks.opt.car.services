@@ -40,7 +40,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
@@ -182,22 +181,23 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     @NonNull
-    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap =
-            new SparseIntArray();
+    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap;
 
     public CarDisplayCompatScaleProviderUpdatableImpl(Context context,
             CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface) {
-        this(context, carCompatScaleProviderInterface, new CarDisplayCompatConfig());
+        this(context, carCompatScaleProviderInterface, new CarDisplayCompatConfig(),
+                new SparseIntArray());
     }
 
     @VisibleForTesting
     CarDisplayCompatScaleProviderUpdatableImpl(Context context,
             CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface,
-            @NonNull CarDisplayCompatConfig config) {
+            @NonNull CarDisplayCompatConfig config, @NonNull SparseIntArray packageToDisplayMap) {
         mContext = context;
         mPackageManager = context.getPackageManager();
         mCarCompatScaleProviderInterface = carCompatScaleProviderInterface;
         mConfig = config;
+        mPackageUidToLastLaunchedActivityDisplayIdMap = packageToDisplayMap;
 
         if (!Flags.displayCompatibility()) {
             Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
@@ -285,7 +285,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // See {@code com.android.server.wm.CompatModePackage#getCompatScale} for details.
         if (compatScale != null) {
             CompatScaleWrapper res = new CompatScaleWrapper(compatModeScalingFactor,
-                    compatModeScalingFactor * compatScale.getDensityScaleFactor());
+                    compatModeScalingFactor * compatScale.getDensityScaleFactor(),
+                    /* overrideDensityDisplayIds= */ new int[] {displayId});
             Slogf.i(TAG, "Returning CompatScale %s for package %s", res, packageName);
             return res;
         }
@@ -675,7 +676,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 new CarDisplayCompatConfig.Key(displayId, packageName, userId);
         float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
         if (scaleFactor != NO_SCALE) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor),
+                    /* overrideDensityDisplayIds= */ new int[] {displayId});
         }
 
         return null;
