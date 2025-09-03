@@ -65,6 +65,7 @@ import java.io.File;
 import java.io.PrintWriter;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -289,7 +290,10 @@ public final class CarServiceHelperServiceUpdatableImpl
         boolean restartOnServiceCrash = SystemProperties.getBoolean(PROP_RESTART_RUNTIME, false);
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
 
-        mCarServiceHelperInterface.dumpServiceStacks();
+        // Run dumpServiceStacks in a separate thread to avoid block.
+        CompletableFuture.runAsync(() -> {
+            mCarServiceHelperInterface.dumpServiceStacks();
+        });
 
         synchronized (mLock) {
             mIsCarServiceConnected = false;
