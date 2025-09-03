@@ -68,6 +68,18 @@ public final class TaskWrapper {
         return TaskDisplayAreaWrapper.create(mTask.getTaskDisplayArea());
     }
 
+    /**
+     * Gets the binder token of this task.
+     */
+    public IBinder getBinder() {
+        return mTask.mRemoteToken.asBinder();
+    }
+
+    /** @hide */
+    public Task getTask() {
+        return mTask;
+    }
+
     @Override
     public String toString() {
         return mTask.toString();
