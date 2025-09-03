@@ -78,6 +78,7 @@ package com.android.server.wm {
     method public com.android.server.wm.TaskDisplayAreaWrapper getDisplayArea();
     method public int getHandoverLaunchDisplayId();
     method public com.android.server.wm.TaskDisplayAreaWrapper getHandoverTaskDisplayArea();
+    method public com.android.server.wm.TaskWrapper getTask();
     method public int getUserId();
     method public boolean isDisplayTrusted();
     method public boolean isNoDisplay();
@@ -140,10 +141,12 @@ package com.android.server.wm {
 
   public final class LaunchParamsWrapper {
     method public android.graphics.Rect getBounds();
+    method public com.android.server.wm.TaskWrapper getPreferredRootTask();
     method public com.android.server.wm.TaskDisplayAreaWrapper getPreferredTaskDisplayArea();
     method public int getWindowingMode();
     method public void setBounds(android.graphics.Rect);
     method @FlaggedApi("com.android.window.flags.safe_region_letterboxing_v1") public void setNeedsSafeRegionBounds(boolean);
+    method public void setPreferredRootTask(com.android.server.wm.TaskWrapper);
     method public void setPreferredTaskDisplayArea(com.android.server.wm.TaskDisplayAreaWrapper);
     method public void setWindowingMode(int);
     field public static int RESULT_CONTINUE;
@@ -157,6 +160,7 @@ package com.android.server.wm {
   }
 
   public final class RequestWrapper {
+    method public android.content.Intent getIntent();
   }
 
   public final class TaskDisplayAreaWrapper {
@@ -166,6 +170,7 @@ package com.android.server.wm {
 
   public final class TaskWrapper {
     method @Nullable public static com.android.server.wm.TaskWrapper createFromToken(@NonNull android.os.IBinder);
+    method public android.os.IBinder getBinder();
     method public com.android.server.wm.TaskWrapper getRootTask();
     method public com.android.server.wm.TaskDisplayAreaWrapper getTaskDisplayArea();
     method public int getUserId();

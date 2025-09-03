@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.content.Intent;
 
 
 /**
@@ -41,6 +42,10 @@ public final class RequestWrapper {
     /** @hide */
     public ActivityStarter.Request getRequest() {
         return mRequest;
+    }
+
+    public Intent getIntent() {
+        return mRequest.intent;
     }
 
     @Override
