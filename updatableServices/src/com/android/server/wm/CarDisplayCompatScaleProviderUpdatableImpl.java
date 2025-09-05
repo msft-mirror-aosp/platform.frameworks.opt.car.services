@@ -469,6 +469,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         // Check if display compatibility is required
         boolean requiresCompat = requiresDisplayCompatNotCachedLocked(packageName, userId);
+        // Set package display compat state
+        mCarCompatScaleProviderInterface
+            .setPackageRequiresDisplayCompat(packageName, userId, requiresCompat);
 
         // If no config was found earlier and compatibility is required, apply default scale
         if (!hasConfig && requiresCompat) {

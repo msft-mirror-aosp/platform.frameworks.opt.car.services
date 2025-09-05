@@ -47,6 +47,7 @@ import android.content.pm.ApplicationInfo;
 import android.content.pm.PackageInfo;
 import android.content.pm.PackageManager;
 import android.content.pm.PackageManager.PackageInfoFlags;
+import android.content.pm.PackageManagerInternal;
 import android.content.res.CompatScaleWrapper;
 import android.content.res.CompatibilityInfo.CompatScale;
 import android.os.UserHandle;
@@ -214,6 +215,14 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                     @NonNull PackageManager.ApplicationInfoFlags flags,
                     int userId) {
                 return mPackageManager.getInstalledApplicationsAsUser(flags, userId);
+            }
+
+            @Override
+            public void setPackageRequiresDisplayCompat(@NonNull String packageName,
+                int userId, boolean requiresDisplayCompat) {
+                    PackageManagerInternal pmi =
+                            LocalServices.getService(PackageManagerInternal.class);
+                    pmi.setDisplayCompat(packageName, userId, requiresDisplayCompat);
             }
         };
     }
