@@ -16,8 +16,13 @@ java_sdk_library {
     ],
     static_libs: [
         "android.car.watchdoglib",
-        "android.automotive.watchdog.internal-java",
         "car-builtin-protos",
+        // TODO(b/443097042): Investigate the possibility of including
+        // `android.automotive.watchdog.internal-java` only for Automotive and TV form-factors,
+        // rather than all form factors. The current implementation includes it for all
+        // form factors because it's unclear how to target only the TV form factor.
+        // Following the investigation, move `android.automotive.watchdog.internal-java`
+        // from `services.jar` to this location.
     ],
     api_lint: {
         enabled: true,
