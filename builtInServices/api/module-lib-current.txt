@@ -107,6 +107,7 @@ package com.android.server.wm {
   }
 
   public interface CarDisplayCompatScaleProviderInterface {
+    method public void applyDclOverrideIfNeeded(@NonNull String, int);
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);

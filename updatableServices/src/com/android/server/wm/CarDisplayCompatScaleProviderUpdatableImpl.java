@@ -496,6 +496,11 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         mCarCompatScaleProviderInterface
             .setPackageRequiresDisplayCompat(packageName, userId, requiresCompat);
 
+        // Check if DCL compat override to be applied
+        if (requiresCompat) {
+            mCarCompatScaleProviderInterface.applyDclOverrideIfNeeded(packageName, userId);
+        }
+
         // If no config was found earlier and compatibility is required, apply default scale
         if (!hasConfig && requiresCompat) {
             scaleFactor = getPackageScaleFactor(key, packageName, userId);
