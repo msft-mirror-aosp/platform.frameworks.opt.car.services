@@ -89,6 +89,12 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // {@code PackageManager#FEATURE_CAR_DISPLAY_COMPATIBILITY}
     static final String FEATURE_CAR_DISPLAY_COMPATIBILITY =
             "android.software.car.display_compatibility";
+
+    /** Display Compat Safe App Area 1.0 */
+    private static final String FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA =
+        "android.software.car.display_compatibility.safe_app_area";
+    private static final int FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION = 1;
+
     @VisibleForTesting
     static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
@@ -583,21 +589,26 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
 
         // Opt out if the package is not installed via an allowed install source
-        try {
-            if (mAllowedAppInstallSources != null) {
-                String installerName = mPackageManager.getInstallerPackageName(
-                        packageName);
-                if (installerName == null || (installerName != null
-                        && !mAllowedAppInstallSources.contains(installerName))) {
-                    Slogf.w(TAG,
-                            packageName + " not installed from permitted sources "
-                                    + (installerName == null ? "NULL" : installerName));
-                    return false;
+        // This check is used for Safe App Area 1.0 only
+        if (mPackageManager.hasSystemFeature(
+                FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA,
+                FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION)) {
+            try {
+                if (mAllowedAppInstallSources != null) {
+                    String installerName = mPackageManager.getInstallerPackageName(
+                            packageName);
+                    if (installerName == null || (installerName != null
+                            && !mAllowedAppInstallSources.contains(installerName))) {
+                        Slogf.w(TAG,
+                                packageName + " not installed from permitted sources "
+                                        + (installerName == null ? "NULL" : installerName));
+                        return false;
+                    }
                 }
+            } catch (IllegalArgumentException e) {
+                Slogf.w(TAG, packageName + " not installed!");
+                return false;
             }
-        } catch (IllegalArgumentException e) {
-            Slogf.w(TAG, packageName + " not installed!");
-            return false;
         }
 
         // Opt in by default
