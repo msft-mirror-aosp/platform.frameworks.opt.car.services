@@ -53,7 +53,6 @@ import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
-import com.android.server.wm.CarDisplayCompatActivityInterceptor;
 import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
@@ -168,8 +167,7 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 0,
                 new MediaTemplateActivityInterceptorForSuspension());
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 1,
-                new CarDisplayCompatActivityInterceptor(context,
-                        mCarDisplayCompatScaleProviderUpdatable));
+                mCarDisplayCompatScaleProviderUpdatable);
         // Interceptor for redirecting launch on a private display or a root task
         mCarLaunchRedirectActivityInterceptor =
                 new CarLaunchRedirectActivityInterceptor(context, mTaskStackRepository);
