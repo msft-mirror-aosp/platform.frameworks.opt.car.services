@@ -50,6 +50,7 @@ import com.android.server.SystemService.UserCompletedEventType;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
+import com.android.server.wm.WindowManagerInternal;
 
 import org.junit.Before;
 import org.junit.Test;
@@ -81,6 +82,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
     @Mock
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
+
+    @Mock
+    private WindowManagerInternal mWindowManagerInternal;
 
     @Mock
     private UserManagerInternal mUserManagerInternal;
@@ -122,6 +126,8 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
         doReturn(mUserManagerInternal)
                 .when(() -> LocalServices.getService(UserManagerInternal.class));
+        doReturn(mWindowManagerInternal)
+                .when(() -> LocalServices.getService(WindowManagerInternal.class));
     }
 
     @Test
