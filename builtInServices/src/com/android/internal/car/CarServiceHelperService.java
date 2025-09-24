@@ -348,7 +348,6 @@ public class CarServiceHelperService extends SystemService
         TimingsTraceAndSlog t = newTimingsTraceAndSlog();
         if (phase == SystemService.PHASE_THIRD_PARTY_APPS_CAN_START) {
             t.traceBegin("onBootPhase.3pApps");
-            mCarLaunchParamsModifier.init();
             // Initializing @{link CarDisplayCompatScaleProvider} here, because then it's possible
             // to cache the package states early before user starts interacting with apps.
             // Ideally this would happen after {@link SystemService#PHASE_ACTIVITY_MANAGER_READY}
@@ -384,6 +383,14 @@ public class CarServiceHelperService extends SystemService
 
         WindowManagerInternal wmInternal = LocalServices.getService(WindowManagerInternal.class);
         wmInternal.registerWindowFocusChangeListener(mWindowFocusChangeListener);
+
+        // SystemUI can have early init because of unforeseen code-paths in core that can try to
+        // call into launch params modifier via car service. So initialize car launch params
+        // modifier as early as possible.
+        // Since Car service helper service is started after PHASE_ACTIVITY_MANAGER_READY (meaning
+        // that all system services are ready by then), its safe to initialize
+        // CarLaunchParamsModifier here.
+        mCarLaunchParamsModifier.init();
     }
 
     private final WindowManagerInternal.WindowFocusChangeListener mWindowFocusChangeListener =
