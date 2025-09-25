@@ -52,12 +52,12 @@ package com.android.server.wm {
   }
 
   public final class ActivityInterceptorInfoWrapper {
-    method public android.content.pm.ActivityInfo getActivityInfo();
+    method @NonNull public android.content.pm.ActivityInfo getActivityInfo();
     method public String getCallingPackage();
     method public int getCallingPid();
     method public int getCallingUid();
-    method public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
-    method public android.content.Intent getIntent();
+    method @Nullable public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
+    method @NonNull public android.content.Intent getIntent();
     method public int getUserId();
   }
 
@@ -103,7 +103,7 @@ package com.android.server.wm {
   }
 
   public interface CarActivityInterceptorUpdatable {
-    method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(com.android.server.wm.ActivityInterceptorInfoWrapper);
+    method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(@NonNull com.android.server.wm.ActivityInterceptorInfoWrapper);
   }
 
   public interface CarDisplayCompatScaleProviderInterface {

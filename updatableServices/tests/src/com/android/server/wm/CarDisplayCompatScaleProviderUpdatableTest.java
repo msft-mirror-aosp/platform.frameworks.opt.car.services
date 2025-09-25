@@ -25,16 +25,17 @@ import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
 import static android.content.pm.PackageManager.SIGNATURE_MATCH;
 import static android.content.pm.PackageManager.SIGNATURE_NO_MATCH;
 import static android.view.Display.DEFAULT_DISPLAY;
+import static android.view.Display.INVALID_DISPLAY;
 
+import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 import static com.android.server.wm.CarDisplayCompatConfig.ANY_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatConfig.DEFAULT_SCALE;
-import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.NO_SCALE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DATA_SCHEME_PACKAGE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.DISPLAYCOMPAT_SETTINGS_SECURE_KEY;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.FEATURE_CAR_DISPLAY_COMPATIBILITY;
+import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.NO_SCALE;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.PLATFORM_PACKAGE_NAME;
 import static com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl.USER_NULL;
-import static com.android.dx.mockito.inline.extended.ExtendedMockito.mockitoSession;
 
 import static com.google.common.truth.Truth.assertThat;
 
@@ -45,6 +46,7 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import android.app.ActivityOptions;
 import android.content.ContentResolver;
 import android.content.Context;
 import android.content.Intent;
@@ -120,6 +122,10 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     private ContentResolver mContentResolver;
     @Mock
     private Looper mMainLooper;
+    @Mock
+    private ActivityInterceptorInfoWrapper mInfo;
+    @Mock
+    private ActivityOptionsWrapper mOptionsWrapper;
 
     @Before
     public void setUp() throws XmlPullParserException, IOException, SecurityException {
@@ -165,7 +171,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     public void noApplicationInfo_returnsFalse() throws NameNotFoundException {
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(null);
+                .thenReturn(null);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
     }
@@ -177,7 +183,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mApplicationInfo.metaData.putBoolean(FEATURE_CAR_DISPLAY_COMPATIBILITY, false);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
     }
@@ -194,7 +200,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mApplicationInfo.metaData.putBoolean("key1", false);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
@@ -212,7 +218,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mApplicationInfo.metaData.putBoolean(FEATURE_CAR_DISPLAY_COMPATIBILITY, true);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
@@ -263,7 +269,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         when(mApplicationInfo.isPrivilegedApp()).thenReturn(true);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
     }
@@ -278,7 +284,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         mApplicationInfo.flags = FLAG_SYSTEM;
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
     }
@@ -356,7 +362,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE,
@@ -379,7 +385,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, "package1",
@@ -403,7 +409,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
 
         CarDisplayCompatConfig.Key key =
@@ -428,7 +434,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
 
@@ -438,7 +444,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package2"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         assertThat(mImpl.requiresDisplayCompat("package2", 11)).isTrue();
 
@@ -464,7 +470,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
 
         CarDisplayCompatConfig.Key key =
@@ -490,7 +496,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(DEFAULT_DISPLAY, ANY_PACKAGE, CURRENT_USER);
@@ -516,7 +522,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 .thenReturn(SIGNATURE_NO_MATCH);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
 
 
         CarDisplayCompatConfig.Key key =
@@ -589,12 +595,12 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
         Intent i = new Intent(Intent.ACTION_PACKAGE_ADDED);
-        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1" , null));
+        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1", null));
         mImpl.mPackageChangeReceiver.onReceive(mContext, i);
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
     }
@@ -610,12 +616,12 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
         Intent i = new Intent(Intent.ACTION_PACKAGE_CHANGED);
-        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1" , null));
+        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1", null));
         mImpl.mPackageChangeReceiver.onReceive(mContext, i);
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
     }
@@ -631,12 +637,12 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
         Intent i = new Intent(Intent.ACTION_PACKAGE_REPLACED);
-        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1" , null));
+        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1", null));
         mImpl.mPackageChangeReceiver.onReceive(mContext, i);
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isTrue();
     }
@@ -650,7 +656,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(mPackageInfo);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(mApplicationInfo);
+                .thenReturn(mApplicationInfo);
         when(mPackageManager.checkSignatures(eq(PLATFORM_PACKAGE_NAME), eq("package1")))
                 .thenReturn(SIGNATURE_NO_MATCH);
 
@@ -658,9 +664,9 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
                 any(int.class))).thenReturn(null);
         when(mPackageManager.getApplicationInfoAsUser(eq("package1"),
                 any(ApplicationInfoFlags.class), any(UserHandle.class)))
-                        .thenReturn(null);
+                .thenReturn(null);
         Intent i = new Intent(Intent.ACTION_PACKAGE_REMOVED);
-        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1" , null));
+        i.setData(Uri.fromParts(DATA_SCHEME_PACKAGE, "package1", null));
         mImpl.mPackageChangeReceiver.onReceive(mContext, i);
         assertThat(mImpl.requiresDisplayCompat("package1", CURRENT_USER)).isFalse();
     }
@@ -792,4 +798,48 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         assertThat(resultPkg2.getDensityScaleFactor()).isEqualTo(displayDefaultScaleInFile);
     }
 
+    @Test
+    public void onInterceptActivityLaunch_newDisplayId_isAddedToMap() {
+        int displayId = 20;
+        int appUid = 12345;
+        ActivityInfo activityInfo = new ActivityInfo();
+        activityInfo.applicationInfo = new ApplicationInfo();
+        activityInfo.applicationInfo.uid = appUid;
+        ActivityOptions activityOptions = ActivityOptions.makeBasic();
+        activityOptions.setLaunchDisplayId(displayId);
+        when(mInfo.getActivityInfo()).thenReturn(activityInfo);
+        when(mInfo.getCheckedOptions()).thenReturn(mOptionsWrapper);
+        when(mOptionsWrapper.getOptions()).thenReturn(activityOptions);
+
+        mImpl.onInterceptActivityLaunch(mInfo);
+
+        assertThat(mPackageToDisplayIdMap.get(appUid)).isEqualTo(displayId);
+    }
+
+    @Test
+    public void testOnInterceptActivityLaunch_nullActivityInfo_doesNotAddToMap() {
+        when(mInfo.getActivityInfo()).thenReturn(null);
+
+        mImpl.onInterceptActivityLaunch(mInfo);
+
+        assertThat(mPackageToDisplayIdMap.size()).isEqualTo(0);
+    }
+
+    @Test
+    public void testOnInterceptActivityLaunch_invalidDisplayId_defaultDisplayIdAddedToMap() {
+        int appUid = 12345;
+        ActivityInfo activityInfo = new ActivityInfo();
+        activityInfo.applicationInfo = new ApplicationInfo();
+        activityInfo.applicationInfo.uid = appUid;
+        ActivityOptions activityOptions = ActivityOptions.makeBasic();
+        activityOptions.setLaunchDisplayId(INVALID_DISPLAY);
+        when(mInfo.getActivityInfo()).thenReturn(activityInfo);
+        when(mInfo.getCheckedOptions()).thenReturn(mOptionsWrapper);
+        when(mOptionsWrapper.getOptions()).thenReturn(activityOptions);
+
+        mImpl.onInterceptActivityLaunch(mInfo);
+
+        assertThat(mPackageToDisplayIdMap.get(appUid, /* valueIfKeyNotFound= */ INVALID_DISPLAY))
+                .isEqualTo(DEFAULT_DISPLAY);
+    }
 }

@@ -15,6 +15,7 @@
  */
 package com.android.internal.car;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.app.TaskInfo;
 import android.car.builtin.util.Slogf;
@@ -34,7 +35,7 @@ import com.android.server.wm.CarActivityInterceptorUpdatable;
  * @hide
  */
 public final class CarActivityInterceptor implements ActivityInterceptorCallback {
-    private static final String TAG  = CarActivityInterceptor.class.getSimpleName();
+    private static final String TAG = CarActivityInterceptor.class.getSimpleName();
     private CarActivityInterceptorUpdatable mCarActivityInterceptorUpdatable;
 
     public CarActivityInterceptor() {
@@ -51,7 +52,8 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
 
     @Nullable
     @Override
-    public ActivityInterceptResult onInterceptActivityLaunch(ActivityInterceptorInfo info) {
+    public ActivityInterceptResult onInterceptActivityLaunch(
+            @NonNull ActivityInterceptorInfo info) {
         if (mCarActivityInterceptorUpdatable == null) {
             Slogf.w(TAG, "mCarActivityInterceptorUpdatable not set");
             return null;
@@ -65,8 +67,8 @@ public final class CarActivityInterceptor implements ActivityInterceptorCallback
     }
 
     @Override
-    public void onActivityLaunched(TaskInfo taskInfo, ActivityInfo activityInfo,
-            ActivityInterceptorInfo info) {
+    public void onActivityLaunched(@NonNull TaskInfo taskInfo, @NonNull ActivityInfo activityInfo,
+            @NonNull ActivityInterceptorInfo info) {
         // do nothing
     }
 

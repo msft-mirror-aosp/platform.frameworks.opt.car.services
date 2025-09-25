@@ -16,6 +16,7 @@
 
 package com.android.server.wm;
 
+import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
 
@@ -37,5 +38,5 @@ public interface CarActivityInterceptorUpdatable {
      */
     @Nullable
     ActivityInterceptResultWrapper onInterceptActivityLaunch(
-            ActivityInterceptorInfoWrapper info);
+            @NonNull ActivityInterceptorInfoWrapper info);
 }
