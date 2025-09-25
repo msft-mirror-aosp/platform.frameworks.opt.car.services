@@ -68,6 +68,7 @@ import com.android.server.am.StackTracesDumpHelper;
 import com.android.server.pm.UserManagerInternal;
 import com.android.server.wm.CarDisplayCompatScaleProvider;
 import com.android.server.wm.CarLaunchParamsModifier;
+import com.android.server.wm.WindowManagerInternal;
 
 import libcore.io.Streams;
 
@@ -128,6 +129,9 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
     private CarDevicePolicySafetyChecker mCarDevicePolicySafetyChecker;
 
     @Mock
+    private WindowManagerInternal mWindowManagerInternal;
+
+    @Mock
     private UserManagerInternal mUserManagerInternal;
 
     @Mock
@@ -181,6 +185,8 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
 
         doReturn(mUserManagerInternal)
                 .when(() -> LocalServices.getService(UserManagerInternal.class));
+        doReturn(mWindowManagerInternal)
+                .when(() -> LocalServices.getService(WindowManagerInternal.class));
 
         copyAssets(ROOT_DIR_NAME, mContext.getCacheDir());
         assertWithMessage("Cache root dir %s", mCacheRoot.getAbsolutePath())
@@ -683,6 +689,13 @@ public class CarServiceHelperServiceTest extends AbstractExtendedMockitoTestCase
         }
         assertWithMessage("ANR kill stats reported to statsd").that(actual)
             .containsExactlyElementsIn(expected);
+    }
+
+    @Test
+    public void testOnStart_initializesCarLaunchParamsModifier() {
+        mHelper.onStart();
+
+        verify(mCarLaunchParamsModifier).init();
     }
 
     private static CarWatchdogKillStatsReported constructCarWatchdogKillStatsReported(
