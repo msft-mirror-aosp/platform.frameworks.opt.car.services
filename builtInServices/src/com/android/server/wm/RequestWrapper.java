@@ -18,6 +18,7 @@ package com.android.server.wm;
 
 import android.annotation.Nullable;
 import android.annotation.SystemApi;
+import android.content.ComponentName;
 import android.content.Intent;
 
 
@@ -46,6 +47,23 @@ public final class RequestWrapper {
 
     public Intent getIntent() {
         return mRequest.intent;
+    }
+
+    public int getUserId() {
+        return mRequest.userId;
+    }
+
+    @Nullable
+    public ComponentName getActivityComponentName() {
+        if (mRequest.activityInfo == null) {
+            return null;
+        }
+        String packageName = mRequest.activityInfo.packageName;
+        String className = mRequest.activityInfo.name;
+        if (packageName == null || className == null) {
+            return null;
+        }
+        return new ComponentName(packageName, className);
     }
 
     @Override
