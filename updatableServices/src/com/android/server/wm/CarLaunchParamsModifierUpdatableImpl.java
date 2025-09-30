@@ -337,6 +337,9 @@ public final class CarLaunchParamsModifierUpdatableImpl
             userId = task.getUserId();
         } else if (activity != null) {
             userId = activity.getUserId();
+        } else if (request != null) {
+            // task and activity could be null when starting via adb shell.
+            userId = request.getUserId();
         } else {
             Slogf.w(TAG, "onCalculate, cannot decide user");
             Trace.endSection();
@@ -349,11 +352,14 @@ public final class CarLaunchParamsModifierUpdatableImpl
         ComponentName activityName = null;
         if (activity != null) {
             activityName = activity.getComponentName();
+        } else if (request != null) {
+            activityName = request.getActivityComponentName();
         }
         if (DBG) {
-            Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s actvity:%s options:%s",
+            Slogf.d(TAG, "onCalculate, userId:%d original displayArea:%s activity:%s options:%s",
                     userId, originalDisplayArea, activityName, options);
         }
+        // TODO(b/429003504): refactor this.
         decision:
         synchronized (mLock) {
             // If originalDisplayArea is set, respect that before ActivityOptions check.
@@ -394,7 +400,7 @@ public final class CarLaunchParamsModifierUpdatableImpl
                 targetDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
                         Display.DEFAULT_DISPLAY);
             }
-            if (userId == mDriverUser) {
+            if (targetDisplayArea != null && userId == mDriverUser) {
                 // Respect the existing DisplayArea.
                 if (DBG) Slogf.d(TAG, "Skip the further check for Driver");
                 break decision;
