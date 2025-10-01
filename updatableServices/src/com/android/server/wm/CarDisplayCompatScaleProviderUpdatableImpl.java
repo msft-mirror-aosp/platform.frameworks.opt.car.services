@@ -110,7 +110,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @NonNull
     private final PackageManager mPackageManager;
     @NonNull
-    private final CarDisplayCompatScaleProviderInterface mCarCompatScaleProviderInterface;
+    private final CarDisplayCompatHelperInterface mCarCompatScaleProviderInterface;
     @NonNull
     // Class-level variable to store the last dumped configuration
     private String mLastConfigDump = "";
@@ -184,14 +184,14 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap;
 
     public CarDisplayCompatScaleProviderUpdatableImpl(Context context,
-            CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface) {
+            CarDisplayCompatHelperInterface carCompatScaleProviderInterface) {
         this(context, carCompatScaleProviderInterface, new CarDisplayCompatConfig(),
                 new SparseIntArray());
     }
 
     @VisibleForTesting
     CarDisplayCompatScaleProviderUpdatableImpl(Context context,
-            CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface,
+            CarDisplayCompatHelperInterface carCompatScaleProviderInterface,
             @NonNull CarDisplayCompatConfig config, @NonNull SparseIntArray packageToDisplayMap) {
         mContext = context;
         mPackageManager = context.getPackageManager();

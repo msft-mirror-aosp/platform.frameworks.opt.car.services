@@ -97,8 +97,9 @@ import com.android.server.utils.Slogf;
 import com.android.server.utils.TimingsTraceAndSlog;
 import com.android.server.wm.ActivityTaskManagerInternal;
 import com.android.server.wm.CarActivityInterceptorInterface;
+import com.android.server.wm.CarDisplayCompatHelper;
+import com.android.server.wm.CarDisplayCompatHelperInterface;
 import com.android.server.wm.CarDisplayCompatScaleProvider;
-import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
 import com.android.server.wm.CarLaunchParamsModifier;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.WindowManagerInternal;
@@ -272,8 +273,8 @@ public class CarServiceHelperService extends SystemService
                         mCarLaunchParamsModifier.getBuiltinInterface());
                 interfaces.put(CarActivityInterceptorInterface.class.getSimpleName(),
                         mCarActivityInterceptor.getBuiltinInterface());
-                interfaces.put(CarDisplayCompatScaleProviderInterface.class.getSimpleName(),
-                        mCarDisplayCompatScaleProvider.getBuiltinInterface());
+                interfaces.put(CarDisplayCompatHelperInterface.class.getSimpleName(),
+                        new CarDisplayCompatHelper(context));
                 mCarServiceHelperServiceUpdatable = (CarServiceHelperServiceUpdatable) Class
                         .forName(CSHS_UPDATABLE_CLASSNAME_STRING)
                         .getConstructor(Context.class, Map.class)

@@ -106,7 +106,7 @@ package com.android.server.wm {
     method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(@NonNull com.android.server.wm.ActivityInterceptorInfoWrapper);
   }
 
-  public interface CarDisplayCompatScaleProviderInterface {
+  public interface CarDisplayCompatHelperInterface {
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);

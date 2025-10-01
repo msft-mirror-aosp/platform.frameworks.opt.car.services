@@ -53,7 +53,7 @@ import com.android.internal.car.CarServiceHelperInterface;
 import com.android.internal.car.CarServiceHelperServiceUpdatable;
 import com.android.server.wm.CarActivityInterceptorInterface;
 import com.android.server.wm.CarActivityInterceptorUpdatableImpl;
-import com.android.server.wm.CarDisplayCompatScaleProviderInterface;
+import com.android.server.wm.CarDisplayCompatHelperInterface;
 import com.android.server.wm.CarDisplayCompatScaleProviderUpdatableImpl;
 import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
@@ -156,8 +156,8 @@ public final class CarServiceHelperServiceUpdatableImpl
         mCarDisplayCompatScaleProviderUpdatable =
                 new CarDisplayCompatScaleProviderUpdatableImpl(
                     mContext,
-                    (CarDisplayCompatScaleProviderInterface) interfaces
-                            .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+                    (CarDisplayCompatHelperInterface) interfaces
+                            .get(CarDisplayCompatHelperInterface.class.getSimpleName()));
         mTaskStackRepository = new CarServiceHelperTaskStackRepository();
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 (CarLaunchParamsModifierInterface) interfaces.get(

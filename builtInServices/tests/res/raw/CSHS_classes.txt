@@ -8,7 +8,7 @@ com.android.server.wm.ActivityRecordWrapper
 com.android.server.wm.CalculateParams
 com.android.server.wm.CarActivityInterceptorInterface
 com.android.server.wm.CarActivityInterceptorUpdatable
-com.android.server.wm.CarDisplayCompatScaleProviderInterface
+com.android.server.wm.CarDisplayCompatHelperInterface
 com.android.server.wm.CarDisplayCompatScaleProviderUpdatable
 com.android.server.wm.CarLaunchParamsModifierInterface
 com.android.server.wm.CarLaunchParamsModifierUpdatable

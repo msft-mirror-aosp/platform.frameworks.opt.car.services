@@ -117,7 +117,7 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
     @Mock
     private ApplicationInfo mApplicationInfo2;
     @Mock
-    private CarDisplayCompatScaleProviderInterface mInterface;
+    private CarDisplayCompatHelperInterface mInterface;
     @Mock
     private ContentResolver mContentResolver;
     @Mock

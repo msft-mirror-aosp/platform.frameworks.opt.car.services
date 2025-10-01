@@ -32,13 +32,13 @@ import android.util.Pair;
 import java.util.List;
 
 /**
- * Interface implemented by {@link com.android.server.wm.CarDisplayCompatScaleProvider} and
+ * Interface implemented by {@link com.android.server.wm.CarDisplayCompatHelper} and
  * used by {@link CarDisplayCompatScaleProviderUpdatable}.
  *
  * @hide
  */
 @SystemApi(client = SystemApi.Client.MODULE_LIBRARIES)
-public interface CarDisplayCompatScaleProviderInterface {
+public interface CarDisplayCompatHelperInterface {
     /**
      * @return a pair of the current userId and the target userId.
      * The target userId is the user to switch during switching the driver,
@@ -46,7 +46,8 @@ public interface CarDisplayCompatScaleProviderInterface {
      *
      * See {@link android.app.ActivityManagerInternal#getCurrentAndTargetUserIds}
      */
-    @NonNull Pair<Integer, Integer> getCurrentAndTargetUserIds();
+    @NonNull
+    Pair<Integer, Integer> getCurrentAndTargetUserIds();
 
     /**
      * Returns the main display id assigned to the user, or {@code Display.INVALID_DISPLAY} if the
