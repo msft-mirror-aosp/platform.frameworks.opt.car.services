@@ -160,7 +160,9 @@ package com.android.server.wm {
   }
 
   public final class RequestWrapper {
+    method @Nullable public android.content.ComponentName getActivityComponentName();
     method public android.content.Intent getIntent();
+    method public int getUserId();
   }
 
   public final class TaskDisplayAreaWrapper {
