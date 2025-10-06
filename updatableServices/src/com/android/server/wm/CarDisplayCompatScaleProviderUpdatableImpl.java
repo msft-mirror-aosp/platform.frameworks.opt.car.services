@@ -53,6 +53,7 @@ import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
@@ -94,6 +95,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private static final String FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA =
         "android.software.car.display_compatibility.safe_app_area";
     private static final int FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION = 1;
+    private static final boolean INSTALL_SOURCE_CHECK_ENABLED = SystemProperties.getBoolean(
+            "ro.boot.car.displaycompat.install_source_check", true);
 
     @VisibleForTesting
     static final String PLATFORM_PACKAGE_NAME = "android";
@@ -590,7 +593,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         // Opt out if the package is not installed via an allowed install source
         // This check is used for Safe App Area 1.0 only
-        if (mPackageManager.hasSystemFeature(
+        if (INSTALL_SOURCE_CHECK_ENABLED && mPackageManager.hasSystemFeature(
                 FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA,
                 FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION)) {
             try {
