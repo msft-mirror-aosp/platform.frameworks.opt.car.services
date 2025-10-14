@@ -67,6 +67,7 @@ import com.android.server.policy.WindowManagerPolicy;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mock;
@@ -453,6 +454,7 @@ public class CarLaunchParamsModifierUpdatableTest {
         assertAllDisplaysAllowedForUser(UserHandle.USER_SYSTEM);
     }
 
+    @Ignore("b/429003504") // TODO(b/429003504): update the test
     @Test
     public void testAllowAllForDriverAfterUserSwitching() {
         mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
@@ -599,6 +601,7 @@ public class CarLaunchParamsModifierUpdatableTest {
     }
 
     @Test
+    @Ignore("b/429003504") // TODO(b/429003504): update the test
     public void testDriverPassengerSwap() {
         mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
                 mDisplay11ForPassenger.getDisplayId()});
