@@ -74,7 +74,7 @@ public class CarDisplayAreaPolicyProvider implements DisplayAreaPolicy.Provider 
 
     @Override
     public DisplayAreaPolicy instantiate(WindowManagerService wmService, DisplayContent content,
-            RootDisplayArea root, DisplayArea.Tokens imeContainer) {
+            RootDisplayArea root, ImeContainer imeContainer) {
 
         if (!content.isDefaultDisplay) {
             return new DisplayAreaPolicy.DefaultProvider().instantiate(wmService, content, root,
