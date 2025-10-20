@@ -2,8 +2,9 @@
 package android.content.res {
 
   public final class CompatScaleWrapper {
-    ctor public CompatScaleWrapper(float, float);
+    ctor public CompatScaleWrapper(float, float, int[]);
     method public float getDensityScaleFactor();
+    method public int[] getOverrideDensityDisplayIds();
     method public float getScaleFactor();
   }
 
@@ -51,12 +52,12 @@ package com.android.server.wm {
   }
 
   public final class ActivityInterceptorInfoWrapper {
-    method public android.content.pm.ActivityInfo getActivityInfo();
+    method @NonNull public android.content.pm.ActivityInfo getActivityInfo();
     method public String getCallingPackage();
     method public int getCallingPid();
     method public int getCallingUid();
-    method public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
-    method public android.content.Intent getIntent();
+    method @Nullable public com.android.server.wm.ActivityOptionsWrapper getCheckedOptions();
+    method @NonNull public android.content.Intent getIntent();
     method public int getUserId();
   }
 
@@ -77,6 +78,7 @@ package com.android.server.wm {
     method public com.android.server.wm.TaskDisplayAreaWrapper getDisplayArea();
     method public int getHandoverLaunchDisplayId();
     method public com.android.server.wm.TaskDisplayAreaWrapper getHandoverTaskDisplayArea();
+    method public com.android.server.wm.TaskWrapper getTask();
     method public int getUserId();
     method public boolean isDisplayTrusted();
     method public boolean isNoDisplay();
@@ -101,10 +103,10 @@ package com.android.server.wm {
   }
 
   public interface CarActivityInterceptorUpdatable {
-    method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(com.android.server.wm.ActivityInterceptorInfoWrapper);
+    method @Nullable public com.android.server.wm.ActivityInterceptResultWrapper onInterceptActivityLaunch(@NonNull com.android.server.wm.ActivityInterceptorInfoWrapper);
   }
 
-  public interface CarDisplayCompatScaleProviderInterface {
+  public interface CarDisplayCompatHelperInterface {
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
     method @NonNull public android.util.Pair<java.lang.Integer,java.lang.Integer> getCurrentAndTargetUserIds();
     method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);
@@ -139,10 +141,12 @@ package com.android.server.wm {
 
   public final class LaunchParamsWrapper {
     method public android.graphics.Rect getBounds();
+    method public com.android.server.wm.TaskWrapper getPreferredRootTask();
     method public com.android.server.wm.TaskDisplayAreaWrapper getPreferredTaskDisplayArea();
     method public int getWindowingMode();
     method public void setBounds(android.graphics.Rect);
     method @FlaggedApi("com.android.window.flags.safe_region_letterboxing_v1") public void setNeedsSafeRegionBounds(boolean);
+    method public void setPreferredRootTask(com.android.server.wm.TaskWrapper);
     method public void setPreferredTaskDisplayArea(com.android.server.wm.TaskDisplayAreaWrapper);
     method public void setWindowingMode(int);
     field public static int RESULT_CONTINUE;
@@ -156,6 +160,9 @@ package com.android.server.wm {
   }
 
   public final class RequestWrapper {
+    method @Nullable public android.content.ComponentName getActivityComponentName();
+    method public android.content.Intent getIntent();
+    method public int getUserId();
   }
 
   public final class TaskDisplayAreaWrapper {
@@ -165,6 +172,7 @@ package com.android.server.wm {
 
   public final class TaskWrapper {
     method @Nullable public static com.android.server.wm.TaskWrapper createFromToken(@NonNull android.os.IBinder);
+    method public android.os.IBinder getBinder();
     method public com.android.server.wm.TaskWrapper getRootTask();
     method public com.android.server.wm.TaskDisplayAreaWrapper getTaskDisplayArea();
     method public int getUserId();

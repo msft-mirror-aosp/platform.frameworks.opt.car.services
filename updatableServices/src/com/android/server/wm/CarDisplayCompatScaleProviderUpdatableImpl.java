@@ -40,7 +40,6 @@ import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
-import android.content.pm.ActivityInfo;
 import android.content.pm.ApplicationInfo;
 import android.content.pm.FeatureInfo;
 import android.content.pm.PackageInfo;
@@ -104,14 +103,14 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     static final String DISPLAYCOMPAT_SETTINGS_SECURE_KEY =
             FEATURE_CAR_DISPLAY_COMPATIBILITY + ":settings:secure";
     @VisibleForTesting
-            static final String DATA_SCHEME_PACKAGE = "package";
+    static final String DATA_SCHEME_PACKAGE = "package";
 
     @NonNull
     private Context mContext;
     @NonNull
     private final PackageManager mPackageManager;
     @NonNull
-    private final CarDisplayCompatScaleProviderInterface mCarCompatScaleProviderInterface;
+    private final CarDisplayCompatHelperInterface mCarCompatScaleProviderInterface;
     @NonNull
     // Class-level variable to store the last dumped configuration
     private String mLastConfigDump = "";
@@ -182,22 +181,23 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     @NonNull
-    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap =
-            new SparseIntArray();
+    private final SparseIntArray mPackageUidToLastLaunchedActivityDisplayIdMap;
 
     public CarDisplayCompatScaleProviderUpdatableImpl(Context context,
-            CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface) {
-        this(context, carCompatScaleProviderInterface, new CarDisplayCompatConfig());
+            CarDisplayCompatHelperInterface carCompatScaleProviderInterface) {
+        this(context, carCompatScaleProviderInterface, new CarDisplayCompatConfig(),
+                new SparseIntArray());
     }
 
     @VisibleForTesting
     CarDisplayCompatScaleProviderUpdatableImpl(Context context,
-            CarDisplayCompatScaleProviderInterface carCompatScaleProviderInterface,
-            @NonNull CarDisplayCompatConfig config) {
+            CarDisplayCompatHelperInterface carCompatScaleProviderInterface,
+            @NonNull CarDisplayCompatConfig config, @NonNull SparseIntArray packageToDisplayMap) {
         mContext = context;
         mPackageManager = context.getPackageManager();
         mCarCompatScaleProviderInterface = carCompatScaleProviderInterface;
         mConfig = config;
+        mPackageUidToLastLaunchedActivityDisplayIdMap = packageToDisplayMap;
 
         if (!Flags.displayCompatibility()) {
             Slogf.i(TAG, "Flag %s is not enabled", Flags.FLAG_DISPLAY_COMPATIBILITY);
@@ -285,7 +285,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // See {@code com.android.server.wm.CompatModePackage#getCompatScale} for details.
         if (compatScale != null) {
             CompatScaleWrapper res = new CompatScaleWrapper(compatModeScalingFactor,
-                    compatModeScalingFactor * compatScale.getDensityScaleFactor());
+                    compatModeScalingFactor * compatScale.getDensityScaleFactor(),
+                    /* overrideDensityDisplayIds= */ new int[]{displayId});
             Slogf.i(TAG, "Returning CompatScale %s for package %s", res, packageName);
             return res;
         }
@@ -296,34 +297,39 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @Nullable
     @Override
     public ActivityInterceptResultWrapper onInterceptActivityLaunch(
-            ActivityInterceptorInfoWrapper info) {
-        if (info.getIntent() != null && info.getIntent().getComponent() != null
-                && info.getCheckedOptions() != null) {
-            int displayId = info.getCheckedOptions().getOptions().getLaunchDisplayId();
-            if (displayId == INVALID_DISPLAY) {
-                displayId = DEFAULT_DISPLAY;
-                if (info.getCallingUid() != -1) {
-                    long stamp = mConfigLock.tryOptimisticRead();
+            @NonNull ActivityInterceptorInfoWrapper info) {
+        if (info.getCheckedOptions() == null || info.getActivityInfo().applicationInfo == null) {
+            return null;
+        }
+
+        int applicationUid = info.getActivityInfo().applicationInfo.uid;
+        int displayId = info.getCheckedOptions().getOptions().getLaunchDisplayId();
+
+        if (applicationUid == -1) {
+            return null;
+        }
+
+        if (displayId == INVALID_DISPLAY) {
+            displayId = DEFAULT_DISPLAY;
+            long stamp = mConfigLock.tryOptimisticRead();
+            displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
+                    .get(applicationUid, displayId);
+            if (!mConfigLock.validate(stamp)) {
+                mConfigLock.readLock();
+                try {
                     displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
-                                .get(info.getCallingUid(), displayId);
-                    if (!mConfigLock.validate(stamp)) {
-                        mConfigLock.readLock();
-                        try {
-                            displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
-                                    .get(info.getCallingUid(), displayId);
-                        } finally {
-                            mConfigLock.unlockRead(stamp);
-                        }
-                    }
+                            .get(applicationUid, displayId);
+                } finally {
+                    mConfigLock.unlockRead(stamp);
                 }
             }
-            long stamp = mConfigLock.writeLock();
-            try {
-                mPackageUidToLastLaunchedActivityDisplayIdMap
-                        .put(info.getActivityInfo().applicationInfo.uid, displayId);
-            } finally {
-                mConfigLock.unlockWrite(stamp);
-            }
+        }
+        long stamp = mConfigLock.writeLock();
+        try {
+            mPackageUidToLastLaunchedActivityDisplayIdMap
+                    .put(applicationUid, displayId);
+        } finally {
+            mConfigLock.unlockWrite(stamp);
         }
         return null;
     }
@@ -501,7 +507,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 .getApplicationInfoAsUser(packageName, appFlags, userHandle);
 
         // application has {@code FEATURE_CAR_DISPLAY_COMPATIBILITY} metadata
-        if (applicationInfo != null &&  applicationInfo.metaData != null
+        if (applicationInfo != null && applicationInfo.metaData != null
                 && applicationInfo.metaData.containsKey(FEATURE_CAR_DISPLAY_COMPATIBILITY)) {
             if (isDebugLoggable()) {
                 Slogf.d(TAG, "Package %s has %s metadata", packageName,
@@ -518,7 +524,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // Opt out if has {@code FEATURE_AUTOMOTIVE}
         if (pkgInfo != null && pkgInfo.reqFeatures != null) {
             FeatureInfo[] features = pkgInfo.reqFeatures;
-            for (FeatureInfo feature: features) {
+            for (FeatureInfo feature : features) {
                 if (FEATURE_AUTOMOTIVE.equals(feature.name)) {
                     boolean required = ((feature.flags & FLAG_REQUIRED) != 0);
                     if (isDebugLoggable()) {
@@ -570,7 +576,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     }
 
     private float getPackageScaleFactor(CarDisplayCompatConfig.Key key, String packageName,
-                int userId) {
+            int userId) {
         // First try the global package config for the given user
         key.mPackageName = ANY_PACKAGE;
         float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
@@ -639,7 +645,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return false;
         }
         try (InputStream in =
-                new ByteArrayInputStream(configString.getBytes())) {
+                     new ByteArrayInputStream(configString.getBytes())) {
             mConfig.populate(in);
             mRequiresDisplayCompat.clear();
             return true;
@@ -675,7 +681,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 new CarDisplayCompatConfig.Key(displayId, packageName, userId);
         float scaleFactor = mConfig.getScaleFactor(key, NO_SCALE);
         if (scaleFactor != NO_SCALE) {
-            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor));
+            return new CompatScaleWrapper(DEFAULT_SCALE, abs(scaleFactor),
+                    /* overrideDensityDisplayIds= */ new int[]{displayId});
         }
 
         return null;

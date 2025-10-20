@@ -15,6 +15,8 @@
  */
 package com.android.server.wm;
 
+import android.annotation.NonNull;
+import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.content.Intent;
@@ -30,7 +32,7 @@ public final class ActivityInterceptorInfoWrapper {
     private final ActivityInterceptorCallback.ActivityInterceptorInfo mActivityInterceptorInfo;
 
     private ActivityInterceptorInfoWrapper(
-            ActivityInterceptorCallback.ActivityInterceptorInfo interceptorInfo) {
+            @NonNull ActivityInterceptorCallback.ActivityInterceptorInfo interceptorInfo) {
         mActivityInterceptorInfo = interceptorInfo;
     }
 
@@ -41,18 +43,21 @@ public final class ActivityInterceptorInfoWrapper {
      * @hide
      */
     public static ActivityInterceptorInfoWrapper create(
-            ActivityInterceptorCallback.ActivityInterceptorInfo interceptorInfo) {
+            @NonNull ActivityInterceptorCallback.ActivityInterceptorInfo interceptorInfo) {
         return new ActivityInterceptorInfoWrapper(interceptorInfo);
     }
 
+    @NonNull
     public Intent getIntent() {
         return mActivityInterceptorInfo.getIntent();
     }
 
+    @NonNull
     public ActivityInfo getActivityInfo() {
         return mActivityInterceptorInfo.getActivityInfo();
     }
 
+    @Nullable
     public ActivityOptionsWrapper getCheckedOptions() {
         return ActivityOptionsWrapper.create(mActivityInterceptorInfo.getCheckedOptions());
 
