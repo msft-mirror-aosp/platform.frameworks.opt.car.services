@@ -22,6 +22,7 @@ import android.annotation.UserIdInt;
 import android.os.UserHandle;
 
 import java.io.File;
+import java.util.List;
 
 /**
  * Interface implemented by CarServiceHelperService.
@@ -98,4 +99,9 @@ public interface CarServiceHelperInterface {
      * On error, returns {@link com.android.car.internal.common.CommonConstants#INVALID_PID}.
      */
     int fetchAidlVhalPid();
+
+    /**
+     * Set allowed app install sources
+     */
+    void setAllowedAppInstallSources(List<String> allowedAppInstallSources);
 }

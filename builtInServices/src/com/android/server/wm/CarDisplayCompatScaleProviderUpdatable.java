@@ -20,6 +20,7 @@ import android.annotation.Nullable;
 import android.annotation.SystemApi;
 import android.annotation.UserIdInt;
 import android.content.res.CompatScaleWrapper;
+import java.util.List;
 
 /**
  * Updatable interface of {@link CarDisplayCompatScaleProvider}.
@@ -47,4 +48,9 @@ public interface CarDisplayCompatScaleProviderUpdatable {
      * @return true if package requires launching in automotive compatibility mode
      */
     boolean requiresDisplayCompat(@NonNull String packageName, @UserIdInt int userId);
+
+    /**
+     * @param allowedAppInstallSources - list of allowed app install source package names
+     */
+    void setAllowedAppInstallSources(List<String> allowedAppInstallSources);
 }

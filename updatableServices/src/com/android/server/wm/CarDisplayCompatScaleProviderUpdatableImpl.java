@@ -53,6 +53,7 @@ import android.net.Uri;
 import android.os.Environment;
 import android.os.Handler;
 import android.os.ServiceSpecificException;
+import android.os.SystemProperties;
 import android.os.UserHandle;
 import android.provider.Settings;
 import android.util.ArrayMap;
@@ -72,6 +73,7 @@ import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collection;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.locks.StampedLock;
 
@@ -88,6 +90,14 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // {@code PackageManager#FEATURE_CAR_DISPLAY_COMPATIBILITY}
     static final String FEATURE_CAR_DISPLAY_COMPATIBILITY =
             "android.software.car.display_compatibility";
+
+    /** Display Compat Safe App Area 1.0 */
+    private static final String FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA =
+        "com.android.software.car.display_compatibility.safe_app_area";
+    private static final int FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION = 1;
+    private static final boolean INSTALL_SOURCE_CHECK_ENABLED = SystemProperties.getBoolean(
+            "ro.boot.car.displaycompat.install_source_check", true);
+
     @VisibleForTesting
     static final String PLATFORM_PACKAGE_NAME = "android";
     private static final String CONFIG_PATH = "etc/display_compat_config.xml";
@@ -134,6 +144,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     @VisibleForTesting
     @NonNull
     ContentObserver mSettingsContentObserver;
+
+    @NonNull
+    private List<String> mAllowedAppInstallSources;
 
     // TODO(b/345248202): can this be private
     @VisibleForTesting
@@ -247,6 +260,16 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         filter.addAction(Intent.ACTION_PACKAGE_REMOVED);
         filter.addDataScheme(DATA_SCHEME_PACKAGE);
         mContext.registerReceiver(mPackageChangeReceiver, filter);
+    }
+
+    /**
+    * Sets the list of allowed app install sources
+    */
+    @Override
+    public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+        if (allowedAppInstallSources != null) {
+            mAllowedAppInstallSources = new ArrayList<>(allowedAppInstallSources);
+        }
     }
 
     @Nullable
@@ -469,6 +492,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         // Check if display compatibility is required
         boolean requiresCompat = requiresDisplayCompatNotCachedLocked(packageName, userId);
+        // Set package display compat state
+        mCarCompatScaleProviderInterface
+            .setPackageRequiresDisplayCompat(packageName, userId, requiresCompat);
 
         // If no config was found earlier and compatibility is required, apply default scale
         if (!hasConfig && requiresCompat) {
@@ -563,6 +589,29 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
                 Slogf.d(TAG, "Package %s is platform signed", packageName);
             }
             return false;
+        }
+
+        // Opt out if the package is not installed via an allowed install source
+        // This check is used for Safe App Area 1.0 only
+        if (INSTALL_SOURCE_CHECK_ENABLED && mPackageManager.hasSystemFeature(
+                FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA,
+                FEATURE_CAR_DISPLAY_COMPAT_SAFE_APP_AREA_VERSION)) {
+            try {
+                if (mAllowedAppInstallSources != null) {
+                    String installerName = mPackageManager.getInstallerPackageName(
+                            packageName);
+                    if (installerName == null || (installerName != null
+                            && !mAllowedAppInstallSources.contains(installerName))) {
+                        Slogf.w(TAG,
+                                packageName + " not installed from permitted sources "
+                                        + (installerName == null ? "NULL" : installerName));
+                        return false;
+                    }
+                }
+            } catch (IllegalArgumentException e) {
+                Slogf.w(TAG, packageName + " not installed!");
+                return false;
+            }
         }
 
         // Opt in by default

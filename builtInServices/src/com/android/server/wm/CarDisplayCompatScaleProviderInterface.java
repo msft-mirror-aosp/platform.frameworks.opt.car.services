@@ -90,4 +90,11 @@ public interface CarDisplayCompatScaleProviderInterface {
      */
     float getCompatModeScalingFactor(@NonNull String packageName,
             @NonNull UserHandle userHandle);
+
+    /**
+     * Set the display compat state for a package owned by a specific user
+     */
+    void setPackageRequiresDisplayCompat(@NonNull String packageName,
+        @UserIdInt int userId,
+        boolean requiresDisplayCompat);
 }

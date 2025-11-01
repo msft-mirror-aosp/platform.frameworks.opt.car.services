@@ -91,6 +91,7 @@ public class CarLaunchRedirectActivityInterceptorTest {
 
     private MockitoSession mMockingSession;
     private CarLaunchRedirectActivityInterceptor mInterceptor;
+    private CarServiceHelperTaskStackRepository mTaskStackRepository;
 
     @Before
     public void setUp() {
@@ -121,7 +122,8 @@ public class CarLaunchRedirectActivityInterceptorTest {
         mRootTaskToken = new WindowContainer.RemoteToken(mWindowContainer);
         mWindowContainer.mRemoteToken = mRootTaskToken;
 
-        mInterceptor = new CarLaunchRedirectActivityInterceptor(mMockContext);
+        mTaskStackRepository = new CarServiceHelperTaskStackRepository();
+        mInterceptor = new CarLaunchRedirectActivityInterceptor(mMockContext, mTaskStackRepository);
     }
 
     @After
@@ -179,7 +181,7 @@ public class CarLaunchRedirectActivityInterceptorTest {
     public void launchOnRootTask_invalidRootTask_returnsNull() {
         String testRootTaskName1 = "testRootTaskName1";
         String testRootTaskName2 = "testRootTaskName2";
-        mInterceptor.onRootTaskAppeared(testRootTaskName1, mRootTaskToken);
+        mTaskStackRepository.onRootTaskAppeared(testRootTaskName1, mRootTaskToken);
         // Pass in an invalid root task name
         mMockInfo = createMockActivityInterceptorInfo(testRootTaskName2, ALLOWLISTED_ACTIVITY);
 
@@ -192,7 +194,7 @@ public class CarLaunchRedirectActivityInterceptorTest {
     @Test
     public void launchOnRootTask_notAllowlisted_returnsNull() {
         String testRootTaskName = "testRootTaskName";
-        mInterceptor.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
+        mTaskStackRepository.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
         mMockInfo = createMockActivityInterceptorInfo(testRootTaskName, DENYLISTED_ACTIVITY);
 
         ActivityInterceptResultWrapper result =
@@ -204,7 +206,7 @@ public class CarLaunchRedirectActivityInterceptorTest {
     @Test
     public void launchOnRootTask_isAllowlisted_returnsNotNull() {
         String testRootTaskName = "testRootTaskName";
-        mInterceptor.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
+        mTaskStackRepository.onRootTaskAppeared(testRootTaskName, mRootTaskToken);
         mMockInfo = createMockActivityInterceptorInfo(testRootTaskName, ALLOWLISTED_ACTIVITY);
 
         ActivityInterceptResultWrapper result =

@@ -102,6 +102,20 @@ public final class LaunchParamsWrapper {
         mLaunchParams.mBounds.set(bounds);
     }
 
+    /**
+     * Gets the root {@link TaskWrapper} the {@link Task} would prefer to be on.
+     */
+    public TaskWrapper getPreferredRootTask() {
+        return TaskWrapper.create(mLaunchParams.mPreferredRootTask);
+    }
+
+    /**
+     * Sets the root {@link TaskWrapper} the {@link Task} would prefer to be on.
+     */
+    public void setPreferredRootTask(TaskWrapper task) {
+        mLaunchParams.mPreferredRootTask = task.getTask();
+    }
+
     @Override
     public String toString() {
         return "LaunchParams{"

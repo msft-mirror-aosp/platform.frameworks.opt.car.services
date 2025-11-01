@@ -58,12 +58,15 @@ import com.android.server.wm.CarLaunchParamsModifierInterface;
 import com.android.server.wm.CarLaunchParamsModifierUpdatable;
 import com.android.server.wm.CarLaunchParamsModifierUpdatableImpl;
 import com.android.server.wm.CarLaunchRedirectActivityInterceptor;
+import com.android.server.wm.CarServiceHelperTaskStackRepository;
 import com.android.server.wm.MediaTemplateActivityInterceptorForSuspension;
 
 import java.io.File;
 import java.io.PrintWriter;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.function.BiConsumer;
 
@@ -130,6 +133,7 @@ public final class CarServiceHelperServiceUpdatableImpl
     private final CarActivityInterceptorUpdatableImpl mCarActivityInterceptorUpdatable;
     private final CarLaunchRedirectActivityInterceptor
             mCarLaunchRedirectActivityInterceptor;
+    private final CarServiceHelperTaskStackRepository mTaskStackRepository;
     private CarDisplayCompatScaleProviderUpdatableImpl mCarDisplayCompatScaleProviderUpdatable;
 
     private ExtraDisplayMonitor mExtraDisplayMonitor;
@@ -153,10 +157,11 @@ public final class CarServiceHelperServiceUpdatableImpl
                     mContext,
                     (CarDisplayCompatScaleProviderInterface) interfaces
                             .get(CarDisplayCompatScaleProviderInterface.class.getSimpleName()));
+        mTaskStackRepository = new CarServiceHelperTaskStackRepository();
         mCarLaunchParamsModifierUpdatable = new CarLaunchParamsModifierUpdatableImpl(
                 (CarLaunchParamsModifierInterface) interfaces.get(
                         CarLaunchParamsModifierInterface.class.getSimpleName()),
-                mCarDisplayCompatScaleProviderUpdatable);
+                mCarDisplayCompatScaleProviderUpdatable, mTaskStackRepository);
         // Interceptor for the launch of suspended media apps
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 0,
                 new MediaTemplateActivityInterceptorForSuspension());
@@ -165,7 +170,7 @@ public final class CarServiceHelperServiceUpdatableImpl
                         mCarDisplayCompatScaleProviderUpdatable));
         // Interceptor for redirecting launch on a private display or a root task
         mCarLaunchRedirectActivityInterceptor =
-                new CarLaunchRedirectActivityInterceptor(context);
+                new CarLaunchRedirectActivityInterceptor(context, mTaskStackRepository);
         mCarActivityInterceptorUpdatable.registerInterceptor(/* index = */ 2,
                 mCarLaunchRedirectActivityInterceptor);
         // carServiceProxy is Nullable because it is not possible to construct carServiceProxy with
@@ -286,7 +291,10 @@ public final class CarServiceHelperServiceUpdatableImpl
         boolean restartOnServiceCrash = SystemProperties.getBoolean(PROP_RESTART_RUNTIME, false);
         mHandler.removeCallbacks(mCallbackForCarServiceUnresponsiveness);
 
-        mCarServiceHelperInterface.dumpServiceStacks();
+        // Run dumpServiceStacks in a separate thread to avoid block.
+        CompletableFuture.runAsync(() -> {
+            mCarServiceHelperInterface.dumpServiceStacks();
+        });
 
         synchronized (mLock) {
             mIsCarServiceConnected = false;
@@ -418,12 +426,17 @@ public final class CarServiceHelperServiceUpdatableImpl
 
         @Override
         public void onRootTaskAppeared(String name, IBinder rootTaskToken) {
-            mCarLaunchRedirectActivityInterceptor.onRootTaskAppeared(name, rootTaskToken);
+            mTaskStackRepository.onRootTaskAppeared(name, rootTaskToken);
         }
 
         @Override
         public void onRootTaskVanished(String name) {
-            mCarLaunchRedirectActivityInterceptor.onRootTaskVanished(name);
+            mTaskStackRepository.onRootTaskVanished(name);
+        }
+
+        @Override
+        public void setLaunchBehaviorForRootTask(IBinder rootTaskToken, int behavior) {
+            mCarLaunchParamsModifierUpdatable.setLaunchBehaviorForRootTask(rootTaskToken, behavior);
         }
 
         @Override
@@ -497,6 +510,11 @@ public final class CarServiceHelperServiceUpdatableImpl
         public boolean requiresDisplayCompatForUser(String packageName, int userId) {
             return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
                     userId);
+        }
+
+        @Override
+        public void setAllowedAppInstallSources(List<String> allowedAppInstallSources) {
+            mCarServiceHelperInterface.setAllowedAppInstallSources(allowedAppInstallSources);
         }
     }
 
