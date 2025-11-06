@@ -22,6 +22,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 
 import android.annotation.NonNull;
 import android.annotation.Nullable;
+import android.annotation.UserIdInt;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
@@ -515,6 +516,21 @@ public final class CarServiceHelperServiceUpdatableImpl
         public boolean requiresDisplayCompatForUser(String packageName, int userId) {
             return mCarDisplayCompatScaleProviderUpdatable.requiresDisplayCompat(packageName,
                     userId);
+        }
+
+        @Override
+        public float getDensityScaleFactor(@NonNull String packageName, @UserIdInt int userId,
+                int displayId) {
+            return mCarDisplayCompatScaleProviderUpdatable.getDensityScaleFactor(packageName,
+                    userId, displayId);
+        }
+
+        @Override
+        public void setDensityScaleFactor(@NonNull String packageName, @UserIdInt int userId,
+                int displayId,
+                float densityScaleFactor) {
+            mCarDisplayCompatScaleProviderUpdatable.setDensityScaleFactor(packageName,
+                    userId, displayId, densityScaleFactor);
         }
     }
 
