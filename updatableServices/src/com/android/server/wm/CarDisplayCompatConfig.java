@@ -170,7 +170,7 @@ final class CarDisplayCompatConfig {
         try {
             userId = Integer.parseInt(parser.getAttributeValue(NAMESPACE, USER));
         } catch (NullPointerException | NumberFormatException e) {
-            Slogf.e(TAG, "parse failed: %s = %s", USER, parser.getAttributeValue(NAMESPACE, USER));
+            Slogf.d(TAG, "parse failed: %s = %s", USER, parser.getAttributeValue(NAMESPACE, USER));
         }
 
         float value = DEFAULT_SCALE;
