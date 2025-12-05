@@ -452,16 +452,18 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             } else if (hasConfig && result && scaleFactor == OPT_OUT) {
                 mConfig.setScaleFactor(key, DEFAULT_SCALE);
             }
-
             mRequiresDisplayCompat.put(packageName, result);
             return result;
         } catch (PackageManager.NameNotFoundException e) {
-            // This shouldn't be the case if the user requesting the package is the same as
-            // the user launching the app.
             Slogf.e(TAG, "Package " + packageName + " not found", e);
-            throw new ServiceSpecificException(
-                    ERROR_CODE_NO_PACKAGE,
-                    e.getMessage());
+            // TODO b/459588514
+            // There are many reasons why this can happen as the list of packages that require
+            // display compat is stored in Settings.Secure and no longer in the system image.
+            // The package is removed from the system image as part of the OTA.
+            // throw new ServiceSpecificException(
+            //        ERROR_CODE_NO_PACKAGE,
+            //        e.getMessage());
+            return false;
         }
     }
 
