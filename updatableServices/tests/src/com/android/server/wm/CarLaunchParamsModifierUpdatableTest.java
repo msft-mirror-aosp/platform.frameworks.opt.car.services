@@ -208,6 +208,7 @@ public class CarLaunchParamsModifierUpdatableTest {
         doReturn(mDisplayManager).when(mContext).getSystemService(eq(DisplayManager.class));
 
         doReturn(mActivityTaskManagerService).when(() -> ActivityTaskManager.getService());
+        when(mActivityTaskManagerService.getUserManagerInternal()).thenReturn(mUserManagerInternal);
         mActivityTaskManagerService.mTaskSupervisor = mActivityTaskSupervisor;
         when(mActivityTaskSupervisor.getLaunchParamsController()).thenReturn(
                 mLaunchParamsController);
