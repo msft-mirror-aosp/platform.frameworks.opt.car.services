@@ -370,6 +370,61 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
     }
 
+    /**
+     * Returns the density scale factor for a given package, user, and display.
+     *
+     * @param packageName The name of the package.
+     * @param userId The ID of the user.
+     * @param displayId The ID of the display.
+     * @return The density scale factor.
+     */
+    public float getDensityScaleFactor(@NonNull String packageName, @UserIdInt int userId,
+            int displayId) {
+        if (!Flags.displayCompatibilityV2()) {
+            return DEFAULT_SCALE;
+        }
+        long stamp = mConfigLock.tryOptimisticRead();
+        CompatScaleWrapper compatScale = getCompatScaleForPackageAsUserLocked(displayId,
+                packageName, userId);
+        if (!mConfigLock.validate(stamp)) {
+            stamp = mConfigLock.readLock();
+            try {
+                compatScale = getCompatScaleForPackageAsUserLocked(displayId, packageName, userId);
+            } finally {
+                mConfigLock.unlockRead(stamp);
+            }
+        }
+
+        float compatModeScalingFactor = mCarCompatScaleProviderInterface
+                .getCompatModeScalingFactor(packageName, UserHandle.of(userId));
+        if (compatModeScalingFactor == DEFAULT_SCALE && compatScale != null) {
+            return compatScale.getDensityScaleFactor();
+        }
+        return DEFAULT_SCALE;
+    }
+
+    /**
+     * Sets the density scale factor for a given package, user, and display.
+     *
+     * @param packageName The name of the package.
+     * @param userId The ID of the user.
+     * @param displayId The ID of the display.
+     * @param densityScaleFactor The density scale factor to set.
+     */
+    public void setDensityScaleFactor(@NonNull String packageName, @UserIdInt int userId,
+            int displayId, float densityScaleFactor) {
+        if (!Flags.displayCompatibilityV2()) {
+            return;
+        }
+        long stamp = mConfigLock.writeLock();
+        try {
+            setCompatScaleForPackageAsUserLocked(displayId, packageName, userId,
+                    densityScaleFactor);
+        } finally {
+            mConfigLock.unlockWrite(stamp);
+        }
+    }
+
     /** Notifies user switching. */
     public void handleCurrentUserSwitching(UserHandle newUser) {
         initConfig(newUser);
@@ -686,6 +741,15 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
 
         return null;
+    }
+
+    // @GuardedBy("mConfigLock")
+    // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
+    private void setCompatScaleForPackageAsUserLocked(int displayId,
+            @NonNull String packageName, @UserIdInt int userId, float scaleFactor) {
+        CarDisplayCompatConfig.Key key =
+                new CarDisplayCompatConfig.Key(displayId, packageName, userId);
+        mConfig.setScaleFactor(key, scaleFactor);
     }
 
     @NonNull
