@@ -43,7 +43,9 @@ import static com.google.common.truth.Truth.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.clearInvocations;
 import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -981,5 +983,30 @@ public class CarDisplayCompatScaleProviderUpdatableTest {
         float actualScale = mImpl.getDensityScaleFactor(packageName, CURRENT_USER, DEFAULT_DISPLAY);
 
         assertThat(actualScale).isEqualTo(DEFAULT_SCALE);
+    }
+
+    @Test
+    public void setDensityScaleFactor_updatesSettingsSecure_whenConfigChanges() {
+        String packageName = "com.test.package";
+        float newScale = 0.75f;
+
+        clearInvocations(mInterface);
+        mImpl.setDensityScaleFactor(packageName, CURRENT_USER, DEFAULT_DISPLAY, newScale);
+
+        verify(mInterface).putStringForUser(eq(mContentResolver),
+                eq(DISPLAYCOMPAT_SETTINGS_SECURE_KEY), any(String.class), eq(CURRENT_USER));
+    }
+
+    @Test
+    public void setDensityScaleFactor_doesNotUpdateSettingsSecure_whenConfigIsSame() {
+        String packageName = "com.test.package";
+        float scale = 0.75f;
+
+        mImpl.setDensityScaleFactor(packageName, CURRENT_USER, DEFAULT_DISPLAY, scale);
+        clearInvocations(mInterface);
+        mImpl.setDensityScaleFactor(packageName, CURRENT_USER, DEFAULT_DISPLAY, scale);
+
+        // Should NOT trigger a call to putStringForUser since the value is not updated
+        verify(mInterface, never()).putStringForUser(any(), any(), any(), anyInt());
     }
 }
