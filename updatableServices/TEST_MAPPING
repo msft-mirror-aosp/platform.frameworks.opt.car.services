@@ -3,5 +3,10 @@
     {
       "name": "FrameworkOptCarServicesUpdatableTest"
     }
+  ],
+  "auto-presubmit-all-ui-targets": [
+    {
+      "name": "FrameworkOptCarServicesUpdatableTest"
+    }
   ]
 }

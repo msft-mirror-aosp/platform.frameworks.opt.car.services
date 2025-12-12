@@ -9,5 +9,10 @@
     {
       "name": "CtsCarHostNonRecoverableTestCases"
     }
+  ],
+  "auto-presubmit-all-ui-targets": [
+    {
+      "name": "FrameworkOptCarServicesTest"
+    }
   ]
 }
