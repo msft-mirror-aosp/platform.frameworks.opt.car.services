@@ -542,12 +542,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             mRequiresDisplayCompat.put(packageName, requiresCompat);
         }
 
-        String configDump = mConfig.dump();
-        if (!configDump.equals(mLastConfigDump)) {
-            mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
-                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, configDump, getCurrentOrTargetUserId());
-            mLastConfigDump = configDump;
-        }
+        updateSettingSecureStorageIfNeeded();
 
         return requiresCompat;
     }
@@ -750,6 +745,16 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         CarDisplayCompatConfig.Key key =
                 new CarDisplayCompatConfig.Key(displayId, packageName, userId);
         mConfig.setScaleFactor(key, scaleFactor);
+        updateSettingSecureStorageIfNeeded();
+    }
+
+    private void updateSettingSecureStorageIfNeeded() {
+        String configDump = mConfig.dump();
+        if (!configDump.equals(mLastConfigDump)) {
+            mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
+                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, configDump, getCurrentOrTargetUserId());
+            mLastConfigDump = configDump;
+        }
     }
 
     @NonNull
