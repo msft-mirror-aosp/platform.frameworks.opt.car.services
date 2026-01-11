@@ -22,6 +22,7 @@ import static com.google.common.truth.Truth.assertThat;
 
 import static org.junit.Assert.assertThrows;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -92,6 +93,8 @@ public class CarActivityInterceptorUpdatableTest {
     private Context mContext;
     @Mock
     private RoleManager mRoleManager;
+    @Mock
+    private android.content.pm.PackageManager mPackageManager;
 
     private final CarActivityInterceptorInterface mCarActivityInterceptorInterface =
             new CarActivityInterceptorInterface() {
@@ -132,6 +135,7 @@ public class CarActivityInterceptorUpdatableTest {
         mWindowContainer2.mRemoteToken = mRootTaskToken2;
 
         when(mContext.getSystemService(RoleManager.class)).thenReturn(mRoleManager);
+        when(mContext.getPackageManager()).thenReturn(mPackageManager);
         when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(
                 new ArrayList<>(Arrays.asList("fakeHome")));
         mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
@@ -372,16 +376,41 @@ public class CarActivityInterceptorUpdatableTest {
     }
 
     @Test
-    public void test_canRouteTheActivity_anyActivity_returnsFalse() {
+    public void test_canRouteTheActivity_homeActivity_returnsFalse() {
         String homePackage = "my.home.package";
-        String anyActivity = "homeActivity";
+        String homeActivity = "HomeActivity";
         when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(new ArrayList<>(
                 List.of(homePackage)));
+        ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.activityInfo.packageName = homePackage;
+        resolveInfo.activityInfo.name = homeActivity;
+        when(mPackageManager.queryIntentActivitiesAsUser(any(), anyInt(), any(UserHandle.class)))
+                .thenReturn(List.of(resolveInfo));
         mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
                 mCarActivityInterceptorInterface);
 
         assertThat(mInterceptor
-                .canRouteTheActivity(new ComponentName(homePackage, anyActivity))).isFalse();
+                .canRouteTheActivity(new ComponentName(homePackage, homeActivity))).isFalse();
+    }
+
+    @Test
+    public void test_canRouteTheActivity_nonHomeActivityInHomePackage_returnsTrue() {
+        String homePackage = "my.home.package";
+        String nonHomeActivity = "NonHomeActivity";
+        when(mRoleManager.getRoleHoldersAsUser(any(), any())).thenReturn(new ArrayList<>(
+                List.of(homePackage)));
+        ResolveInfo resolveInfo = new ResolveInfo();
+        resolveInfo.activityInfo = new ActivityInfo();
+        resolveInfo.activityInfo.packageName = homePackage;
+        resolveInfo.activityInfo.name = "SomeOtherHomeActivity";
+        when(mPackageManager.queryIntentActivitiesAsUser(any(), anyInt(), any(UserHandle.class)))
+                .thenReturn(List.of(resolveInfo));
+        mInterceptor = new CarActivityInterceptorUpdatableImpl(mContext,
+                mCarActivityInterceptorInterface);
+
+        assertThat(mInterceptor
+                .canRouteTheActivity(new ComponentName(homePackage, nonHomeActivity))).isTrue();
     }
 
     @Test
