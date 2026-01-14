@@ -23,6 +23,7 @@ import static com.android.car.internal.common.CommonConstants.USER_LIFECYCLE_EVE
 import android.annotation.NonNull;
 import android.annotation.Nullable;
 import android.annotation.UserIdInt;
+import android.app.ActivityManager;
 import android.car.ICar;
 import android.car.ICarResultReceiver;
 import android.car.builtin.os.UserManagerHelper;
@@ -423,6 +424,12 @@ public final class CarServiceHelperServiceUpdatableImpl
                 IBinder rootTaskToken) {
             mCarActivityInterceptorUpdatable.setPersistentActivityOnRootTask(activities,
                     rootTaskToken);
+        }
+
+        @Override
+        public void onRootTaskCreated(String name, ActivityManager.RunningTaskInfo taskInfo,
+                IBinder token) {
+            mTaskStackRepository.onRootTaskCreated(name, token);
         }
 
         @Override
