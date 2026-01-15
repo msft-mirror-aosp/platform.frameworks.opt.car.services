@@ -52,6 +52,29 @@ public final class CarServiceHelperTaskStackRepository {
     }
 
     /**
+     * Updates maps with root task information that got created.
+     *
+     * @param name          name of the root task.
+     * @param token the binder token of the root task which was created.
+     */
+    public void onRootTaskCreated(String name, IBinder token) {
+        try {
+            beginTraceSection("TaskStackRepository-onRootTaskCreated: " + token);
+            synchronized (mLock) {
+                if (token == null) {
+                    Slogf.d(TAG, "The root task token is null for created event.");
+                    return;
+                }
+                mRootTaskNameToTokenMap.put(name, token);
+                mRootTaskTokenToNameMap.put(token, name);
+                updateRootTaskInformationInKnownRootTasks(token);
+            }
+        } finally {
+            Trace.endSection();
+        }
+    }
+
+    /**
      * Updates maps with root task information that appeared.
      *
      * @param name          name of the root task.
@@ -62,7 +85,7 @@ public final class CarServiceHelperTaskStackRepository {
             beginTraceSection("TaskStackRepository-onRootTaskAppeared: " + rootTaskToken);
             synchronized (mLock) {
                 if (rootTaskToken == null) {
-                    Slogf.d(TAG, "The root task token is null.");
+                    Slogf.d(TAG, "The root task token is null for appeared event.");
                     return;
                 }
                 mRootTaskNameToTokenMap.put(name, rootTaskToken);
