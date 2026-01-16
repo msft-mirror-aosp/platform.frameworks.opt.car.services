@@ -23,6 +23,8 @@ import static com.google.common.truth.Truth.assertThat;
 
 import android.app.ActivityOptions;
 import android.content.pm.ActivityInfo;
+import android.util.DisplayMetrics;
+import android.util.TypedValue;
 import android.view.Gravity;
 
 import com.android.server.wm.LaunchParamsController.LaunchParams;
@@ -40,9 +42,14 @@ public class CalculateParamsTest {
     @Mock
     private Task mTask;
     private ActivityInfo.WindowLayout mLayout = new ActivityInfo.WindowLayout(
-            /* width= */ 1280, /* widthFraction= */ 0.5f,
-            /* height= */ 800, /* heightFraction= */ 1.0f,
-            /* gravity= */ Gravity.CENTER, /* minWidth= */ 400, /* minHeight= */ 300);
+            TypedValue.createComplexDimension(1280, TypedValue.COMPLEX_UNIT_PX),
+            /* widthFraction= */ 0.5f,
+            TypedValue.createComplexDimension(800, TypedValue.COMPLEX_UNIT_PX),
+            /* heightFraction= */ 1.0f,
+            /* gravity= */ Gravity.CENTER,
+            TypedValue.createComplexDimension(400, TypedValue.COMPLEX_UNIT_PX),
+            TypedValue.createComplexDimension(300, TypedValue.COMPLEX_UNIT_PX),
+            /* windowLayoutAffinity= */ null, new DisplayMetrics());
     @Mock
     private ActivityRecord mActvity;
     @Mock
