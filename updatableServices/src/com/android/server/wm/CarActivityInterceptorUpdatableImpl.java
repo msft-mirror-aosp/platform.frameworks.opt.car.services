@@ -16,13 +16,19 @@
 
 package com.android.server.wm;
 
+import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
 
 import android.annotation.NonNull;
 import android.annotation.SystemApi;
 import android.app.ActivityOptions;
+import android.app.role.RoleManager;
 import android.car.builtin.util.Slogf;
 import android.content.ComponentName;
+import android.content.Context;
+import android.content.Intent;
+import android.content.pm.PackageManager;
+import android.content.pm.ResolveInfo;
 import android.os.IBinder;
 import android.os.RemoteException;
 import android.os.UserHandle;
@@ -61,9 +67,15 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
     @NonNull
     private final SparseArray<CarActivityInterceptorUpdatable> mInterceptors = new SparseArray<>();
 
-    public CarActivityInterceptorUpdatableImpl(
+    @NonNull
+    private final RoleManager mRoleManager;
+    private final Context mContext;
+
+    public CarActivityInterceptorUpdatableImpl(@NonNull Context context,
             @NonNull CarActivityInterceptorInterface builtInInterface) {
         mBuiltIn = builtInInterface;
+        mRoleManager = context.getSystemService(RoleManager.class);
+        mContext = context;
     }
 
     @Override
@@ -73,6 +85,10 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
             return null;
         }
         ComponentName componentName = info.getIntent().getComponent();
+
+        if (!canRouteTheActivity(componentName)) {
+            return null;
+        }
 
         synchronized (mLock) {
             int keyIndex = mActivityToRootTaskMap.indexOfKey(componentName);
@@ -108,6 +124,65 @@ public final class CarActivityInterceptorUpdatableImpl implements CarActivityInt
         }
 
         return null;
+    }
+
+    @VisibleForTesting
+    boolean canRouteTheActivity(ComponentName componentName) {
+        if (componentName == null) {
+            Slogf.i(TAG, "componentName is null . Can't route the activity.");
+            return false;
+        }
+
+        // TODO(b/434721819): Explore if we can cache this info with some listener. Also handle
+        // MUMD and distance display case and multi-display cases.
+        int userId = mBuiltIn.getUserAssignedToDisplay(DEFAULT_DISPLAY);
+        List<String> holders = mRoleManager.getRoleHoldersAsUser(RoleManager.ROLE_HOME,
+                UserHandle.of(userId));
+
+
+        if (holders == null || holders.isEmpty()) {
+            Slogf.i(TAG,
+                    "No activity with ROLE_HOME is set. Currently don't have sufficient "
+                            + "information to route the activity. ");
+            return false;
+        }
+
+        if (holders.contains(componentName.getPackageName()) && handlesHomeIntent(componentName,
+                userId)) {
+            Slogf.i(TAG,
+                    "Request is asking to route the HOME activity. It is not supported. "
+                            + "ComponentName: %s. Current Home activities: %s", componentName,
+                    holders);
+            return false;
+        }
+
+        if (DBG) {
+            Slogf.d(TAG,
+                    "Request is asking to route ComponentName: %s. Current Home activities: %s.",
+                    componentName, holders);
+        }
+        return true;
+    }
+
+    private boolean handlesHomeIntent(ComponentName componentName, int userId) {
+        Intent homeIntent = new Intent(Intent.ACTION_MAIN);
+        homeIntent.addCategory(Intent.CATEGORY_HOME);
+        homeIntent.setPackage(componentName.getPackageName());
+
+        List<ResolveInfo> resolveInfos = mContext.getPackageManager().queryIntentActivitiesAsUser(
+                homeIntent, PackageManager.MATCH_DEFAULT_ONLY, UserHandle.of(userId));
+
+        if (resolveInfos == null || resolveInfos.isEmpty()) {
+            return false;
+        }
+
+        for (ResolveInfo resolveInfo : resolveInfos) {
+            if (resolveInfo.activityInfo != null
+                    && componentName.getClassName().equals(resolveInfo.activityInfo.name)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     /**

@@ -72,9 +72,12 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
     private CarDisplayCompatScaleProviderUpdatable mCarCompatScaleProviderUpdatable;
     private ActivityTaskManagerService mAtms;
     private PackageManager mPackageManager;
+    @NonNull
+    private CarCompatOverrideUtils mCarCompatOverrideUtils;
 
     public CarDisplayCompatScaleProvider(Context context) {
         mPackageManager = context.getPackageManager();
+        mCarCompatOverrideUtils = new CarCompatOverrideUtils(context);
     }
 
     /**
@@ -231,6 +234,18 @@ public final class CarDisplayCompatScaleProvider implements CompatScaleProvider 
                             LocalServices.getService(PackageManagerInternal.class);
                     pmi.setDisplayCompat(packageName, userId, requiresDisplayCompat);
             }
+
+            @Override
+            public void applyDclOverrideIfNeeded(@NonNull String packageName, int userId) {
+                boolean overrideApplied = mCarCompatOverrideUtils.applyOverrideIfNeeded(
+                        packageName, userId);
+                if (overrideApplied) {
+                    Slogf.i(TAG, "DCL compat override applied for package: %s", packageName);
+                } else {
+                    Slogf.i(TAG, "DCL compat override NOT applied for package: %s", packageName);
+                }
+            }
+
         };
     }
 }

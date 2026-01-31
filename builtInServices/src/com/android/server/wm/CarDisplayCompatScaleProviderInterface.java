@@ -97,4 +97,9 @@ public interface CarDisplayCompatScaleProviderInterface {
     void setPackageRequiresDisplayCompat(@NonNull String packageName,
         @UserIdInt int userId,
         boolean requiresDisplayCompat);
+
+    /**
+     * Applies the DCL override for select CaRMA applications
+     */
+    void applyDclOverrideIfNeeded(@NonNull String packageName, @UserIdInt int userId);
 }
