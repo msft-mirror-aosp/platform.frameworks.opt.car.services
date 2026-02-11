@@ -57,7 +57,7 @@ import android.provider.Settings;
 import android.util.ArrayMap;
 import android.util.AtomicFile;
 import android.util.Log;
-import android.util.Pair;
+import android.util.SparseArray;
 import android.util.SparseIntArray;
 
 import com.android.car.internal.util.IndentingPrintWriter;
@@ -123,11 +123,13 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
     @NonNull
     private CarDisplayCompatConfig mConfig;
-    // Maps package names to a boolean that indicates if a package requires running in display
-    // compatibility mode or not.
+    // Contains ArrayMap of package names to a boolean indicating if a package
+    // requires running in display compatibility mode or not. It is stored in a
+    // SparseArray of ArrayMaps mapped to user ids for each user.
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private final ArrayMap<String, Boolean> mRequiresDisplayCompat = new ArrayMap<>();
+    private final SparseArray<ArrayMap<String, Boolean>> mRequiresDisplayCompatCache =
+            new SparseArray<>();
 
     // TODO(b/345248202): can this be private
     @VisibleForTesting
@@ -147,18 +149,25 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             if (packageName == null || packageName.isEmpty()) {
                 return;
             }
+            int uid = intent.getIntExtra(Intent.EXTRA_UID, -1);
+            if (uid == -1) {
+                Slogf.w(TAG, "uid not set in intent for package change: %s", intent);
+                return;
+            }
+            int userId = UserHandle.getUserHandleForUid(uid).getIdentifier();
+            if (userId == USER_NULL) {
+                Slogf.w(TAG, "USER_NULL userId from intent for package change: %s", intent);
+                return;
+            }
             long stamp = mConfigLock.writeLock();
             try {
                 if (Intent.ACTION_PACKAGE_REMOVED.equals(intent.getAction())) {
-                    mRequiresDisplayCompat.remove(packageName);
+                    removeCachedRequiresDisplayCompatLocked(packageName, userId);
                 } else {
-                    updateStateOfPackageForUserLocked(packageName, getCurrentOrTargetUserId());
+                    updateStateOfPackageForUserLocked(packageName, userId);
                 }
             } catch (PackageManager.NameNotFoundException e) {
-                // This shouldn't be the case if the user requesting the package is the same as
-                // the user launching the app.
-                Slogf.w(TAG, "Package %s for user %d not found", packageName,
-                        getCurrentOrTargetUserId());
+                Slogf.w(TAG, "Package %s not found", packageName);
             } finally {
                 mConfigLock.unlockWrite(stamp);
             }
@@ -209,7 +218,7 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return;
         }
 
-        initConfig(UserHandle.of(getCurrentOrTargetUserId()));
+        initConfig();
 
         // TODO(b/329898692): can we fix the tests so we don't need this?
         if (mContext.getMainLooper() == null) {
@@ -222,23 +231,21 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             public void onChange(boolean selfChange, Collection<Uri> uris,
                     int flags, UserHandle user) {
                 super.onChange(selfChange, uris, flags, user);
-                if (selfChange) {
+                if (selfChange || !UserHandle.SYSTEM.equals(user)) {
                     return;
                 }
-                if (getCurrentOrTargetUserId() == user.getIdentifier()) {
-                    long stamp = mConfigLock.writeLock();
-                    try {
-                        initLocalConfigFromSettingsLocked(user);
-                    } finally {
-                        mConfigLock.unlockWrite(stamp);
-                    }
+                long stamp = mConfigLock.writeLock();
+                try {
+                    initLocalConfigFromSettingsLocked();
+                } finally {
+                    mConfigLock.unlockWrite(stamp);
                 }
             }
         };
         Uri keyUri = Settings.Secure.getUriFor(DISPLAYCOMPAT_SETTINGS_SECURE_KEY);
         mContext.getContentResolver().registerContentObserverAsUser(keyUri,
                 /*notifyForDescendants*/ true,
-                mSettingsContentObserver, UserHandle.ALL);
+                mSettingsContentObserver, UserHandle.SYSTEM);
 
         IntentFilter filter = new IntentFilter();
         filter.addAction(Intent.ACTION_PACKAGE_ADDED);
@@ -342,11 +349,11 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return false;
         }
         long stamp = mConfigLock.tryOptimisticRead();
-        Boolean res = mRequiresDisplayCompat.get(packageName);
+        Boolean res = getCachedRequiresDisplayCompatLocked(packageName, userId);
         if (!mConfigLock.validate(stamp)) {
             stamp = mConfigLock.readLock();
             try {
-                res = mRequiresDisplayCompat.get(packageName);
+                res = getCachedRequiresDisplayCompatLocked(packageName, userId);
             } finally {
                 mConfigLock.unlockRead(stamp);
             }
@@ -427,7 +434,15 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
     /** Notifies user switching. */
     public void handleCurrentUserSwitching(UserHandle newUser) {
-        initConfig(newUser);
+        if (newUser.getIdentifier() == USER_NULL) {
+            return;
+        }
+        long stamp = mConfigLock.writeLock();
+        try {
+            initLocalConfigAndSettingsForAllInstalledPackagesLocked(newUser.getIdentifier());
+        } finally {
+            mConfigLock.unlockWrite(stamp);
+        }
     }
 
     /**
@@ -449,12 +464,11 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     }
 
     /** Initialise cache. */
-    private void initConfig(UserHandle user) {
+    private void initConfig() {
         long stamp = mConfigLock.writeLock();
         try {
-            if (!initLocalConfigFromSettingsLocked(user)) {
+            if (!initLocalConfigFromSettingsLocked()) {
                 initLocalConfigAndSettingsFromConfigFileLocked();
-                initLocalConfigAndSettingsForAllInstalledPackagesLocked(user.getIdentifier());
             }
         } finally {
             mConfigLock.unlockWrite(stamp);
@@ -537,9 +551,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             mConfig.setScaleFactor(key, scaleFactor);
         }
 
-        Boolean cachedValue = mRequiresDisplayCompat.get(packageName);
+        Boolean cachedValue = getCachedRequiresDisplayCompatLocked(packageName, userId);
         if (cachedValue == null || cachedValue != requiresCompat) {
-            mRequiresDisplayCompat.put(packageName, requiresCompat);
+            setCachedRequiresDisplayCompatLocked(packageName, userId, requiresCompat);
         }
 
         updateSettingSecureStorageIfNeeded();
@@ -669,10 +683,9 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         // read the default config from device if user settings is not available.
         try (InputStream in = openReadConfigFile()) {
             mConfig.populate(in);
-            mRequiresDisplayCompat.clear();
             mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
                     DISPLAYCOMPAT_SETTINGS_SECURE_KEY, mConfig.dump(),
-                    getCurrentOrTargetUserId());
+                    UserHandle.SYSTEM.getIdentifier());
             return true;
         } catch (XmlPullParserException | IOException | SecurityException e) {
             Slogf.e(TAG, "read config failed from device " + getConfigFile(), e);
@@ -686,40 +699,22 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
      */
     // @GuardedBy("mConfigLock")
     // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
-    private boolean initLocalConfigFromSettingsLocked(@NonNull UserHandle user) {
+    private boolean initLocalConfigFromSettingsLocked() {
         // Read the config and populate the in memory cache
         String configString = mCarCompatScaleProviderInterface.getStringForUser(
                 mContext.getContentResolver(), DISPLAYCOMPAT_SETTINGS_SECURE_KEY,
-                user.getIdentifier());
+                UserHandle.SYSTEM.getIdentifier());
         if (configString == null) {
             return false;
         }
         try (InputStream in =
                      new ByteArrayInputStream(configString.getBytes())) {
             mConfig.populate(in);
-            mRequiresDisplayCompat.clear();
             return true;
         } catch (XmlPullParserException | IOException | SecurityException e) {
             Slogf.e(TAG, "read config failed from Settings.Secure", e);
         }
         return false;
-    }
-
-    @VisibleForTesting
-    int getCurrentOrTargetUserId() {
-        Pair<Integer, Integer> currentAndTargetUserIds =
-                mCarCompatScaleProviderInterface.getCurrentAndTargetUserIds();
-
-        // TODO(b/329898692): can we fix the tests so we don't need this?
-        if (currentAndTargetUserIds == null) {
-            // This is only null during tests.
-            return USER_NULL;
-        }
-        int currentUserId = currentAndTargetUserIds.first;
-        int targetUserId = currentAndTargetUserIds.second;
-        int currentOrTargetUserId = targetUserId != USER_NULL
-                ? targetUserId : currentUserId;
-        return currentOrTargetUserId;
     }
 
     // @GuardedBy("mConfigLock")
@@ -752,7 +747,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         String configDump = mConfig.dump();
         if (!configDump.equals(mLastConfigDump)) {
             mCarCompatScaleProviderInterface.putStringForUser(mContext.getContentResolver(),
-                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, configDump, getCurrentOrTargetUserId());
+                    DISPLAYCOMPAT_SETTINGS_SECURE_KEY, configDump,
+                    UserHandle.SYSTEM.getIdentifier());
             mLastConfigDump = configDump;
         }
     }
@@ -773,4 +769,36 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private static boolean isDebugLoggable() {
         return Slogf.isLoggable(TAG, Log.DEBUG);
     }
+
+    // @GuardedBy("mConfigLock")
+    // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
+    @Nullable
+    private Boolean getCachedRequiresDisplayCompatLocked(@NonNull String packageName,
+            @UserIdInt int userId) {
+        ArrayMap<String, Boolean> userMap = mRequiresDisplayCompatCache.get(userId);
+        return userMap != null ? userMap.get(packageName) : null;
+    }
+
+    // @GuardedBy("mConfigLock")
+    // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
+    private void setCachedRequiresDisplayCompatLocked(@NonNull String packageName,
+            @UserIdInt int userId, boolean value) {
+        ArrayMap<String, Boolean> userMap = mRequiresDisplayCompatCache.get(userId);
+        if (userMap == null) {
+            userMap = new ArrayMap<>();
+            mRequiresDisplayCompatCache.put(userId, userMap);
+        }
+        userMap.put(packageName, value);
+    }
+
+    // @GuardedBy("mConfigLock")
+    // TODO(b/343755550): add back when error-prone supports {@link StampedLock}
+    private void removeCachedRequiresDisplayCompatLocked(@NonNull String packageName,
+            @UserIdInt int userId) {
+        ArrayMap<String, Boolean> userMap = mRequiresDisplayCompatCache.get(userId);
+        if (userMap != null) {
+            userMap.remove(packageName);
+        }
+    }
+
 }
