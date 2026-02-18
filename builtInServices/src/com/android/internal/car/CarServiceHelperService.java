@@ -159,7 +159,6 @@ public class CarServiceHelperService extends SystemService
             "android.hardware.automotive.can@1.0::ICanBus",
             "android.hardware.automotive.can@1.0::ICanController",
             "android.hardware.automotive.evs@1.0::IEvsEnumerator",
-            "android.hardware.automotive.sv@1.0::ISurroundViewService",
             "android.hardware.automotive.vehicle@2.0::IVehicle"
     );
 
