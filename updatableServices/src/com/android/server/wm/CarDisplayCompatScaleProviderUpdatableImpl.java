@@ -267,18 +267,14 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             return null;
         }
 
-        long stamp = mConfigLock.tryOptimisticRead();
-        int displayId = getPackageDisplayIdAsUserLocked(packageName, userId);
-        CompatScaleWrapper compatScale = getCompatScaleForPackageAsUserLocked(displayId,
-                packageName, userId);
-        if (!mConfigLock.validate(stamp)) {
-            stamp = mConfigLock.readLock();
-            try {
-                displayId = getPackageDisplayIdAsUserLocked(packageName, userId);
-                compatScale = getCompatScaleForPackageAsUserLocked(displayId, packageName, userId);
-            } finally {
-                mConfigLock.unlockRead(stamp);
-            }
+        long stamp = mConfigLock.readLock();
+        int displayId;
+        CompatScaleWrapper compatScale;
+        try {
+            displayId = getPackageDisplayIdAsUserLocked(packageName, userId);
+            compatScale = getCompatScaleForPackageAsUserLocked(displayId, packageName, userId);
+        } finally {
+            mConfigLock.unlockRead(stamp);
         }
 
         float compatModeScalingFactor = mCarCompatScaleProviderInterface
@@ -318,17 +314,12 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
 
         if (displayId == INVALID_DISPLAY) {
             displayId = DEFAULT_DISPLAY;
-            long stamp = mConfigLock.tryOptimisticRead();
-            displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
-                    .get(applicationUid, displayId);
-            if (!mConfigLock.validate(stamp)) {
-                mConfigLock.readLock();
-                try {
-                    displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
-                            .get(applicationUid, displayId);
-                } finally {
-                    mConfigLock.unlockRead(stamp);
-                }
+            long stamp = mConfigLock.readLock();
+            try {
+                displayId = mPackageUidToLastLaunchedActivityDisplayIdMap
+                        .get(applicationUid, displayId);
+            } finally {
+                mConfigLock.unlockRead(stamp);
             }
         }
         long stamp = mConfigLock.writeLock();
@@ -348,15 +339,12 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             Slogf.d(TAG, "Feature %s is not available", FEATURE_CAR_DISPLAY_COMPATIBILITY);
             return false;
         }
-        long stamp = mConfigLock.tryOptimisticRead();
-        Boolean res = getCachedRequiresDisplayCompatLocked(packageName, userId);
-        if (!mConfigLock.validate(stamp)) {
-            stamp = mConfigLock.readLock();
-            try {
-                res = getCachedRequiresDisplayCompatLocked(packageName, userId);
-            } finally {
-                mConfigLock.unlockRead(stamp);
-            }
+        long stamp = mConfigLock.readLock();
+        Boolean res;
+        try {
+            res = getCachedRequiresDisplayCompatLocked(packageName, userId);
+        } finally {
+            mConfigLock.unlockRead(stamp);
         }
         if (res != null) {
             if (isDebugLoggable()) {
@@ -390,16 +378,12 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         if (!Flags.displayCompatibilityV2()) {
             return DEFAULT_SCALE;
         }
-        long stamp = mConfigLock.tryOptimisticRead();
-        CompatScaleWrapper compatScale = getCompatScaleForPackageAsUserLocked(displayId,
-                packageName, userId);
-        if (!mConfigLock.validate(stamp)) {
-            stamp = mConfigLock.readLock();
-            try {
-                compatScale = getCompatScaleForPackageAsUserLocked(displayId, packageName, userId);
-            } finally {
-                mConfigLock.unlockRead(stamp);
-            }
+        long stamp = mConfigLock.readLock();
+        CompatScaleWrapper compatScale;
+        try {
+            compatScale = getCompatScaleForPackageAsUserLocked(displayId, packageName, userId);
+        } finally {
+            mConfigLock.unlockRead(stamp);
         }
 
         float compatModeScalingFactor = mCarCompatScaleProviderInterface
