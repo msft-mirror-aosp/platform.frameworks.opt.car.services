@@ -48,6 +48,7 @@ android_test {
         "libdexmakerjvmtiagent",
         "libstaticjvmtiagent",
         "libcarservicehelperjni",
+        "libbpf",
     ],
 
     test_suites: [
