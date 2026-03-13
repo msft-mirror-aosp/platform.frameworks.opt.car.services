@@ -277,6 +277,10 @@ public class CarLaunchParamsModifierUpdatableTest {
         mModifier.setUpdatable(mUpdatable);
         mModifier.init();
 
+        // Switch to a non-system user as driver to avoid USER_SYSTEM being treated as driver
+        // in all tests by default, which triggers extra display assignment checks.
+        mModifier.handleCurrentUserSwitching(1234);
+
         when(mActivityRecordSource.getTask()).thenReturn(mSourceTask);
         when(mSourceTask.getRootTask()).thenReturn(mSourceRootTask);
 
@@ -335,7 +339,9 @@ public class CarLaunchParamsModifierUpdatableTest {
     }
 
     private void assertNoDisplayIsAssigned(@UserIdInt int userId) {
-        mTask.mUserId = userId;
+        if (mTask != null) {
+            mTask.mUserId = userId;
+        }
         mCurrentParams.mPreferredTaskDisplayArea = null;
         assertThat(mModifier.onCalculate(mTask, mWindowLayout, mActivityRecordActivity,
                 mActivityRecordSource, mActivityOptions, /* request= */ null, /* phase= */ 0,
@@ -449,7 +455,7 @@ public class CarLaunchParamsModifierUpdatableTest {
     @Test
     public void testAllowAllForDriverDuringBoot() {
         mUpdatable.setPassengerDisplays(new int[]{mDisplay10ForPassenger.getDisplayId(),
-                mDisplay10ForPassenger.getDisplayId()});
+                mDisplay11ForPassenger.getDisplayId()});
 
         // USER_SYSTEM should be allowed always
         assertAllDisplaysAllowedForUser(UserHandle.USER_SYSTEM);
@@ -501,6 +507,8 @@ public class CarLaunchParamsModifierUpdatableTest {
 
         assertDisplayIsAllowed(passengerUserId2, mDisplay11ForPassenger);
         // 11 not allowed, so reassigned to the 1st passenger display
+        when(mUserManagerInternal.getUserAssignedToDisplay(mDisplay10ForPassenger.getDisplayId()))
+                .thenReturn(passengerUserId1);
         assertDisplayIsReassigned(passengerUserId1, mDisplay11ForPassenger, mDisplay10ForPassenger);
     }
 
