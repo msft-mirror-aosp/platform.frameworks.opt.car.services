@@ -1,6 +1,5 @@
 // Signature format: 6.0
 // - style=java
-// - type-argument-spacing=legacy
 package android.content.res {
 
   public final class CompatScaleWrapper {
@@ -39,7 +38,7 @@ package com.android.internal.car {
     method public com.android.server.wm.CarDisplayCompatScaleProviderUpdatable getCarDisplayCompatScaleProviderUpdatable();
     method public com.android.server.wm.CarLaunchParamsModifierUpdatable getCarLaunchParamsModifierUpdatable();
     method public void notifyFocusChanged(int, int);
-    method public void onFactoryReset(@NonNull java.util.function.BiConsumer<Integer,android.os.Bundle>);
+    method public void onFactoryReset(@NonNull java.util.function.BiConsumer<Integer, android.os.Bundle>);
     method public void onStart();
     method public void onUserRemoved(@NonNull android.os.UserHandle);
     method public void sendUserLifecycleEvent(int, @Nullable android.os.UserHandle, @NonNull android.os.UserHandle);
@@ -110,7 +109,7 @@ package com.android.server.wm {
 
   public interface CarDisplayCompatHelperInterface {
     method public float getCompatModeScalingFactor(@NonNull String, @NonNull android.os.UserHandle);
-    method @NonNull public android.util.Pair<Integer,Integer> getCurrentAndTargetUserIds();
+    method @NonNull public android.util.Pair<Integer, Integer> getCurrentAndTargetUserIds();
     method @NonNull public java.util.List<android.content.pm.ApplicationInfo> getInstalledApplicationsAsUser(@NonNull android.content.pm.PackageManager.ApplicationInfoFlags, int);
     method public int getMainDisplayAssignedToUser(int);
     method @Nullable public android.content.pm.PackageInfo getPackageInfoAsUser(@NonNull String, @NonNull android.content.pm.PackageManager.PackageInfoFlags, int) throws android.content.pm.PackageManager.NameNotFoundException;
@@ -125,7 +124,7 @@ package com.android.server.wm {
 
   public interface CarLaunchParamsModifierInterface {
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper findTaskDisplayArea(int, int);
-    method @NonNull public android.util.Pair<Integer,Integer> getCurrentAndTargetUserIds();
+    method @NonNull public android.util.Pair<Integer, Integer> getCurrentAndTargetUserIds();
     method @Nullable public com.android.server.wm.TaskDisplayAreaWrapper getDefaultTaskDisplayAreaOnDisplay(int);
     method @NonNull public java.util.List<com.android.server.wm.TaskDisplayAreaWrapper> getFallbackDisplayAreasForActivity(@Nullable com.android.server.wm.ActivityRecordWrapper, @Nullable com.android.server.wm.RequestWrapper);
     method public int getMainDisplayAssignedToUser(int);
