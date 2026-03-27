@@ -400,41 +400,11 @@ public final class CarLaunchParamsModifierUpdatableImpl
                 targetDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
                         Display.DEFAULT_DISPLAY);
             }
-
-            if (userId == mDriverUser) {
-                // Let Core policy select display based on last focused display but check if the
-                // selected display is assigned to the launching user. Redirect the launch to the
-                // user's main assigned display.
-                if (originalDisplayArea != null) {
-                    targetDisplayArea = originalDisplayArea;
-                }
-                if (targetDisplayArea != null) {
-                    int displayId = targetDisplayArea.getDisplay().getDisplayId();
-                    int userForDisplay = getUserForDisplayLocked(displayId);
-                    if (userForDisplay != userId) {
-                        int mainDisplayId = mBuiltin.getMainDisplayAssignedToUser(userId);
-                        if (mainDisplayId == Display.INVALID_DISPLAY) {
-                            if (DBG) {
-                                Slogf.d(TAG, "Selected display %d is not assigned to user %d,"
-                                        + " falling back to default display as no assigned display"
-                                        + " is found.", displayId, userId);
-                            }
-                            mainDisplayId = Display.DEFAULT_DISPLAY;
-                        } else {
-                            if (DBG) {
-                                Slogf.d(TAG, "Selected display %d is not assigned to user %d,"
-                                        + " falling back to main display %d assigned to the user.",
-                                        displayId, userId, mainDisplayId);
-                            }
-                        }
-                        targetDisplayArea = mBuiltin.getDefaultTaskDisplayAreaOnDisplay(
-                                mainDisplayId);
-                    }
-                }
+            if (targetDisplayArea != null && userId == mDriverUser) {
+                // Respect the existing DisplayArea.
                 if (DBG) Slogf.d(TAG, "Skip the further check for Driver");
                 break decision;
             }
-
             if (userId == UserManagerHelper.USER_SYSTEM) {
                 // This will be only allowed if it has FLAG_SHOW_FOR_ALL_USERS.
                 // The flag is not immediately accessible here so skip the check.
