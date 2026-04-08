@@ -21,6 +21,8 @@ import static android.content.pm.PackageManager.FEATURE_AUTOMOTIVE;
 import static android.content.pm.PackageManager.GET_ACTIVITIES;
 import static android.content.pm.PackageManager.GET_CONFIGURATIONS;
 import static android.content.pm.PackageManager.GET_META_DATA;
+import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_AWARE;
+import static android.content.pm.PackageManager.MATCH_DIRECT_BOOT_UNAWARE;
 import static android.content.pm.PackageManager.SIGNATURE_MATCH;
 import static android.view.Display.DEFAULT_DISPLAY;
 import static android.view.Display.INVALID_DISPLAY;
@@ -470,7 +472,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
         UserHandle user = UserHandle.of(userId);
         try {
-            ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(/* flags */ 0);
+            ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(
+                    MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE);
             ApplicationInfo applicationInfo = mPackageManager
                     .getApplicationInfoAsUser(packageName, appFlags, user);
             if (applicationInfo != null) {
@@ -501,7 +504,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
             // mPackageManager is null during tests.
             return;
         }
-        ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(GET_META_DATA);
+        ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(
+                GET_META_DATA | MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE);
         List<ApplicationInfo> allPackagesForUser =
                 mCarCompatScaleProviderInterface.getInstalledApplicationsAsUser(appFlags, userId);
         for (int i = 0; i < allPackagesForUser.size(); i++) {
@@ -550,7 +554,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
     private boolean requiresDisplayCompatNotCachedLocked(@NonNull String packageName,
             @UserIdInt int userId) throws PackageManager.NameNotFoundException {
         UserHandle userHandle = UserHandle.of(userId);
-        ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(GET_META_DATA);
+        ApplicationInfoFlags appFlags = ApplicationInfoFlags.of(
+                GET_META_DATA | MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE);
         ApplicationInfo applicationInfo = mPackageManager
                 .getApplicationInfoAsUser(packageName, appFlags, userHandle);
 
@@ -565,7 +570,8 @@ public class CarDisplayCompatScaleProviderUpdatableImpl implements
         }
 
         PackageInfoFlags pkgFlags = PackageInfoFlags
-                .of(GET_CONFIGURATIONS | GET_ACTIVITIES | GET_META_DATA);
+                .of(GET_CONFIGURATIONS | GET_ACTIVITIES | GET_META_DATA
+                        | MATCH_DIRECT_BOOT_AWARE | MATCH_DIRECT_BOOT_UNAWARE);
         PackageInfo pkgInfo = mCarCompatScaleProviderInterface
                 .getPackageInfoAsUser(packageName, pkgFlags, userId);
 
